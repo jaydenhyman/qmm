@@ -2,12 +2,12 @@
 
 # QMM: Qualitative Mathematical Modelling
 
-QMM is a Python package for analysing the structure and function of complex systems.
+QMM is a software platform for analysing the structure and function of complex systems.
 
 ## Features
 
-- Interactive model building application for creating signed digraph (directed graph) models.
-- Comprehensive Python package (`qmm`) for qualitative mathematical modelling, including core modules for defining model structure, stability analysis, press perturbation analysis and making qualitative predictions.
+- Interactive web application (Digraph Builder) for creating signed digraph (network) models representing the mathematical structure of a complex system.
+- Python package (`qmm`) for qualitative mathematical modelling, including core modules for defining model structure, stability analysis, press perturbation analysis and making qualitative predictions.
 
 ## Contact
 

@@ -8,7 +8,7 @@ QMM is an open-source Python package that offers a robust and accessible approac
 
 - Interactive web-based model building application for creating signed digraph models.
 - Comprehensive Python package (`qmm`) for analysing qualitative mathematical models.
-- Modules for defining model structure, stability analysis, effects analysis, press perturbation and making qualitative predictions.
+- Modules for defining model structure, stability analysis, press perturbation and making qualitative predictions.
 - Uses well-established Python libraries including `networkx`, `sympy`, `numpy` and `pandas`.
 
 ## Contact

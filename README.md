@@ -1,13 +1,11 @@
 # ![QMM Logo](https://github.com/jaydenhyman/qmm/blob/6f9beb2d90807e8fbc9622a4db3cdf7c0fcd06aa/logo.png) QMM: Qualitative Mathematical Modelling
 
-QMM is an open-source software platform that offers a robust and accessible approach to analysing the structure and function of complex systems through an integrated web application and Python package. The integrated software program is a platform for building, analysing and presenting generalisable models of real-world systems and is an open-access resource for theoretical and applied science.
+QMM is a Python package for analysing the structure and function of complex systems. QMM is an open-source and free tool for theoretical and applied science.
 
 ## Features
 
-- Interactive web-based model building application for creating signed digraph models.
-- Comprehensive Python package (`qmm`) for analysing qualitative mathematical models.
-- Modules for defining model structure, stability analysis, press perturbation and making qualitative predictions.
-- Uses well-established Python libraries including `networkx`, `sympy`, `numpy` and `pandas`.
+- Interactive model building application for creating signed digraph (directed graph) models.
+- Comprehensive Python package (`qmm`) for qualitative mathematical modelling, including core modules for defining model structure, stability analysis, press perturbation and making qualitative predictions.
 
 ## Contact
 
@@ -37,7 +35,7 @@ Jayden Hyman: <j.hyman@uq.edu.au>
       - Find JupyterLab in the list of applications
       - Click "Install"
 
-   This method uses Anaconda's default packages, which include NumPy, SymPy, NetworkX, Pandas, Numba, and Graphviz. JupyterLab provides an integrated development environment for running the QMM package.
+   This method uses Anaconda's default packages, which include NumPy, SymPy, NetworkX, Pandas, Numba, and Graphviz. JupyterLab provides an integrated development environment for running QMM package functions.
 
    Option 2: Using Miniconda
 
@@ -57,21 +55,7 @@ Jayden Hyman: <j.hyman@uq.edu.au>
       conda install -c conda-forge graphviz=0.20.3
       ```
 
-   Option 3: Using Python directly
-
-   a. Install Python 3.10 from <https://www.python.org/>
-
-   b. Install Graphviz 0.20.3 from <https://graphviz.org/download/>
-
-   c. Open a command prompt and install the required packages:
-
-      ```bash
-      pip install numpy==1.26.4 networkx==3.3 pandas==2.0.2 numba==0.60.0 sympy==1.13 graphviz==0.20.3
-      ```
-
-   Note: If you encounter issues installing Graphviz, consider using the Anaconda or Miniconda method instead.
-
-2. Use the web-based model building application to create signed digraph models: [Open in browser](https://d2x70551if0frn.cloudfront.net/)
+2. Use the web application to create signed digraph models: [Open in browser](https://d2x70551if0frn.cloudfront.net/)
 
 3. The `qmm.ipynb` file provides core functions to analyse signed digraph models. To get started with analysing your model, open this file in JupyterLab or your preferred Python IDE.
 

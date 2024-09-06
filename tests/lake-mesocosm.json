@@ -1,0 +1,527 @@
+{
+  "nodes": [
+    {
+      "id": "P",
+      "label": "Mineral phosphorus",
+      "x": -150,
+      "y": 200,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "A1",
+      "label": "Edible algae",
+      "x": -300,
+      "y": 50,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "A2",
+      "label": "Protected algae",
+      "x": -150,
+      "y": 50,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "AP",
+      "label": "Periphyton",
+      "x": 0,
+      "y": 50,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "H1",
+      "label": "Small herbivores",
+      "x": -300,
+      "y": -100,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "H2",
+      "label": "Large herbivores",
+      "x": -150,
+      "y": -100,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "C1",
+      "label": "Invertebrate carnivores",
+      "x": -300,
+      "y": -250,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    },
+    {
+      "id": "C2",
+      "label": "Fish",
+      "x": -150,
+      "y": -250,
+      "shape": "dot",
+      "color": {
+        "background": "white",
+        "border": "black",
+        "highlight": {
+          "border": "blue"
+        },
+        "hover": {
+          "border": "blue"
+        }
+      },
+      "font": {
+        "color": "black",
+        "size": 18,
+        "strokeWidth": 5,
+        "strokeColor": "white",
+        "vadjust": -45
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": 1,
+      "from": "P",
+      "to": "A1",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 2,
+      "from": "P",
+      "to": "A2",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 3,
+      "from": "P",
+      "to": "AP",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 4,
+      "from": "AP",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 5,
+      "from": "A2",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 6,
+      "from": "A1",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 7,
+      "from": "H2",
+      "to": "A2",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 8,
+      "from": "H2",
+      "to": "A1",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 9,
+      "from": "H1",
+      "to": "A1",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 10,
+      "from": "C1",
+      "to": "H1",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 11,
+      "from": "C2",
+      "to": "H1",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 12,
+      "from": "A2",
+      "to": "H2",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 13,
+      "from": "A1",
+      "to": "H2",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 14,
+      "from": "A1",
+      "to": "H1",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 15,
+      "from": "H1",
+      "to": "C2",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 16,
+      "from": "H1",
+      "to": "C1",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 17,
+      "from": "C1",
+      "to": "C2",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 18,
+      "from": "C2",
+      "to": "C1",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 19,
+      "from": "C2",
+      "to": "C2",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 20,
+      "from": "AP",
+      "to": "AP",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 21,
+      "from": "C2",
+      "to": "H2",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 22,
+      "from": "H2",
+      "to": "C2",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCCW",
+        "roundness": 0.075
+      }
+    },
+    {
+      "id": 23,
+      "from": "P",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    }
+  ],
+  "meta": {
+    "title": "Hulot2000",
+    "version": "1",
+    "authors": "Jayden Hyman",
+    "date_created": "20240906",
+    "description": "Food-web model describing direct interactions among functional groups in the lake ecosystem"
+  }
+}

@@ -4,7 +4,7 @@ QMM is a software platform for analysing the structure and function of complex s
 
 ## Features
 
-- Interactive web application (Digraph Builder) for creating signed digraph (network) models representing the mathematical structure of a complex system.
+- Interactive web application for creating signed digraph (network) models representing the mathematical structure of a complex system.
 - Python package (`qmm`) for qualitative mathematical modelling, including core modules for defining model structure, stability analysis, press perturbation analysis and making qualitative predictions.
 
 ## Contact

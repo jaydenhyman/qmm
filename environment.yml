@@ -4,15 +4,17 @@ channels:
   - conda-forge
 dependencies:
   - python=3.10
-  - flake8
   - pytest
   - numpy
-  - networkx
-  - pandas
-  - numba
   - sympy
+  - networkx
   - graphviz
+  - numba
+  - pandas
   - seaborn
   - matplotlib
-  - jupyter
-  
+  - pip
+  - pip:
+    - build
+    - twine
+    - ruff

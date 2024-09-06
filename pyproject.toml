@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "qmm"
+version = "0.2.1"
+authors = [
+  { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
+]
+description = "A software platform for analysing the structure and function of complex systems"
+readme = "README.md"
+requires-python = ">=3.10"
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3.10",
+]
+dependencies = [
+    "pytest",
+    "numpy",
+    "sympy",
+    "networkx",
+    "graphviz",
+    "numba",
+    "pandas",
+    "seaborn",
+    "matplotlib",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/jaydenhyman/qmm"
+"Bug Tracker" = "https://github.com/jaydenhyman/qmm/issues"
+
+[tool.setuptools.packages.find]
+exclude = ["tests*"]
+
+[tool.setuptools.package-data]
+qmm = ["py.typed"]

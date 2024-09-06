@@ -3,8 +3,8 @@ requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "qmm"
-version = "0.2.2"  # Increment this
+name = "qmm-core"
+version = "0.2.2"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]

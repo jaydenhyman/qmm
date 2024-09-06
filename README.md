@@ -1,4 +1,4 @@
-![QMM Logo](https://github.com/jaydenhyman/qmm/blob/6f9beb2d90807e8fbc9622a4db3cdf7c0fcd06aa/logo.png) 
+![QMM Logo](https://github.com/jaydenhyman/qmm/blob/bd7b822e29b7f5e24d9627ae6a0bfa8d1ae9efb7/logo.png) 
 
 Qualitative Mathematical Modelling (QMM) is a software platform for analysing the structure and function of complex systems.
 

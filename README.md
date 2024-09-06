@@ -1,6 +1,8 @@
 # QMM: Qualitative Mathematical Modelling in Python
 
-Qualitative Mathematical Modelling (QMM) is an open-source Python package that offers a robust and accessible approach to analysing the structure and function of complex systems through an integrated web application and Python package. The integrated software program is a platform for building, analysing and presenting generalisable models of real-world systems and is an open-access resource for theoretical and applied science.
+![QMM Logo](icon.png)
+
+QMM is an open-source Python package that offers a robust and accessible approach to analysing the structure and function of complex systems through an integrated web application and Python package. The integrated software program is a platform for building, analysing and presenting generalisable models of real-world systems and is an open-access resource for theoretical and applied science.
 
 ## Features
 

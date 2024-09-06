@@ -73,7 +73,7 @@ Jayden Hyman: <j.hyman@uq.edu.au>
 
 2. Use the web-based model building application to create signed digraph models: [Open in browser](https://d2x70551if0frn.cloudfront.net/)
 
-3. The `qmm.ipynb` provides core functions to analyse signed digraph models. To get started with analysing your model, open this file in JupyterLab or your preferred Python IDE.
+3. The `qmm.ipynb` file provides core functions to analyse signed digraph models. To get started with analysing your model, open this file in JupyterLab or your preferred Python IDE.
 
 ## Documentation
 

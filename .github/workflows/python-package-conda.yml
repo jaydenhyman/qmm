@@ -21,13 +21,20 @@ jobs:
     - name: Install dependencies
       run: |
         conda env update --file environment.yml --name base
+    - name: Install package
+      run: |
+        pip install -e .
     - name: Install Ruff
       run: |
         pip install ruff
     - name: Lint with Ruff
       run: |
         ruff check qmm
-    - name: Test with pytest
+    - name: Install pytest
       run: |
         conda install pytest
+    - name: Run tests
+      run: |
         pytest
+      env:
+        PYTHONPATH: ${{ github.workspace }}

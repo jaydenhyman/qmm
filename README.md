@@ -1,6 +1,6 @@
 # QMM: Qualitative Mathematical Modelling in Python
 
-![QMM Logo](https://github.com/jaydenhyman/qmm/blob/7f8296adc0c3ba1ebf5fff04ff6a97da57304d05/logo.png)
+![QMM Logo](https://github.com/jaydenhyman/qmm/blob/6f9beb2d90807e8fbc9622a4db3cdf7c0fcd06aa/logo.png)
 
 QMM is an open-source Python package that offers a robust and accessible approach to analysing the structure and function of complex systems through an integrated web application and Python package. The integrated software program is a platform for building, analysing and presenting generalisable models of real-world systems and is an open-access resource for theoretical and applied science.
 

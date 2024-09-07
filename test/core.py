@@ -5,7 +5,7 @@ import pandas as pd
 from qmm import *
 
 # Test file
-test_json_path = "tests/lake-mesocosm.json"
+test_json_path = "test/mesocosm.json"
 
 @pytest.fixture
 def test_graph():

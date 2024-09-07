@@ -34,7 +34,7 @@ dependencies = [
 "Bug Tracker" = "https://github.com/jaydenhyman/qmm/issues"
 
 [tool.setuptools.packages.find]
-exclude = ["tests*"]
+exclude = ["test*"]
 
 [tool.setuptools.package-data]
 qmm = ["py.typed"]

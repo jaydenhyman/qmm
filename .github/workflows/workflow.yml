@@ -39,7 +39,7 @@ jobs:
         conda install pytest
     - name: Run tests
       run: |
-        pytest
+        pytest test/core.py
       env:
         PYTHONPATH: ${{ github.workspace }}
 

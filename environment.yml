@@ -8,7 +8,6 @@ dependencies:
   - numpy
   - sympy
   - networkx
-  - graphviz
   - numba
   - pandas
   - seaborn

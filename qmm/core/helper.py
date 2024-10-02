@@ -2,7 +2,6 @@ import numpy as np
 import sympy as sp
 import networkx as nx
 from numba import jit
-import graphviz
 
 def list_to_digraph(matrix, ids=None):
     if not isinstance(matrix, (list, np.ndarray)):
@@ -250,75 +249,3 @@ def symbolic_path(G, A, path, nodes):
         for i in range(len(path) - 1)
     )
 
-
-
-def display_digraph(G, label=False, output_format="svg", self_effects=True):
-    def set_lbl(node, idx):
-        return G.nodes[node].get("label", str(idx + 1)) if label else node
-
-    def dot_node(node, idx):
-        lbl = set_lbl(node, idx)
-        x = G.nodes[node].get("x", None)
-        y = G.nodes[node].get("y", None)
-        pos = f"{x / 100},{-y / 100}!" if x is not None and y is not None else ""
-        category = G.nodes[node].get("category")
-        if category == "input":
-            shape = "rectangle"
-            size = "0.45,0.45"
-            color = "#FFD0C9"  # Light red for input nodes
-        elif category == "output":
-            shape = "diamond"
-            size = "0.6,0.6"
-            color = "lightblue"  # Light blue for output nodes
-        elif category == "state":
-            shape = "oval"
-            size = "0.52,0.52"
-            color = "cornsilk"  # Light yellow for state nodes
-        else:
-            shape = "oval"
-            size = "0.52,0.52"
-            color = "whitesmoke"  # Default color
-        wrap = "\\n" if label else ""
-        fixsz = "false" if label else "true"
-        return (
-            f'    {node} [label="{lbl}{wrap}", pos="{pos}", '
-            f'shape={shape}, width={size.split(",")[0]}, '
-            f'height={size.split(",")[1]}, fixedsize={fixsz}, '
-            f'color="black", style="filled", fillcolor="{color}"];'
-        )
-
-    def dot_edge(src, tgt, sign):
-        arrow = "normal" if sign.get("sign", 1) == 1 else "dot"
-        return f"    {src} -> {tgt} [arrowhead={arrow}];"
-
-    has_positions = any(
-        "x" in G.nodes[node] and "y" in G.nodes[node] for node in G.nodes
-    )
-
-    dot = [
-        "digraph G {",
-        'layout = "neato";',
-    ]
-
-    if not has_positions:
-        dot.extend(
-            [
-                'graph [overlap=false, splines=true, sep="+10"];',
-                "node [fixedsize=true];",
-            ]
-        )
-
-    dot.extend(
-        [
-            "edge [labelangle=45, labeldistance=2.0];",
-            'edge [layer="back"];',
-            'node [layer="front"];',
-        ]
-    )
-
-    dot.extend(
-        dot_edge(s, t, d) for s, t, d in G.edges(data=True) if self_effects or s != t
-    )
-    dot.extend(dot_node(n, i) for i, n in enumerate(G.nodes))
-    dot.append("}")
-    return graphviz.Source("\n".join(dot), format=output_format)

@@ -16,6 +16,7 @@ from .core.stability import (
     absolute_determinants,
     weighted_determinants,
     determinants_metrics,
+    create_model_c,
     conditional_stability,
     simulation_stability,
 )
@@ -44,13 +45,11 @@ from .core.helper import (
     get_negative,
     get_weight,
     sign_determinacy,
-    display_digraph,
 )
 
 __all__ = [
     # structure.py
     "import_digraph",
-    "display_digraph",
     "create_matrix",
     "create_equations",
     # stability.py
@@ -65,6 +64,7 @@ __all__ = [
     "absolute_determinants",
     "weighted_determinants",
     "determinants_metrics",
+    "create_model_c",
     "conditional_stability",
     "simulation_stability",
     # press.py

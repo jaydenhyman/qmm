@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qmm-core"
-version = "0.2.3"
+version = "0.2.4"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]
@@ -22,7 +22,6 @@ dependencies = [
     "numpy",
     "sympy",
     "networkx",
-    "graphviz",
     "numba",
     "pandas",
     "seaborn",

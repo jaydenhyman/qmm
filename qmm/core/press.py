@@ -105,15 +105,9 @@ def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42,
             except np.linalg.LinAlgError:
                 continue
     smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
-    smat = sp.Matrix(smat)
     tmat = absolute_feedback_matrix(G)
     tmat_np = np.array(tmat.tolist(), dtype=bool)
-    smat = sp.Matrix(
-        [
-            [sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)]
-            for i in range(n)
-        ]
-    )
+    smat = np.where(tmat_np, smat, np.nan)
     if as_abs:
-        smat = sp.Abs(smat)
-    return sp.Matrix(smat)
+        smat = np.abs(smat)
+    return sp.Matrix(np.array(smat, dtype=np.float64))

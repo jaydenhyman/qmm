@@ -75,7 +75,7 @@ def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42,
     node_idx = {node: i for i, node in enumerate(state_nodes)}
     n = len(state_nodes)
     symbols = list(A.free_symbols)
-    A_sp = sp.lambdify(symbols, A)
+    A_sp = sp.lambdify(symbols, A, modules="numpy")
     pert_idx, sign = (
         (node_idx[perturb[0]], perturb[1]) 
         if perturb else (None, 1)

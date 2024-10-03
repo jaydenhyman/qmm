@@ -75,7 +75,7 @@ def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42,
     node_idx = {node: i for i, node in enumerate(state_nodes)}
     n = len(state_nodes)
     symbols = list(A.free_symbols)
-    A_sp = sp.lambdify(symbols, A, modules="numpy")
+    A_sp = sp.lambdify(symbols, A)
     pert_idx, sign = (
         (node_idx[perturb[0]], perturb[1]) 
         if perturb else (None, 1)
@@ -105,9 +105,15 @@ def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42,
             except np.linalg.LinAlgError:
                 continue
     smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
+    smat = sp.Matrix(smat)
     tmat = absolute_feedback_matrix(G)
     tmat_np = np.array(tmat.tolist(), dtype=bool)
-    smat = np.where(tmat_np, smat, np.nan)
+    smat = sp.Matrix(
+        [
+            [sp.nan if not tmat_np[i, j] else float(smat[i, j]) for j in range(n)]
+            for i in range(n)
+        ]
+    )
     if as_abs:
-        smat = np.abs(smat)
-    return sp.Matrix(np.array(smat, dtype=np.float64))
+        smat = sp.Abs(smat)
+    return sp.Matrix(smat)

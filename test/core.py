@@ -30,7 +30,7 @@ def test_sign_stability(test_graph):
 def test_feedback_metrics(test_graph):
     result = feedback_metrics(test_graph)
     assert isinstance(result, pd.DataFrame)
-    assert 'Level' in result.columns
+    assert 'Feedback level' in result.columns
     assert 'Net' in result.columns
 
 def test_determinants_metrics(test_graph):

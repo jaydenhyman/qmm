@@ -158,10 +158,10 @@ def feedback_metrics(G):
     negative = get_negative(net, absolute)
     weighted = weighted_feedback(G)
     n = len(positive)
-    levels = [f"$F_{{{i}}}$" for i in range(n)]
+    levels = [str(i) for i in range(n)]
 
     df = {
-        "Level": levels,
+        "Feedback level": levels,
         "Net": [net[i, 0] for i in range(n)],
         "Absolute": [absolute[i, 0] for i in range(n)],
         "Positive": [positive[i, 0] for i in range(n)],
@@ -227,7 +227,7 @@ def determinants_metrics(G):
     absolute = absolute_determinants(G)
     weighted = weighted_determinants(G)
     n = len(net)
-    levels = [f"$\Delta_{{{i}}}$" for i in range(n)]
+    levels = [str(i) for i in range(n)]
     df = {
         "Hurwitz determinant": levels,
         "Net": [net[i, 0] for i in range(n)],

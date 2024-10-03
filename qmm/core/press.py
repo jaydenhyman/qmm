@@ -110,7 +110,7 @@ def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42,
     tmat_np = np.array(tmat.tolist(), dtype=bool)
     smat = sp.Matrix(
         [
-            [sp.nan if not tmat_np[i, j] else float(smat[i, j]) for j in range(n)]
+            [sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)]
             for i in range(n)
         ]
     )

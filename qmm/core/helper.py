@@ -54,7 +54,7 @@ def perm(A, method="glynn"):
     if np.isnan(A).any():
         raise ValueError("Input matrix must not contain NaNs.")
     if matshape[0] == 0:
-        return 1
+        return A.dtype.type(1.0)
     if matshape[0] == 1:
         return A[0, 0]
     if matshape[0] == 2:
@@ -75,7 +75,7 @@ def perm(A, method="glynn"):
 def _ryser(A):
     n = len(A)
     if n == 0:
-        return 1
+        return A.dtype.type(1.0)
     row_comb = np.zeros((n), dtype=A.dtype)
     total = 0
     old_grey = 0
@@ -102,7 +102,7 @@ def _ryser(A):
 def _glynn(A):
     n = len(A)
     if n == 0:
-        return 1
+        return A.dtype.type(1.0)
     row_comb = np.sum(A, 0)
     total = 0
     old_gray = 0

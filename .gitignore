@@ -2,6 +2,8 @@
 __pycache__/
 *.py[cod]
 *$py.class
+qmm_api.py
+qmm.qmd
 
 # C extensions
 *.so

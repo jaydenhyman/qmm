@@ -2,12 +2,12 @@
 
 ![QMM Logo](https://github.com/jaydenhyman/qmm/blob/1d58b3b48173f534eaa535b9c891d159a463da6e/logo.png)
 
-Qualitative Mathematical Modelling (QMM) is a method for analysing the structure of complex systems where general causal relationships are known but precise quantitative data are lacking. By utilising signed digraphs to visualise network structure, QMM enables users to build models of real-world systems and generate scientifically robust and testable predictions of system response to perturbations. As an open-source software tool, QMM provides insights into system behaviour for researchers and practitioners across various fields, including ecology, natural resource management, epidemiology, economics, and the social sciences.
+Qualitative Mathematical Modelling (QMM) is a method for analysing the structure of complex systems where general causal relationships are known but precise quantitative data are lacking. By utilising networks (signed digraphs) to visualise system structure, QMM enables users to build models of real-world systems and generate scientifically testable predictions of system response to perturbations. As an open-source software tool, QMM provides insights into system behaviour for researchers and practitioners across various fields, including ecology, natural resource management, epidemiology, economics, and the social sciences.
 
 ## Features
 
-- Interactive web application for creating signed digraph (network) models representing the mathematical structure of a complex system.
 - Python package (`qmm`) for qualitative mathematical modelling, including core modules for defining model structure, stability analysis, perturbation analysis and making qualitative predictions.
+- Integration with an interactive web application for creating signed digraph (network) models representing the mathematical structure of a complex system.
 
 ## Contact
 

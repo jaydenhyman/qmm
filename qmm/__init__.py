@@ -47,6 +47,53 @@ from .core.helper import (
     sign_determinacy,
 )
 
+
+from .extensions.sensitivity import (
+    structural_sensitivity,
+    net_structural_sensitivity,
+    absolute_structural_sensitivity,
+    weighted_structural_sensitivity,
+)
+from .extensions.life import (
+    birth_matrix,
+    death_matrix,
+    life_expectancy_change,
+    net_life_expectancy_change,
+    absolute_life_expectancy_change,
+    weighted_predictions_life_expectancy,
+)
+from .extensions.paths import (
+    get_paths,
+    paths_table,
+    get_cycles,
+    cycles_table,
+    complementary_feedback,
+    system_paths,
+    weighted_paths,
+)
+from .extensions.effects import (
+    define_state_space,
+    cumulative_effects,
+    net_effects,
+    absolute_effects,
+    positive_effects,
+    negative_effects,
+    weighted_effects,
+    sign_determinacy_effects,
+    get_simulations,
+    simulation_effects,
+)
+
+from .extensions.indicators import mutual_information
+
+from .extensions.validation import (
+    marginal_likelihood,
+    bayes_factors,
+    posterior_predictions,
+    diagnose_observations,
+)
+
+
 __all__ = [
     # structure.py
     "import_digraph",
@@ -77,6 +124,54 @@ __all__ = [
     "table_of_predictions",
     "compare_predictions",
     "create_plot",
+    # helper.py
+    "list_to_digraph",
+    "digraph_to_list",
+    "powerplay_labels",
+    "perm",
+    "get_nodes",
+    "get_positive",
+    "get_negative",
+    "get_weight",
+    "sign_determinacy",
+    # sensitivity.py
+    "structural_sensitivity",
+    "net_structural_sensitivity",
+    "absolute_structural_sensitivity",
+    "weighted_structural_sensitivity",
+    # life.py
+    "birth_matrix",
+    "death_matrix",
+    "life_expectancy_change",
+    "net_life_expectancy_change",
+    "absolute_life_expectancy_change",
+    "weighted_predictions_life_expectancy",
+    # paths.py
+    "get_paths",
+    "paths_table",
+    "get_cycles",
+    "cycles_table",
+    "complementary_feedback",
+    "system_paths",
+    "weighted_paths",
+    # effects.py
+    "define_state_space",
+    "cumulative_effects",
+    "net_effects",
+    "absolute_effects",
+    "positive_effects",
+    "negative_effects",
+    "weighted_effects",
+    "sign_determinacy_effects",
+    "get_simulations",
+    "simulation_effects",
+    # indicators.py
+    "mutual_information",
+    # validation.py
+    "marginal_likelihood",
+    "bayes_factors",
+    "posterior_predictions",
+    "diagnose_observations",
     # helper.py
     "list_to_digraph",
     "digraph_to_list",

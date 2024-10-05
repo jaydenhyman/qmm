@@ -4,16 +4,16 @@ import sympy as sp
 from .helper import get_nodes
 
 
-def import_digraph(file_path):
-    with open(file_path, "r") as file:
-        data = json.load(file)
+def import_digraph(data, file_path=True):
+    if file_path:
+        with open(data, "r") as file:
+            data = json.load(file)
     G = nx.DiGraph()
     for node in data["nodes"]:
         att = {k: v for k, v in node.items() if k != "id"}
         G.add_node(node["id"], **att)
     for edge in data["edges"]:
-        source = edge["from"]
-        target = edge["to"]
+        source, target = edge["from"], edge["to"]
         att = {k: v for k, v in edge.items() if k not in ["from", "to", "arrows"]}
         arr = edge.get("arrows", {}).get("to", {})
         if isinstance(arr, dict):

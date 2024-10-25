@@ -9,9 +9,6 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
     strategy:
       max-parallel: 5
       matrix:
@@ -25,6 +22,7 @@ jobs:
         python-version: ${{ matrix.python-version }}  
     - name: Add conda to system path
       run: |
+        # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
     - name: Install dependencies
       run: |
@@ -46,6 +44,7 @@ jobs:
         pytest test/core.py
       env:
         PYTHONPATH: ${{ github.workspace }}
+
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
@@ -55,4 +54,6 @@ jobs:
     - name: Publish package
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }}
         verbose: true

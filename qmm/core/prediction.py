@@ -30,10 +30,18 @@ def table_of_predictions(M, t1=0.8, t2=1, index=None, columns=None):
 def compare_predictions(M1, M2):
     if not M1.index.equals(M2.index) or not M1.columns.equals(M2.columns):
         raise ValueError("M1 and M2 must have the same index and columns")
-    combined = np.vectorize(lambda x, y: x if x == y else f"{x}, {y}")(
-        M1.values, M2.values
+    M1_str = M1.astype(str)
+    M2_str = M2.astype(str)
+    combined = pd.DataFrame(
+        index=M1.index,
+        columns=M1.columns,
+        data=np.where(
+            M1_str.values == M2_str.values,
+            M1_str.values,
+            M1_str.values + ", " + M2_str.values
+        )
     )
-    return pd.DataFrame(combined, index=M1.index, columns=M1.columns)
+    return combined
 
 
 def create_plot(data, **kwargs):

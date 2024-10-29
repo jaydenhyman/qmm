@@ -6,7 +6,11 @@ from ..core.helper import get_nodes, get_weight, get_positive, get_negative, sig
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix, absolute_feedback_matrix
 
-def define_state_space(G, remove_disconnected=True):
+
+def define_state_space(
+    G: nx.DiGraph, 
+    remove_disconnected: bool = True
+) -> nx.DiGraph:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
 
@@ -47,7 +51,7 @@ def define_state_space(G, remove_disconnected=True):
 
 
 @cache
-def cumulative_effects(G, form="symbolic"):
+def cumulative_effects(G: nx.DiGraph, form: str = "symbolic") -> sp.Matrix:
     B = create_matrix(G, form=form, matrix_type="B")
     C = create_matrix(G, form=form, matrix_type="C")
     D = create_matrix(G, form=form, matrix_type="D")
@@ -68,38 +72,38 @@ def cumulative_effects(G, form="symbolic"):
 
 
 @cache
-def net_effects(G):
+def net_effects(G: nx.DiGraph) -> sp.Matrix:
     return cumulative_effects(G, form="signed")
 
 
 @cache
-def absolute_effects(G):
+def absolute_effects(G: nx.DiGraph) -> sp.Matrix:
     return cumulative_effects(G, form="binary")
 
 
 @cache
-def positive_effects(G):
+def positive_effects(G: nx.DiGraph) -> sp.Matrix:
     net = net_effects(G)
     absolute = absolute_effects(G)
     return get_positive(net, absolute)
 
 
 @cache
-def negative_effects(G):
+def negative_effects(G: nx.DiGraph) -> sp.Matrix:
     net = net_effects(G)
     absolute = absolute_effects(G)
     return get_negative(net, absolute)
 
 
 @cache
-def weighted_effects(G):
+def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
     net = net_effects(G)
     absolute = absolute_effects(G)
     return get_weight(net, absolute)
 
 
 @cache
-def sign_determinacy_effects(G, method="average"):
+def sign_determinacy_effects(G: nx.DiGraph, method: str = "average") -> sp.Matrix:
     wmat = weighted_effects(G)
     tmat = absolute_effects(G)
     return sign_determinacy(wmat, tmat, method=method)
@@ -168,7 +172,12 @@ def get_simulations(G, n_sim=10000, dist="uniform", seed=42, perturb=None, obser
     return {"effects": effects, "valid_sims": valid_sims, "all_nodes": all_nodes, "tmat": tmat}
 
 
-def simulation_effects(G, n_sim=10000, dist="uniform", seed=42):
+def simulation_effects(
+    G: nx.DiGraph, 
+    n_sim: int = 10000, 
+    dist: str = "uniform", 
+    seed: int = 42
+) -> sp.Matrix:
     sims = get_simulations(G, n_sim, dist, seed)
     tmat = sims["tmat"]
     state_nodes = get_nodes(G, "state")

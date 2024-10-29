@@ -90,7 +90,7 @@ from .extensions.indicators import mutual_information
 
 from .extensions.validation import (
     marginal_likelihood,
-    model_validaiton,
+    model_validation,
     posterior_predictions,
     diagnose_observations,
 )
@@ -182,7 +182,7 @@ __all__ = [
     "mutual_information",
     # validation.py
     "marginal_likelihood",
-    "model_validaiton",
+    "model_validation",
     "posterior_predictions",
     "diagnose_observations",
     # helper.py

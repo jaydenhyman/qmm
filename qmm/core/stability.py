@@ -4,11 +4,12 @@ import networkx as nx
 import sympy as sp
 from itertools import combinations
 from functools import cache
+from typing import Optional
 from .structure import create_matrix
 from .helper import perm, get_positive, get_negative, get_weight
 
 
-def colour_test(G):
+def colour_test(G: nx.DiGraph) -> str:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     colour = {i: "black" if A[i, i] != 0 else "white" for i in range(n)}
@@ -38,7 +39,7 @@ def colour_test(G):
         return "Fail"
 
 
-def sign_stability(G):
+def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
     A = sp.matrix2numpy(create_matrix(G, form="signed")).astype(int)
     n = A.shape[0]
     conditions = [
@@ -77,7 +78,11 @@ def sign_stability(G):
 
 
 @cache
-def system_feedback(G, level=None, form="symbolic"):
+def system_feedback(
+    G: nx.DiGraph, 
+    level: Optional[int] = None, 
+    form: str = "symbolic"
+) -> sp.Matrix:
     A = create_matrix(G, form=form)
     if level == 0:
         return sp.Matrix([-1])
@@ -92,12 +97,16 @@ def system_feedback(G, level=None, form="symbolic"):
 
 
 @cache
-def net_feedback(G, level=None):
+def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     return system_feedback(G, level=level, form="signed")
 
 
 @cache
-def absolute_feedback(G, level=None, method="combinations"):
+def absolute_feedback(
+    G: nx.DiGraph, 
+    level: Optional[int] = None, 
+    method: str = "combinations"
+) -> sp.Matrix:
     A = create_matrix(G, form="signed")
     if level == 0:
         return sp.Matrix([1])
@@ -131,13 +140,13 @@ def absolute_feedback(G, level=None, method="combinations"):
 
 
 @cache
-def weighted_feedback(G, level=None):
+def weighted_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     net_fb = net_feedback(G, level=level)
     tot_fb = absolute_feedback(G, level=level)
     return get_weight(net_fb, tot_fb)
 
 
-def hurwitz_matrix(fb, level):
+def hurwitz_matrix(fb: sp.Matrix, level: int) -> sp.Matrix:
     fb_pos = fb * sp.Integer(-1)
     if level == 0:
         return sp.Matrix([fb_pos[0]])
@@ -151,7 +160,7 @@ def hurwitz_matrix(fb, level):
 
 
 @cache
-def feedback_metrics(G):
+def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
     net = net_feedback(G)
     absolute = absolute_feedback(G)
     positive = get_positive(net, absolute)
@@ -173,7 +182,11 @@ def feedback_metrics(G):
 
 
 @cache
-def hurwitz_determinants(G, level=None, form="symbolic"):
+def hurwitz_determinants(
+    G: nx.DiGraph, 
+    level: Optional[int] = None, 
+    form: str = "symbolic"
+) -> sp.Matrix:
     fb = system_feedback(G, level=None, form=form)
     n = len(fb) - 1
     if n > 5 and form == "symbolic":
@@ -188,12 +201,12 @@ def hurwitz_determinants(G, level=None, form="symbolic"):
 
 
 @cache
-def net_determinants(G, level=None):
+def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     return hurwitz_determinants(G, level=level, form="signed")
 
 
 @cache
-def absolute_determinants(G, level=None):
+def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     tot_fb = absolute_feedback(G)
     n = tot_fb.shape[0] - 1
     h = hurwitz_matrix(tot_fb, n)
@@ -214,7 +227,7 @@ def absolute_determinants(G, level=None):
 
 
 @cache
-def weighted_determinants(G, level=None):
+def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     net_det = net_determinants(G, level=level)
     tot_det = absolute_determinants(G, level=level)
     wgt_det = get_weight(net_det, tot_det)
@@ -222,7 +235,7 @@ def weighted_determinants(G, level=None):
 
 
 @cache
-def determinants_metrics(G):
+def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
     net = net_determinants(G)
     absolute = absolute_determinants(G)
     weighted = weighted_determinants(G)
@@ -238,7 +251,7 @@ def determinants_metrics(G):
 
 
 @cache
-def create_model_c(n):
+def create_model_c(n: int) -> nx.DiGraph:
     C = nx.DiGraph()
     for i in range(n):
         C.add_node(i)
@@ -251,7 +264,7 @@ def create_model_c(n):
 
 
 @cache
-def conditional_stability(G):
+def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     w_fb = weighted_feedback(G)
@@ -294,7 +307,7 @@ def conditional_stability(G):
 
 
 @cache
-def simulation_stability(G, n_sim=10000):
+def simulation_stability(G: nx.DiGraph, n_sim: int = 10000) -> pd.DataFrame:
     A = create_matrix(G, "signed")
     A = sp.matrix2numpy(A).astype(int)
     n_stable = 0

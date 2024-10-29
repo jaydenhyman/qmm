@@ -1,19 +1,22 @@
 import json
+from typing import Union, List, Dict, Tuple, Any
 import networkx as nx
 import sympy as sp
 from .helper import get_nodes
 
 
-def import_digraph(data, file_path=True):
+def import_digraph(
+    data: Union[str, Dict[str, Any]], file_path: bool = True
+) -> nx.DiGraph:
     if file_path:
         with open(data, "r") as file:
             data = json.load(file)
     G = nx.DiGraph()
     for node in data["nodes"]:
         att = {k: v for k, v in node.items() if k != "id"}
-        G.add_node(node["id"], **att)
+        G.add_node(str(node["id"]), **att)
     for edge in data["edges"]:
-        source, target = edge["from"], edge["to"]
+        source, target = str(edge["from"]), str(edge["to"])
         att = {k: v for k, v in edge.items() if k not in ["from", "to", "arrows"]}
         arr = edge.get("arrows", {}).get("to", {})
         if isinstance(arr, dict):
@@ -27,7 +30,9 @@ def import_digraph(data, file_path=True):
     return G
 
 
-def create_matrix(G, form="symbolic", matrix_type="A"):
+def create_matrix(
+    G: nx.DiGraph, form: str = "symbolic", matrix_type: str = "A"
+) -> sp.Matrix:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
     if form not in ["symbolic", "signed", "binary"]:
@@ -35,10 +40,10 @@ def create_matrix(G, form="symbolic", matrix_type="A"):
     if matrix_type not in ["A", "B", "C", "D"]:
         raise ValueError("Invalid matrix_type. Choose 'A', 'B', 'C', or 'D'.")
 
-    def sym(source, target, prefix):
+    def sym(source: str, target: str, prefix: str) -> sp.Symbol:
         return sp.Symbol(f"{prefix}_{target},{source}")
 
-    def sign(source, target, prefix):
+    def sign(source: str, target: str, prefix: str) -> Union[sp.Symbol, int]:
         if form == "symbolic":
             return sym(source, target, prefix) * G[source][target].get("sign", 1)
         elif form == "signed":
@@ -46,7 +51,7 @@ def create_matrix(G, form="symbolic", matrix_type="A"):
         else:  # form == 'binary'
             return int(G.has_edge(source, target))
 
-    def product(path):
+    def product(path: List[str]) -> Union[sp.Symbol, int]:
         effect = 1
         for i in range(len(path) - 1):
             effect *= sign(path[i], path[i + 1], prefix)
@@ -55,7 +60,7 @@ def create_matrix(G, form="symbolic", matrix_type="A"):
     state_n = get_nodes(G, "state")
     input_n = get_nodes(G, "input")
     output_n = get_nodes(G, "output")
-    matrix_configs = {
+    matrix_configs: Dict[str, Tuple[List[str], List[str], str, str]] = {
         "A": (state_n, state_n, "a", "state"),
         "B": (state_n, input_n, "b", "input"),
         "C": (output_n, state_n, "c", "output"),
@@ -79,42 +84,33 @@ def create_matrix(G, form="symbolic", matrix_type="A"):
     return matrix
 
 
-def create_equations(G, form="state", density_independent=None):
+def create_equations(G: nx.DiGraph, form: str = "state") -> sp.Matrix:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
+    if form not in ["state", "output"]:
+        raise ValueError("Invalid form. Choose 'state' or 'output'.")
+        
     A = create_matrix(G, form="symbolic", matrix_type="A")
     B = create_matrix(G, form="symbolic", matrix_type="B")
-    C = create_matrix(G, form="symbolic", matrix_type="C")
+    C = create_matrix(G, form="symbolic", matrix_type="C") 
     D = create_matrix(G, form="symbolic", matrix_type="D")
-    state_n = get_nodes(G, "state")
-    input_n = get_nodes(G, "input")
-    output_n = get_nodes(G, "output")
-    x = sp.Matrix([sp.Symbol(f"x_{i}") for i in state_n])
-    u = sp.Matrix([sp.Symbol(f"u_{i}") for i in input_n]) if input_n else None
-    y = sp.Matrix([sp.Symbol(f"y_{i}") for i in output_n]) if output_n else None
-    if density_independent is None:
-        k = sp.zeros(A.shape[0], 1)
-    else:
-        if len(density_independent) != A.shape[0]:
-            raise ValueError(f"The length of k must be equal to {A.shape[0]}")
-        k = sp.Matrix(density_independent)
-    state_equations = x.multiply_elementwise(A * x + k)
-    if B.shape[1] > 0 and u is not None:
-        state_equations += B * u
-    output_equations = None
-    if C.shape[0] > 0:
-        output_equations = C * x
-        if D.shape[1] > 0 and u is not None:
-            output_equations += D * u
-    if form == "vector":
-        return A, B, C, D, x, u, y, k
-    elif form == "state":
-        return state_equations
-    elif form == "output":
-        if output_equations is None:
-            print("No output equations available.")
-        return output_equations
-    elif form == "jacobian":
-        return state_equations.jacobian(x)
-    else:
-        raise ValueError("Choose 'vector', 'state', 'output' or 'jacobian'.")
+
+    state_nodes = get_nodes(G, "state")
+    input_nodes = get_nodes(G, "input")
+    output_nodes = get_nodes(G, "output")
+    
+    x = sp.Matrix([sp.Symbol(f"x_{i}") for i in state_nodes])
+    u = sp.Matrix([sp.Symbol(f"u_{i}") for i in input_nodes]) if input_nodes else None
+
+    if form == "state":
+        equations = A * x
+        if B.shape[1] > 0 and u is not None:
+            equations += B * u
+        return equations
+        
+    if not output_nodes:
+        raise ValueError("No output nodes found in graph")
+    equations = C * x
+    if D.shape[1] > 0 and u is not None:
+        equations += D * u
+    return equations

@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 qmm_api.py
 qmm.qmd
+development.ipynb
 
 # C extensions
 *.so

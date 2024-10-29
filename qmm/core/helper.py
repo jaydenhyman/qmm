@@ -2,8 +2,13 @@ import numpy as np
 import sympy as sp
 import networkx as nx
 from numba import jit
+from typing import List, Union, Dict, Optional, Any
 
-def list_to_digraph(matrix, ids=None):
+
+def list_to_digraph(
+    matrix: Union[List[List[int]], np.ndarray], 
+    ids: Optional[List[str]] = None
+) -> nx.DiGraph:
     if not isinstance(matrix, (list, np.ndarray)):
         raise ValueError("Input must be a list of lists or a numpy array")
     if isinstance(matrix, list):
@@ -27,7 +32,7 @@ def list_to_digraph(matrix, ids=None):
     return G
 
 
-def digraph_to_list(G):
+def digraph_to_list(G: nx.DiGraph) -> str:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
     n = G.number_of_nodes()
@@ -41,7 +46,7 @@ def digraph_to_list(G):
     return str(matrix)
 
 
-def powerplay_labels(input_str):
+def powerplay_labels(input_str: str) -> List[str]:
     return [item.split(": ")[1] for item in input_str.split(", ")]
 
 
@@ -124,7 +129,11 @@ def _glynn(A):
     return total / num_loops
 
 
-def get_nodes(G, node_type="state", labels=False):
+def get_nodes(
+    G: nx.DiGraph, 
+    node_type: str = "state", 
+    labels: bool = False
+) -> List[Union[str, Dict[str, Any]]]:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
 
@@ -138,7 +147,11 @@ def get_nodes(G, node_type="state", labels=False):
         ]
 
 
-def get_weight(net, absolute, no_effect=sp.nan):
+def get_weight(
+    net: sp.Matrix, 
+    absolute: sp.Matrix, 
+    no_effect: Any = sp.nan
+) -> sp.Matrix:
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -151,7 +164,7 @@ def get_weight(net, absolute, no_effect=sp.nan):
     return result
 
 
-def get_positive(net, absolute):
+def get_positive(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -161,7 +174,7 @@ def get_positive(net, absolute):
     return result
 
 
-def get_negative(net, absolute):
+def get_negative(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -171,8 +184,12 @@ def get_negative(net, absolute):
     return result
 
 
-def sign_determinacy(wmat, tmat, method="average"):
-    def compute_prob(w, t, method):
+def sign_determinacy(
+    wmat: sp.Matrix, 
+    tmat: sp.Matrix, 
+    method: str = "average"
+) -> sp.Matrix:
+    def compute_prob(w: sp.Integer, t: sp.Integer, method: str) -> Union[sp.Rational, sp.Float]:
         if w == sp.Integer(0):
             return sp.Rational(1, 2)
         elif w == sp.Integer(1):
@@ -187,13 +204,13 @@ def sign_determinacy(wmat, tmat, method="average"):
             else compute_prob_95_bound(w, t)
         )
 
-    def compute_prob_average(w, t):
+    def compute_prob_average(w: sp.Integer, t: sp.Integer) -> sp.Float:
         bw = 3.45962
         bwt = 0.03417
         prob = sp.exp(bw * w + bwt * w * t) / (1 + sp.exp(bw * w + bwt * w * t))
         return max(sp.Rational(1, 2), prob)
 
-    def compute_prob_95_bound(w, t):
+    def compute_prob_95_bound(w: sp.Integer, t: sp.Integer) -> sp.Float:
         bw = 9.766
         bwt = 0.139
         prob = sp.exp(bw * w + bwt * w * t) / (1253.992 + sp.exp(bw * w + bwt * w * t))
@@ -204,7 +221,7 @@ def sign_determinacy(wmat, tmat, method="average"):
 
     rows, cols = wmat.shape
 
-    def calc_prob(i, j):
+    def calc_prob(i: int, j: int) -> Union[sp.Rational, sp.Float]:
         w, t = wmat[i, j], tmat[i, j]
         if w.is_zero:
             return sp.Rational(1, 2)
@@ -215,18 +232,18 @@ def sign_determinacy(wmat, tmat, method="average"):
     return pmat
 
 
-def arrows(G, path):
+def arrows(G: nx.DiGraph, path: List[str]) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
-            arrows.append(f"{path[i]} $\\rightarrow$")  # Right arrow
+            arrows.append(f"{path[i]} \u2192")  # Right arrow
         else:
-            arrows.append(f"{path[i]} $\\multimap$")  # Multimap
+            arrows.append(f"{path[i]} \u22B8")  # Multimap
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 
 
-def sign_string(G, path):
+def sign_string(G: nx.DiGraph, path: List[str]) -> str:
     signs = []
     for from_node, to_node in zip(path, path[1:]):
         sign = G[from_node][to_node]["sign"]
@@ -241,7 +258,7 @@ def sign_string(G, path):
         return "0"
 
 
-def symbolic_path(G, A, path, nodes):
+def symbolic_path(G: nx.DiGraph, A: sp.Matrix, path: List[str], nodes: List[str]) -> str:
     if len(path) == 1:
         return str(A[nodes.index(path[0]), nodes.index(path[0])])
     return " * ".join(

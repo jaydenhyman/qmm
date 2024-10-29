@@ -2,35 +2,67 @@ import sympy as sp
 import numpy as np
 import pandas as pd
 from functools import cache
+from typing import List, Optional, Tuple
+import networkx as nx
 from .effects import get_simulations
-from ..core.helper import get_nodes
+from ..core.helper import get_nodes, arrows
 
 
 @cache
-def marginal_likelihood(G, perturb, observe, n_sim=10000, distribution="uniform", seed=42):
+def marginal_likelihood(
+    G: nx.DiGraph,
+    perturb: Tuple[str, int],
+    observe: List[Tuple[str, int]],
+    n_sim: int = 10000,
+    distribution: str = "uniform",
+    seed: int = 42
+) -> float:
     sims = get_simulations(G, n_sim, distribution, seed, perturb, observe)
     return sum(sims["valid_sims"]) / n_sim
 
+@cache
+def model_validation(G: nx.DiGraph, perturb: Tuple[str, int], observe: List[Tuple[str, int]], 
+                  n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
+    dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get('dashes', False)]
+    structures_data = []
+    variants = []
+    edge_presence = []
+
+    for i in range(2**len(dashed_edges)):
+        G_variant = G.copy()
+        presence = []
+        for j, (u, v) in enumerate(dashed_edges):
+            if not (i & (1 << j)):
+                G_variant.remove_edge(u, v)
+            presence.append(bool(i & (1 << j)))
+        variants.append(G_variant)
+        edge_presence.append(presence)
+
+    likelihoods = [marginal_likelihood(G, perturb, observe, n_sim, distribution, seed) for G in variants]
+    
+    for j, (u, v) in enumerate(dashed_edges):
+        row = {"Edges": arrows(G, [u, v])}
+        for i in range(len(variants)):
+            row[f"Model {chr(65 + i)}"] = "\u2713" if edge_presence[i][j] else ""
+        structures_data.append(row)
+    
+    structures_data.extend([
+        {**{"Edges": "─" * 20}, **{f"Model {chr(65 + i)}": "─" * 8 for i in range(len(variants))}},
+        {**{"Edges": "Marginal likelihood"}, **{f"Model {chr(65 + i)}": f"{ml:.3f}" for i, ml in enumerate(likelihoods)}}
+    ])
+    
+    return pd.DataFrame(structures_data)
+
 
 @cache
-def bayes_factors(G_list, perturb, observe, n_sim=10000, distribution="uniform", seed=42, names=None):
-    likelihoods = [marginal_likelihood(G, perturb, observe, n_sim, distribution, seed) for G in G_list]
-    model_names = names if names and len(names) == len(G_list) else [f"M_{i+1}" for i in range(len(G_list))]
-    bayes_factors = {f"{model_names[i]}/{model_names[j]}": (
-        float("inf") if likelihoods[j] == 0 and likelihoods[i] > 0 else
-        0 if likelihoods[j] == 0 else likelihoods[i] / likelihoods[j]
-    ) for i in range(len(G_list)) for j in range(i + 1, len(G_list))}
-
-    return pd.DataFrame({
-        "Model comparison": list(bayes_factors.keys()),
-        "Likelihood 1": [likelihoods[i] for i in range(len(G_list)) for j in range(i + 1, len(G_list))],
-        "Likelihood 2": [likelihoods[j] for i in range(len(G_list)) for j in range(i + 1, len(G_list))],
-        "Bayes factor": list(bayes_factors.values()),
-    })
-
-
-@cache
-def posterior_predictions(G, perturb, observe=None, n_sim=10000, dist="uniform", seed=42):
+def posterior_predictions(
+    G: nx.DiGraph,
+    perturb: Tuple[str, int],
+    observe: Optional[List[Tuple[str, int]]] = None,
+    n_sim: int = 10000,
+    dist: str = "uniform",
+    seed: int = 42
+) -> sp.Matrix:
     sims = get_simulations(G, n_sim, dist, seed, perturb, observe)
     state_nodes, output_nodes = get_nodes(G, "state"), get_nodes(G, "output")
     n, m = len(state_nodes), len(output_nodes)
@@ -56,14 +88,20 @@ def posterior_predictions(G, perturb, observe=None, n_sim=10000, dist="uniform",
 
 
 @cache
-def diagnose_observations(G, observe, n_sim=10000, distribution="uniform", seed=42):
+def diagnose_observations(
+    G: nx.DiGraph,
+    observe: List[Tuple[str, int]],
+    n_sim: int = 10000,
+    distribution: str = "uniform",
+    seed: int = 42
+) -> pd.DataFrame:
     perturb_nodes = get_nodes(G, "state") + get_nodes(G, "input")
     results = []
     for node in perturb_nodes:
         for sign in [1, -1]:
             try:
                 likelihood = marginal_likelihood(G, (node, sign), observe, n_sim, distribution, seed)
-                results.append({"Perturbed node": node, "Perturbation sign": sign, "Marginal likelihood": likelihood})
+                results.append({"Input": node, "Sign": sign, "Marginal likelihood": likelihood})
             except Exception as e:
                 print(f"Error for node {node} with sign {sign}: {str(e)}")
     

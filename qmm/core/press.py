@@ -1,12 +1,18 @@
 import numpy as np
 import sympy as sp
+import networkx as nx
 from functools import cache
+from typing import Optional, Tuple
 from .structure import create_matrix
 from .helper import perm, get_weight, get_nodes, sign_determinacy
 
 
 @cache
-def adjoint_matrix(G, form="symbolic", perturb=None):
+def adjoint_matrix(
+    G: nx.DiGraph, 
+    form: str = "symbolic", 
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     A = create_matrix(G, form=form)
     A = sp.Matrix(-A)
     nodes = get_nodes(G, "state")
@@ -22,7 +28,10 @@ def adjoint_matrix(G, form="symbolic", perturb=None):
 
 
 @cache
-def absolute_feedback_matrix(G, perturb=None):
+def absolute_feedback_matrix(
+    G: nx.DiGraph, 
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     A = create_matrix(G, form="binary")
     A_np = np.array(sp.matrix2numpy(A), dtype=int)
     nodes = get_nodes(G, "state")
@@ -43,7 +52,12 @@ def absolute_feedback_matrix(G, perturb=None):
 
 
 @cache
-def weighted_predictions_matrix(G, perturb=None, as_nan=True, as_abs=False):
+def weighted_predictions_matrix(
+    G: nx.DiGraph,
+    as_nan: bool = True,
+    as_abs: bool = False,
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     amat = adjoint_matrix(G, perturb=perturb, form="signed")
     if as_abs:
         amat = sp.Abs(amat)
@@ -57,18 +71,30 @@ def weighted_predictions_matrix(G, perturb=None, as_nan=True, as_abs=False):
 
 @cache
 def sign_determinacy_matrix(
-    G, perturb=None, method="average", as_nan=True, as_abs=False
-):
+    G: nx.DiGraph,
+    method: str = "average",
+    as_nan: bool = True,
+    as_abs: bool = False,
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     wmat = weighted_predictions_matrix(
         G, perturb=perturb, as_nan=as_nan, as_abs=as_abs
-        )
+    )
     tmat = sp.Matrix(absolute_feedback_matrix(G, perturb=perturb))
     pmat = sign_determinacy(wmat, tmat, method)
     return sp.Matrix(pmat)
 
 
 @cache
-def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42, as_abs=False):
+def numerical_simulations(
+    G: nx.DiGraph,
+    n_sim: int = 10000,
+    dist: str = "uniform",
+    seed: int = 42,
+    as_nan: bool = True,
+    as_abs: bool = False,
+    perturb: Optional[Tuple[str, int]] = None
+) -> sp.Matrix:
     np.random.seed(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
     state_nodes = get_nodes(G, "state")
@@ -114,6 +140,13 @@ def numerical_simulations(G, perturb=None, n_sim=10000, dist="uniform", seed=42,
             for i in range(n)
         ]
     )
+    if not as_nan:
+        smat = sp.Matrix(
+            [
+                [0 if sp.nan == x else x for x in row]
+                for row in smat.tolist()
+            ]
+        )
     if as_abs:
         smat = sp.Abs(smat)
     return sp.Matrix(smat)

@@ -1,11 +1,18 @@
 import sympy as sp
 from functools import cache
+from typing import Optional
+import networkx as nx
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix
 from ..core.helper import get_nodes, get_weight
 
+
 @cache
-def birth_matrix(G, form="symbolic", perturb=None):
+def birth_matrix(
+    G: nx.DiGraph, 
+    form: str = "symbolic", 
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     if form not in ["symbolic", "signed"]:
         raise ValueError("Form must be either 'symbolic' or 'signed'")
     A_sgn = create_matrix(G, form="signed")
@@ -28,7 +35,11 @@ def birth_matrix(G, form="symbolic", perturb=None):
 
 
 @cache
-def death_matrix(G, form="symbolic", perturb=None):
+def death_matrix(
+    G: nx.DiGraph, 
+    form: str = "symbolic", 
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     if form not in ["symbolic", "signed"]:
         raise ValueError("Form must be either 'symbolic' or 'signed'")
     A_sgn = create_matrix(G, form="signed")
@@ -50,7 +61,12 @@ def death_matrix(G, form="symbolic", perturb=None):
         return sp.Matrix(n, n, lambda i, j: death_element(i, j))
 
 
-def life_expectancy_change(G, form="symbolic", type="birth", perturb=None):
+def life_expectancy_change(
+    G: nx.DiGraph, 
+    form: str = "symbolic", 
+    type: str = "birth", 
+    perturb: Optional[str] = None
+) -> sp.Matrix:
     if form not in ["symbolic", "signed"]:
         raise ValueError("Form must be either 'symbolic' or 'signed'")
     if type not in ["birth", "death"]:
@@ -73,7 +89,10 @@ def life_expectancy_change(G, form="symbolic", type="birth", perturb=None):
     return result
 
 
-def net_life_expectancy_change(G, type="birth"):
+def net_life_expectancy_change(
+    G: nx.DiGraph, 
+    type: str = "birth"
+) -> sp.Matrix:
     if type not in ["birth", "death"]:
         raise ValueError("Type must be either 'birth' or 'death'")
     amat = adjoint_matrix(G, form="signed")
@@ -87,7 +106,10 @@ def net_life_expectancy_change(G, type="birth"):
         return delta_death
 
 
-def absolute_life_expectancy_change(G, type="birth"):
+def absolute_life_expectancy_change(
+    G: nx.DiGraph, 
+    type: str = "birth"
+) -> sp.Matrix:
     if type not in ["birth", "death"]:
         raise ValueError("Type must be either 'birth' or 'death'")
     sym_amat = adjoint_matrix(G, form="symbolic")
@@ -112,7 +134,12 @@ def absolute_life_expectancy_change(G, type="birth"):
 
 
 @cache
-def weighted_predictions_life_expectancy(G, type="birth", as_nan=True, as_abs=False):
+def weighted_predictions_life_expectancy(
+    G: nx.DiGraph, 
+    type: str = "birth", 
+    as_nan: bool = True, 
+    as_abs: bool = False
+) -> sp.Matrix:
     if type == "birth":
         net = net_life_expectancy_change(G, type="birth")
         absolute = absolute_life_expectancy_change(G, type="birth")

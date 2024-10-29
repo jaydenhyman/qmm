@@ -1,3 +1,4 @@
+
 from .core.structure import (
     import_digraph,
     create_matrix,
@@ -70,6 +71,7 @@ from .extensions.paths import (
     complementary_feedback,
     system_paths,
     weighted_paths,
+    path_metrics,
 )
 from .extensions.effects import (
     define_state_space,
@@ -88,11 +90,21 @@ from .extensions.indicators import mutual_information
 
 from .extensions.validation import (
     marginal_likelihood,
-    bayes_factors,
+    model_validaiton,
     posterior_predictions,
     diagnose_observations,
 )
 
+import pandas as pd
+
+def configure_pandas_display(max_columns=None, max_rows=None, max_colwidth=None, display_width=None):
+    pd.set_option('display.max_columns', max_columns)
+    pd.set_option('display.max_rows', max_rows)
+    pd.set_option('display.max_colwidth', max_colwidth)
+    pd.set_option('display.width', display_width)
+    pd.set_option('display.html.use_mathjax', True)
+
+configure_pandas_display()
 
 __all__ = [
     # structure.py
@@ -154,6 +166,7 @@ __all__ = [
     "complementary_feedback",
     "system_paths",
     "weighted_paths",
+    "path_metrics",
     # effects.py
     "define_state_space",
     "cumulative_effects",
@@ -169,7 +182,7 @@ __all__ = [
     "mutual_information",
     # validation.py
     "marginal_likelihood",
-    "bayes_factors",
+    "model_validaiton",
     "posterior_predictions",
     "diagnose_observations",
     # helper.py

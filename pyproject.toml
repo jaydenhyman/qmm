@@ -4,13 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qmm-core"
-version = "0.2.19"
+version = "0.2.20"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]
 description = "A software platform for analysing the structure and function of complex systems"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -21,14 +21,14 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "pytest",
-    "numpy",
-    "sympy",
-    "networkx",
-    "numba",
-    "pandas",
-    "seaborn",
-    "matplotlib",
+    "pytest>=8.3.2",
+    "numpy>=1.26.4",
+    "sympy>=1.11.1",
+    "networkx>=2.6.3",
+    "numba>=0.60.0",
+    "pandas>=2.2.3",
+    "seaborn>=0.13.2",
+    "matplotlib>=3.9.2",
 ]
 
 [project.urls]

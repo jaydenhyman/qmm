@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qmm-core"
-version = "0.2.21"
+version = "0.2.22"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]
@@ -22,7 +22,7 @@ classifiers = [
 ]
 dependencies = [
     "pytest>=8.3.2",
-    "numpy>=1.26.4",
+    "numpy>=1.26.4,<1.28",
     "sympy>=1.11.1",
     "networkx>=2.6.3",
     "numba>=0.60.0",

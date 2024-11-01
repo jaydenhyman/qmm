@@ -20,6 +20,38 @@ from ..core.helper import (
 )
 
 
+def get_cycles(G: nx.DiGraph) -> sp.Matrix:
+    A = create_matrix(G, form="symbolic")
+    nodes = get_nodes(G, "state")
+    node_id = {n: i for i, n in enumerate(nodes)}
+    cycle_list = nx.simple_cycles(G)
+    cycle_nodes = sorted([c for c in cycle_list], key=lambda x: len(x))
+    C = [c + [c[0]] for c in cycle_nodes]
+    cycles = sp.Matrix(
+        [
+            sp.prod([A[node_id[c[i + 1]], node_id[c[i]]] for i in range(len(c) - 1)])
+            for c in C
+        ]
+    )
+    return cycles
+
+
+def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
+    cycle_nodes = sorted(
+        [path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x)
+    )
+    all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
+    cycle_signs = [sign_string(G, path) for path in all_cycles]
+    cycles_df = pd.DataFrame(
+        {
+            "Length": [len(nodes) for nodes in cycle_nodes],
+            "Cycle": [arrows(G, path) for path in all_cycles],
+            "Sign": cycle_signs,
+        }
+    )
+    return cycles_df
+
+
 @cache
 def get_paths(
     G: nx.DiGraph, source: str, target: str, form: str = "symbolic"
@@ -179,35 +211,3 @@ def path_metrics(
 
     return paths_df.sort_values(["Length"]).reset_index(drop=True)
 
-
-
-def get_cycles(G: nx.DiGraph) -> sp.Matrix:
-    A = create_matrix(G, form="symbolic")
-    nodes = get_nodes(G, "state")
-    node_id = {n: i for i, n in enumerate(nodes)}
-    cycle_list = nx.simple_cycles(G)
-    cycle_nodes = sorted([c for c in cycle_list], key=lambda x: len(x))
-    C = [c + [c[0]] for c in cycle_nodes]
-    cycles = sp.Matrix(
-        [
-            sp.prod([A[node_id[c[i + 1]], node_id[c[i]]] for i in range(len(c) - 1)])
-            for c in C
-        ]
-    )
-    return cycles
-
-
-def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
-    cycle_nodes = sorted(
-        [path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x)
-    )
-    all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
-    cycle_signs = [sign_string(G, path) for path in all_cycles]
-    cycles_df = pd.DataFrame(
-        {
-            "Length": [len(nodes) for nodes in cycle_nodes],
-            "Cycle": [arrows(G, path) for path in all_cycles],
-            "Sign": cycle_signs,
-        }
-    )
-    return cycles_df

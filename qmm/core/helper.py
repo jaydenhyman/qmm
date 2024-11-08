@@ -3,6 +3,7 @@ import sympy as sp
 import networkx as nx
 from numba import jit
 from typing import List, Union, Dict, Any
+from dataclasses import dataclass
 
 def list_to_digraph(matrix, ids=None) -> nx.DiGraph:
     if not isinstance(matrix, (list, np.ndarray)):
@@ -121,9 +122,9 @@ def arrows(G, path) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
-            arrows.append(f"{path[i]} \u2192")  # Right arrow
+            arrows.append(f"{path[i]} $\\rightarrow$")  # Right arrow
         else:
-            arrows.append(f"{path[i]} \u22b8")  # Multimap
+            arrows.append(f"{path[i]} $\\multimap$")  # Multimap
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 
@@ -135,9 +136,9 @@ def sign_string(G, path) -> str:
             signs.append(int(sign))
     product = sp.prod(signs)
     if product > 0:
-        return "$\\rightarrow$"
+        return "+"
     elif product < 0:
-        return "$\\multimap$"
+        return "\u2212"
     else:
         return "0"
 
@@ -145,6 +146,28 @@ def symbolic_path(G, A, path, nodes) -> str:
     if len(path) == 1:
         return str(A[nodes.index(path[0]), nodes.index(path[0])])
     return " * ".join(str(A[nodes.index(path[i]), nodes.index(path[i + 1])]) for i in range(len(path) - 1))
+
+@dataclass(frozen=True)
+class NodeSign:
+    node: str
+    sign: int
+    
+    @classmethod
+    def from_str(cls, s: str) -> 'NodeSign':
+        """Create from string like 'B:+' or 'B: +'"""
+        # Strip whitespace
+        s = s.strip()
+        node, sign = s.split(":")
+        node = node.strip()
+        sign = sign.strip()
+        
+        if sign not in ["+", "-"]:
+            raise ValueError(f"Sign must be + or -, got '{sign}'")
+        return cls(node, 1 if sign == "+" else -1)
+    
+    def to_tuple(self) -> tuple[str, int]:
+        """Convert to tuple format for internal use"""
+        return (self.node, self.sign)
 
 def perm(A, method="glynn"):
     # Permanent function is a reimplementation of the following code:

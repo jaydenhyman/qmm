@@ -2,13 +2,9 @@ import numpy as np
 import sympy as sp
 import networkx as nx
 from numba import jit
-from typing import List, Union, Dict, Optional, Any
+from typing import List, Union, Dict, Any
 
-
-def list_to_digraph(
-    matrix: Union[List[List[int]], np.ndarray], 
-    ids: Optional[List[str]] = None
-) -> nx.DiGraph:
+def list_to_digraph(matrix, ids=None) -> nx.DiGraph:
     if not isinstance(matrix, (list, np.ndarray)):
         raise ValueError("Input must be a list of lists or a numpy array")
     if isinstance(matrix, list):
@@ -31,8 +27,7 @@ def list_to_digraph(
     nx.set_node_attributes(G, "state", "category")
     return G
 
-
-def digraph_to_list(G: nx.DiGraph) -> str:
+def digraph_to_list(G) -> str:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
     n = G.number_of_nodes()
@@ -45,34 +40,19 @@ def digraph_to_list(G: nx.DiGraph) -> str:
         matrix[j][i] = sign
     return str(matrix)
 
-
-def powerplay_labels(input_str: str) -> List[str]:
+def powerplay_labels(input_str) -> List[str]:
     return [item.split(": ")[1] for item in input_str.split(", ")]
 
-
-def get_nodes(
-    G: nx.DiGraph, 
-    node_type: str = "state", 
-    labels: bool = False
-) -> List[Union[str, Dict[str, Any]]]:
+def get_nodes(G: nx.DiGraph, node_type: str = "state", labels: bool = False) -> List[Union[str, Dict[str, Any]]]:
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
 
     if node_type == "all":
         return list(G.nodes()) if not labels else list(G.nodes(data=True))
     else:
-        return [
-            n if not labels else d.get("label", n)
-            for n, d in G.nodes(data=True)
-            if d.get("category") == node_type
-        ]
+        return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True) if d.get("category") == node_type]
 
-
-def get_weight(
-    net: sp.Matrix, 
-    absolute: sp.Matrix, 
-    no_effect: Any = sp.nan
-) -> sp.Matrix:
+def get_weight(net, absolute, no_effect=sp.nan) -> sp.Matrix:
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -85,7 +65,7 @@ def get_weight(
     return result
 
 
-def get_positive(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
+def get_positive(net, absolute) -> sp.Matrix:
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -95,7 +75,7 @@ def get_positive(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
     return result
 
 
-def get_negative(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
+def get_negative(net, absolute) -> sp.Matrix:
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -104,13 +84,8 @@ def get_negative(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
             result[i, j] = (absolute[i, j] - net[i, j]) // 2
     return result
 
-
-def sign_determinacy(
-    wmat: sp.Matrix, 
-    tmat: sp.Matrix, 
-    method: str = "average"
-) -> sp.Matrix:
-    def compute_prob(w: sp.Integer, t: sp.Integer, method: str) -> Union[sp.Rational, sp.Float]:
+def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
+    def compute_prob(w, t, method):
         if w == sp.Integer(0):
             return sp.Rational(1, 2)
         elif w == sp.Integer(1):
@@ -119,52 +94,40 @@ def sign_determinacy(
             return sp.Integer(-1)
         elif t == sp.Integer(0):
             return sp.nan
-        return (
-            compute_prob_average(w, t)
-            if method == "average"
-            else compute_prob_95_bound(w, t)
-        )
-
-    def compute_prob_average(w: sp.Integer, t: sp.Integer) -> sp.Float:
+        return compute_prob_average(w, t) if method == "average" else compute_prob_95_bound(w, t)
+    def compute_prob_average(w, t):
         bw = 3.45962
         bwt = 0.03417
         prob = sp.exp(bw * w + bwt * w * t) / (1 + sp.exp(bw * w + bwt * w * t))
         return max(sp.Rational(1, 2), prob)
-
-    def compute_prob_95_bound(w: sp.Integer, t: sp.Integer) -> sp.Float:
+    def compute_prob_95_bound(w, t):
         bw = 9.766
         bwt = 0.139
         prob = sp.exp(bw * w + bwt * w * t) / (1253.992 + sp.exp(bw * w + bwt * w * t))
         return max(sp.Rational(1, 2), prob)
-
     if method not in ["average", "95_bound"]:
         raise ValueError("Invalid method. Choose 'average' or '95_bound'.")
-
     rows, cols = wmat.shape
-
-    def calc_prob(i: int, j: int) -> Union[sp.Rational, sp.Float]:
+    def calc_prob(i, j):
         w, t = wmat[i, j], tmat[i, j]
         if w.is_zero:
             return sp.Rational(1, 2)
         prob = compute_prob(sp.Abs(w), t, method)
         return sp.sign(w) * prob if prob is not None else sp.nan
-
     pmat = sp.Matrix(rows, cols, lambda i, j: calc_prob(i, j))
     return pmat
 
-
-def arrows(G: nx.DiGraph, path: List[str]) -> str:
+def arrows(G, path) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
             arrows.append(f"{path[i]} \u2192")  # Right arrow
         else:
-            arrows.append(f"{path[i]} \u22B8")  # Multimap
+            arrows.append(f"{path[i]} \u22b8")  # Multimap
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 
-
-def sign_string(G: nx.DiGraph, path: List[str]) -> str:
+def sign_string(G, path) -> str:
     signs = []
     for from_node, to_node in zip(path, path[1:]):
         sign = G[from_node][to_node]["sign"]
@@ -172,31 +135,24 @@ def sign_string(G: nx.DiGraph, path: List[str]) -> str:
             signs.append(int(sign))
     product = sp.prod(signs)
     if product > 0:
-        return "+"
+        return "$\\rightarrow$"
     elif product < 0:
-        return "\u2212"
+        return "$\\multimap$"
     else:
         return "0"
 
-
-def symbolic_path(G: nx.DiGraph, A: sp.Matrix, path: List[str], nodes: List[str]) -> str:
+def symbolic_path(G, A, path, nodes) -> str:
     if len(path) == 1:
         return str(A[nodes.index(path[0]), nodes.index(path[0])])
-    return " * ".join(
-        str(A[nodes.index(path[i]), nodes.index(path[i + 1])])
-        for i in range(len(path) - 1)
-    )
-
-
-# Permanent function is a reimplementation of the following code:
-# Brajesh Gupt, Josh Izaac and Nicolás Quesada. The Walrus: a library for the calculation of hafnians, Hermite polynomials and Gaussian boson sampling. Journal of Open Source Software, 4(44), 1705 (2019)
-# https://the-walrus.readthedocs.io/en/latest/_modules/thewalrus/_permanent.html
-#
-# The original code is licensed under the Apache License, Version 2.0
-# (http://www.apache.org/licenses/LICENSE-2.0).
-
+    return " * ".join(str(A[nodes.index(path[i]), nodes.index(path[i + 1])]) for i in range(len(path) - 1))
 
 def perm(A, method="glynn"):
+    # Permanent function is a reimplementation of the following code:
+    # Brajesh Gupt, Josh Izaac and Nicolás Quesada. The Walrus: a library for the calculation of hafnians, Hermite polynomials and Gaussian boson sampling. Journal of Open Source Software, 4(44), 1705 (2019)
+    # https://the-walrus.readthedocs.io/en/latest/_modules/thewalrus/_permanent.html
+    #
+    # The original code is licensed under the Apache License, Version 2.0
+    # (http://www.apache.org/licenses/LICENSE-2.0).
     if not isinstance(A, np.ndarray):
         raise TypeError("Input matrix must be a NumPy array.")
     matshape = A.shape
@@ -220,7 +176,6 @@ def perm(A, method="glynn"):
             + A[0, 0] * A[1, 1] * A[2, 2]
         )
     return _ryser(A) if method != "glynn" else _glynn(A)
-
 
 @jit(nopython=True)
 def _ryser(A):
@@ -247,7 +202,6 @@ def _ryser(A):
         sign = -sign
         old_grey = new_grey
     return total
-
 
 @jit(nopython=True)
 def _glynn(A):

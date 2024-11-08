@@ -4,42 +4,23 @@ import sympy as sp
 from functools import cache
 from typing import Optional
 from ..core.structure import create_matrix
-from ..core.stability import (
-    system_feedback,
-    net_feedback,
-    absolute_feedback,
-    weighted_feedback,
-)
-from ..core.helper import (
-    get_nodes,
-    sign_string,
-    arrows,
-    get_positive,
-    get_negative,
-    get_weight,
-)
+from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback
+from ..core.helper import get_nodes, sign_string, arrows, get_positive, get_negative, get_weight
 
-
-def get_cycles(G: nx.DiGraph) -> sp.Matrix:
+@cache
+def get_cycles(G) -> sp.Matrix:
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
     node_id = {n: i for i, n in enumerate(nodes)}
     cycle_list = nx.simple_cycles(G)
     cycle_nodes = sorted([c for c in cycle_list], key=lambda x: len(x))
     C = [c + [c[0]] for c in cycle_nodes]
-    cycles = sp.Matrix(
-        [
-            sp.prod([A[node_id[c[i + 1]], node_id[c[i]]] for i in range(len(c) - 1)])
-            for c in C
-        ]
-    )
+    cycles = sp.Matrix([sp.prod([A[node_id[c[i + 1]], node_id[c[i]]] for i in range(len(c) - 1)]) for c in C])
     return cycles
 
-
-def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
-    cycle_nodes = sorted(
-        [path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x)
-    )
+@cache
+def cycles_table(G) -> pd.DataFrame:
+    cycle_nodes = sorted([path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x))
     all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
     cycle_signs = [sign_string(G, path) for path in all_cycles]
     cycles_df = pd.DataFrame(
@@ -51,11 +32,8 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
     )
     return cycles_df
 
-
 @cache
-def get_paths(
-    G: nx.DiGraph, source: str, target: str, form: str = "symbolic"
-) -> sp.Matrix:
+def get_paths(G, source, target, form="symbolic") -> sp.Matrix:
     nodes = get_nodes(G, "state")
     A = create_matrix(G, form=form)
     if source not in nodes or target not in nodes or source == target:
@@ -63,14 +41,10 @@ def get_paths(
     if not nx.has_path(G, source, target):
         return sp.Matrix([sp.Integer(0)])
     path_nodes = list(nx.all_simple_paths(G, source, target))
-    paths = [
-        sp.prod(A[nodes.index(p[i + 1]), nodes.index(p[i])] for i in range(len(p) - 1))
-        for p in path_nodes
-    ]
+    paths = [sp.prod(A[nodes.index(p[i + 1]), nodes.index(p[i])] for i in range(len(p) - 1)) for p in path_nodes]
     return sp.Matrix(paths)
 
-
-def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFrame]:
+def paths_table(G, source, target) -> Optional[pd.DataFrame]:
     nodes = get_nodes(G, "state") + get_nodes(G, "input") + get_nodes(G, "output")
     if source not in nodes or target not in nodes or source == target:
         raise ValueError("Invalid source or target node")
@@ -88,11 +62,8 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
     )
     return paths_df.sort_values(["Length", "Path"]).reset_index(drop=True)
 
-
 @cache
-def complementary_feedback(
-    G: nx.DiGraph, source: str, target: str, form: str = "symbolic"
-) -> sp.Matrix:
+def complementary_feedback(G, source, target, form="symbolic") -> sp.Matrix:
     nodes = get_nodes(G, "state")
     n = len(nodes)
     if source not in nodes or target not in nodes or source == target:
@@ -120,11 +91,8 @@ def complementary_feedback(
             raise ValueError("Invalid form. Choose 'symbolic', 'signed', or 'binary'.")
     return sp.Matrix([sp.expand_mul(f) for f in feedback])
 
-
 @cache
-def system_paths(
-    G: nx.DiGraph, source: str, target: str, form: str = "symbolic"
-) -> sp.Matrix:
+def system_paths(G, source, target, form="symbolic") -> sp.Matrix:
     if source == target:
         raise ValueError("Source and target must be different nodes")
     path = get_paths(G, source, target, form=form)
@@ -135,13 +103,8 @@ def system_paths(
         effect = path.multiply_elementwise(feedback) / sp.Integer(-1)
     return sp.Matrix([sp.expand_mul(e) for e in effect])
 
-
 @cache
-def weighted_paths(
-    G: nx.DiGraph,
-    source: str,
-    target: str,
-) -> sp.Matrix:
+def weighted_paths(G, source, target) -> sp.Matrix:
     nodes = get_nodes(G, "state")
     A_sgn = create_matrix(G, form="signed")
     if source not in nodes or target not in nodes or source == target:
@@ -157,31 +120,20 @@ def weighted_paths(
             feedback = weighted_feedback(subsystem, level=len(nodes) - len(path))
             if feedback[0] == sp.nan:
                 feedback = sp.Integer(0)
-        sign = sp.prod(
-            A_sgn[nodes.index(path[i + 1]), nodes.index(path[i])]
-            for i in range(len(path) - 1)
-        )
+        sign = sp.prod(A_sgn[nodes.index(path[i + 1]), nodes.index(path[i])] for i in range(len(path) - 1))
         wgt_effect = sp.Integer(-1) * sign * feedback
         wgt_effects.append(wgt_effect)
     return sp.Matrix(wgt_effects)
 
-
-def path_metrics(
-    G: nx.DiGraph,
-    source: str,
-    target: str,
-) -> pd.DataFrame:
+@cache
+def path_metrics(G, source, target) -> pd.DataFrame:
     nodes = get_nodes(G, "state")
     if source not in nodes or target not in nodes or source == target:
         raise ValueError("Invalid source or target node")
     if not nx.has_path(G, source, target):
         return pd.DataFrame()
-
     paths = list(nx.all_simple_paths(G, source, target))
-    complementary_nodes = [
-        [node for node in nodes if node not in set(path)] for path in paths
-    ]
-
+    complementary_nodes = [[node for node in nodes if node not in set(path)] for path in paths]
     net_fb = complementary_feedback(G, source=source, target=target, form="signed")
     absolute_fb = complementary_feedback(G, source=source, target=target, form="binary")
     path_signs = get_paths(G, source=source, target=target, form="signed")
@@ -189,7 +141,6 @@ def path_metrics(
     positive_fb = get_positive(net_fb, absolute_fb)
     negative_fb = get_negative(net_fb, absolute_fb)
     weighted_path = weighted_paths(G, source, target)
-
     n = len(paths)
     paths_df = pd.DataFrame(
         {
@@ -197,8 +148,7 @@ def path_metrics(
             "Path": [", ".join(str(x) for x in path) for path in paths],
             "Path sign": ["+" if sign == 1 else "-" for sign in path_signs[:n]],
             "Complementary subsystem": [
-                ", ".join(str(x) for x in nodes) if nodes else None
-                for nodes in complementary_nodes
+                ", ".join(str(x) for x in nodes) if nodes else None for nodes in complementary_nodes
             ],
             "Net feedback": [net_fb[i] for i in range(n)],
             "Absolute feedback": [absolute_fb[i] for i in range(n)],
@@ -210,4 +160,3 @@ def path_metrics(
     )
 
     return paths_df.sort_values(["Length"]).reset_index(drop=True)
-

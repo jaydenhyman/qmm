@@ -4,12 +4,10 @@ import networkx as nx
 import sympy as sp
 from itertools import combinations
 from functools import cache
-from typing import Optional
 from .structure import create_matrix
 from .helper import perm, get_positive, get_negative, get_weight
 
-
-def colour_test(G: nx.DiGraph) -> str:
+def colour_test(G) -> str:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     colour = {i: "black" if A[i, i] != 0 else "white" for i in range(n)}
@@ -19,16 +17,10 @@ def colour_test(G: nx.DiGraph) -> str:
         while "white" in colour.values():
             progress_made = False
             for i in [i for i, c in colour.items() if c == "white"]:
-                neighbours = [(j, colour[j]) for j in range(n) 
-                              if A[i, j] * A[j, i] < 0]
+                neighbours = [(j, colour[j]) for j in range(n) if A[i, j] * A[j, i] < 0]
                 white_neighbours = [j for j, c in neighbours if c == "white"]
                 if not white_neighbours or any(
-                    sum(
-                        1
-                        for k in range(n)
-                        if A[j, k] * A[k, j] < 0 and colour[k] == "white"
-                    )
-                    <= 1
+                    sum(1 for k in range(n) if A[j, k] * A[k, j] < 0 and colour[k] == "white") <= 1
                     for j in [j for j, c in neighbours if c == "black"]
                 ):
                     colour[i] = "black"
@@ -38,8 +30,7 @@ def colour_test(G: nx.DiGraph) -> str:
                 return "Pass"
         return "Fail"
 
-
-def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
+def sign_stability(G) -> pd.DataFrame:
     A = sp.matrix2numpy(create_matrix(G, form="signed")).astype(int)
     n = A.shape[0]
     conditions = [
@@ -67,8 +58,7 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
                 "At least one node is self-regulating",
                 "The product of any pairwise interaction is non-positive",
                 "No cycles greater than length two",
-                "Non-zero determinant (all nodes have at least " +
-                "one incoming and outgoing link)",
+                "Non-zero determinant (all nodes have at least " + "one incoming and outgoing link)",
                 "Fails Jeffries' colour test",
                 "Satisfies necessary and sufficient conditions for sign stability",
             ],
@@ -76,13 +66,8 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
         }
     )
 
-
 @cache
-def system_feedback(
-    G: nx.DiGraph, 
-    level: Optional[int] = None, 
-    form: str = "symbolic"
-) -> sp.Matrix:
+def system_feedback(G, level=None, form="symbolic") -> sp.Matrix:
     A = create_matrix(G, form=form)
     if level == 0:
         return sp.Matrix([-1])
@@ -95,18 +80,12 @@ def system_feedback(
         fb = [-p.coeff(lam, n - level)]
     return sp.Matrix(fb)
 
-
 @cache
-def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+def net_feedback(G, level=None) -> sp.Matrix:
     return system_feedback(G, level=level, form="signed")
 
-
 @cache
-def absolute_feedback(
-    G: nx.DiGraph, 
-    level: Optional[int] = None, 
-    method: str = "combinations"
-) -> sp.Matrix:
+def absolute_feedback(G, level=None, method="combinations") -> sp.Matrix:
     A = create_matrix(G, form="signed")
     if level == 0:
         return sp.Matrix([1])
@@ -117,16 +96,10 @@ def absolute_feedback(
         if level is None:
             fb = []
             for k in range(n + 1):
-                fb_k = sum(
-                    perm(A[np.ix_(c, c)], method="glynn")
-                    for c in combinations(range(n), k)
-                )
+                fb_k = sum(perm(A[np.ix_(c, c)], method="glynn") for c in combinations(range(n), k))
                 fb.append(int(fb_k))
         else:
-            fb_k = sum(
-                perm(A[np.ix_(c, c)], method="glynn")
-                for c in combinations(range(n), level)
-            )
+            fb_k = sum(perm(A[np.ix_(c, c)], method="glynn") for c in combinations(range(n), level))
             fb = [int(fb_k)]
     elif method == "polynomial":
         lam = sp.Symbol("lambda")
@@ -138,15 +111,13 @@ def absolute_feedback(
             fb = [P.coeff(lam, n - level)]
     return sp.Matrix(fb)
 
-
 @cache
-def weighted_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+def weighted_feedback(G, level=None) -> sp.Matrix:
     net_fb = net_feedback(G, level=level)
     tot_fb = absolute_feedback(G, level=level)
     return get_weight(net_fb, tot_fb)
 
-
-def hurwitz_matrix(fb: sp.Matrix, level: int) -> sp.Matrix:
+def hurwitz_matrix(fb, level) -> sp.Matrix:
     fb_pos = fb * sp.Integer(-1)
     if level == 0:
         return sp.Matrix([fb_pos[0]])
@@ -158,9 +129,8 @@ def hurwitz_matrix(fb: sp.Matrix, level: int) -> sp.Matrix:
                 H[i, j] = fb_pos[index]
     return H
 
-
 @cache
-def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
+def feedback_metrics(G) -> pd.DataFrame:
     net = net_feedback(G)
     absolute = absolute_feedback(G)
     positive = get_positive(net, absolute)
@@ -180,13 +150,8 @@ def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
 
     return pd.DataFrame(df)
 
-
 @cache
-def hurwitz_determinants(
-    G: nx.DiGraph, 
-    level: Optional[int] = None, 
-    form: str = "symbolic"
-) -> sp.Matrix:
+def hurwitz_determinants(G, level=None, form="symbolic") -> sp.Matrix:
     fb = system_feedback(G, level=None, form=form)
     n = len(fb) - 1
     if n > 5 and form == "symbolic":
@@ -199,14 +164,12 @@ def hurwitz_determinants(
         hd = sp.Matrix([sp.det(h[:level, :level])])
     return sp.Matrix(hd)
 
-
 @cache
-def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+def net_determinants(G, level=None) -> sp.Matrix:
     return hurwitz_determinants(G, level=level, form="signed")
 
-
 @cache
-def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+def absolute_determinants(G, level=None) -> sp.Matrix:
     tot_fb = absolute_feedback(G)
     n = tot_fb.shape[0] - 1
     h = hurwitz_matrix(tot_fb, n)
@@ -225,17 +188,15 @@ def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
             td = [sp.Abs(sp.Integer(int(perm(H_k))))]
     return sp.Matrix(td)
 
-
 @cache
-def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+def weighted_determinants(G, level=None) -> sp.Matrix:
     net_det = net_determinants(G, level=level)
     tot_det = absolute_determinants(G, level=level)
     wgt_det = get_weight(net_det, tot_det)
     return wgt_det
 
-
 @cache
-def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
+def determinants_metrics(G) -> pd.DataFrame:
     net = net_determinants(G)
     absolute = absolute_determinants(G)
     weighted = weighted_determinants(G)
@@ -249,9 +210,8 @@ def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
     }
     return pd.DataFrame(df)
 
-
 @cache
-def create_model_c(n: int) -> nx.DiGraph:
+def create_model_c(n) -> nx.DiGraph:
     C = nx.DiGraph()
     for i in range(n):
         C.add_node(i)
@@ -262,9 +222,8 @@ def create_model_c(n: int) -> nx.DiGraph:
     nx.set_node_attributes(C, "state", "category")
     return C
 
-
 @cache
-def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
+def conditional_stability(G) -> pd.DataFrame:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     w_fb = weighted_feedback(G)
@@ -305,9 +264,8 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     )
     return stability_metrics
 
-
 @cache
-def simulation_stability(G: nx.DiGraph, n_sim: int = 10000) -> pd.DataFrame:
+def simulation_stability(G, n_sim=10000) -> pd.DataFrame:
     A = create_matrix(G, "signed")
     A = sp.matrix2numpy(A).astype(int)
     n_stable = 0
@@ -361,8 +319,7 @@ def simulation_stability(G: nx.DiGraph, n_sim: int = 10000) -> pd.DataFrame:
             "Definition": [
                 "Proportion where all eigenvalues have negative real parts",
                 "Proportion where one or more eigenvalues have positive real parts",
-                "Proportion where polynomial coefficients are not " +
-                "all of the same sign",
+                "Proportion where polynomial coefficients are not " + "all of the same sign",
                 "Proportion where Hurwitz determinants are not all positive",
                 "Proportion where only Hurwitz criterion i fails",
                 "Proportion where only Hurwitz criterion ii fails",

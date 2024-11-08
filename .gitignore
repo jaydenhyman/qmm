@@ -5,7 +5,7 @@ __pycache__/
 qmm_api.py
 qmm.qmd
 development.ipynb
-qmm/development/
+development/
 # C extensions
 *.so
 

@@ -1,16 +1,12 @@
 import sympy as sp
 import networkx as nx
 from functools import cache
-from typing import Optional
 from ..core.structure import create_matrix
 from ..core.stability import system_feedback, net_feedback, absolute_feedback
 from ..core.helper import get_nodes, get_weight
 
 @cache
-def structural_sensitivity(
-    G: nx.DiGraph, 
-    level: Optional[int] = None
-) -> sp.Matrix:
+def structural_sensitivity(G, level=None) -> sp.Matrix:
     A = create_matrix(G, "signed")
     n = A.shape[0]
     fcp = system_feedback(G)[1:]
@@ -30,10 +26,7 @@ def structural_sensitivity(
     return S
 
 @cache
-def net_structural_sensitivity(
-    G: nx.DiGraph, 
-    level: Optional[int] = None
-) -> sp.Matrix:
+def net_structural_sensitivity(G, level=None) -> sp.Matrix:
     A = create_matrix(G, "signed")
     n = A.shape[0]
     fcp = net_feedback(G)[1:]
@@ -53,10 +46,7 @@ def net_structural_sensitivity(
     return S
 
 @cache
-def absolute_structural_sensitivity(
-    G: nx.DiGraph, 
-    level: Optional[int] = None
-) -> sp.Matrix:
+def absolute_structural_sensitivity(G, level=None) -> sp.Matrix:
     A = create_matrix(G, "signed")
     n = A.shape[0]
     fcp = absolute_feedback(G)[1:]
@@ -76,10 +66,7 @@ def absolute_structural_sensitivity(
     return S
 
 @cache
-def weighted_structural_sensitivity(
-    G: nx.DiGraph, 
-    level: Optional[int] = None
-) -> sp.Matrix:
+def weighted_structural_sensitivity(G, level=None) -> sp.Matrix:
     A = create_matrix(G, "signed")
     n = A.shape[0]
     if level is None:

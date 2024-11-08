@@ -1,4 +1,3 @@
-
 from .core.structure import (
     import_digraph,
     create_matrix,
@@ -48,13 +47,13 @@ from .core.helper import (
     sign_determinacy,
 )
 
-
-from .extensions.sensitivity import (
+from .extensions.senstability import (
     structural_sensitivity,
     net_structural_sensitivity,
     absolute_structural_sensitivity,
     weighted_structural_sensitivity,
 )
+
 from .extensions.life import (
     birth_matrix,
     death_matrix,
@@ -63,6 +62,7 @@ from .extensions.life import (
     absolute_life_expectancy_change,
     weighted_predictions_life_expectancy,
 )
+
 from .extensions.paths import (
     get_paths,
     paths_table,
@@ -74,6 +74,29 @@ from .extensions.paths import (
     path_metrics,
 )
 
+from .extensions.effects import (
+    define_state_space,
+    cumulative_effects,
+    net_effects,
+    absolute_effects,
+    positive_effects,
+    negative_effects,
+    weighted_effects,
+    sign_determinacy_effects,
+    simulation_effects,
+)
+
+from .extensions.indicators import (
+    mutual_information,
+)
+
+from .extensions.validation import (
+    marginal_likelihood,
+    bayes_factors,
+    model_validation,
+    posterior_predictions,
+    diagnose_observations,
+)
 
 import pandas as pd
 
@@ -126,7 +149,7 @@ __all__ = [
     "get_negative",
     "get_weight",
     "sign_determinacy",
-    # sensitivity.py
+    # senstability.py
     "structural_sensitivity",
     "net_structural_sensitivity",
     "absolute_structural_sensitivity",
@@ -157,4 +180,22 @@ __all__ = [
     "get_negative",
     "get_weight",
     "sign_determinacy",
+    # effects.py
+    "define_state_space",
+    "cumulative_effects",
+    "net_effects",
+    "absolute_effects",
+    "positive_effects",
+    "negative_effects",
+    "weighted_effects",
+    "sign_determinacy_effects",
+    "simulation_effects",
+    # indicators.py
+    "mutual_information",
+    # validation.py
+    "marginal_likelihood",
+    "bayes_factors",
+    "model_validation",
+    "posterior_predictions",
+    "diagnose_observations",
 ]

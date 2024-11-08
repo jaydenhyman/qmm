@@ -3,31 +3,8 @@ import numpy as np
 import pandas as pd
 from functools import cache
 from .effects import get_simulations
-from ..core.helper import get_nodes, arrows
-from dataclasses import dataclass
+from ..core.helper import get_nodes, arrows, NodeSign
 
-@dataclass(frozen=True)
-class NodeSign:
-    """Represents a node with a sign (e.g., 'B:+')"""
-    node: str
-    sign: int
-    
-    @classmethod
-    def from_str(cls, s: str) -> 'NodeSign':
-        """Create from string like 'B:+' or 'B: +'"""
-        # Strip whitespace
-        s = s.strip()
-        node, sign = s.split(":")
-        node = node.strip()
-        sign = sign.strip()
-        
-        if sign not in ["+", "-"]:
-            raise ValueError(f"Sign must be + or -, got '{sign}'")
-        return cls(node, 1 if sign == "+" else -1)
-    
-    def to_tuple(self) -> tuple[str, int]:
-        """Convert to tuple format for internal use"""
-        return (self.node, self.sign)
 
 def parse_observations(s: str) -> tuple[tuple[str, int], ...]:
     """Parse comma-separated observations into tuple of tuples"""

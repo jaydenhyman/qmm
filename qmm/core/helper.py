@@ -183,9 +183,9 @@ def _arrows(G, path) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
-            arrows.append(f"{path[i]} $\\rightarrow$")  # Right arrow
+            arrows.append(f"{path[i]} →")  # Right arrow
         else:
-            arrows.append(f"{path[i]} $\\multimap$")  # Multimap
+            arrows.append(f"{path[i]} ⊸")  # Multimap
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 

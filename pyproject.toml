@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qmm-core"
-version = "0.2.26"
+version = "0.2.27"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]
@@ -43,8 +43,8 @@ docs = [
 "Homepage" = "https://github.com/jaydenhyman/qmm"
 "Bug Tracker" = "https://github.com/jaydenhyman/qmm/issues"
 
-[tool.setuptools.packages.find]
-exclude = ["test*"]
+[tool.hatch.build.targets.wheel]
+packages = ["qmm"]
 
 [tool.setuptools.package-data]
 qmm = ["py.typed"]

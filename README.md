@@ -15,7 +15,7 @@ Qualitative Mathematical Modelling (QMM) is a method for analysing the structure
 ## Quick start
 
 1. Install using pip: ```pip install qmm-core```.
-2. Create a model using the [web application](https://dev.d1u6yx7pe96k0m.amplifyapp.com/).
+2. Create a model using the prototype [web application](https://dev.d1u6yx7pe96k0m.amplifyapp.com/).
 3. Analyse your model in Python. See `qmm.ipynb` for a complete tutorial and example.
 
 ## Documentation
@@ -32,4 +32,4 @@ Jayden Hyman - <j.hyman@uq.edu.au>
 
 ## Contributing
 
-We welcome contributions to improve and expand the QMM software. As the project is in its early stages of development, we appreciate your patience and support in helping us refine the software.
+This software was initially developed as part of Dr Jayden Hyman's PhD research at Griffith University. We welcome contributions to improve and expand the QMM software. As the project is in its early stages of development, we appreciate your patience and support in helping us refine the software.

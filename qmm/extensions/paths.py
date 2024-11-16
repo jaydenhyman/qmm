@@ -100,7 +100,7 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
             "Sign": [_sign_string(G, path) for path in paths],
         }
     )
-    return paths_df.sort_values(["Length", "Path"]).reset_index(drop=True)
+    return paths_df
 
 @cache
 def complementary_feedback(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
@@ -241,4 +241,4 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         }
     )
 
-    return paths_df.sort_values(["Length"]).reset_index(drop=True)
+    return paths_df

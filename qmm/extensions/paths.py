@@ -5,10 +5,21 @@ from functools import cache
 from typing import Optional
 from ..core.structure import create_matrix
 from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback
-from ..core.helper import get_nodes, sign_string, arrows, get_positive, get_negative, get_weight
+from ..core.helper import get_nodes, _sign_string, _arrows, get_positive, get_negative, get_weight
 
 @cache
-def get_cycles(G) -> sp.Matrix:
+def get_cycles(G: nx.DiGraph) -> sp.Matrix:
+    """Find all causal pathways between two nodes.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        source: Source node
+        target: Target node
+        form: Type of path products ('symbolic', 'signed', or 'binary')
+        
+    Returns:
+        sp.Matrix: Products of interactions along each path
+    """
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
     node_id = {n: i for i, n in enumerate(nodes)}
@@ -19,21 +30,39 @@ def get_cycles(G) -> sp.Matrix:
     return cycles
 
 @cache
-def cycles_table(G) -> pd.DataFrame:
+def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
+    """Find all feedback cycles in the signed digraph.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        sp.Matrix: Products of interactions in each cycle
+    """
     cycle_nodes = sorted([path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x))
     all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
-    cycle_signs = [sign_string(G, path) for path in all_cycles]
+    cycle_signs = [_sign_string(G, path) for path in all_cycles]
     cycles_df = pd.DataFrame(
         {
             "Length": [len(nodes) for nodes in cycle_nodes],
-            "Cycle": [arrows(G, path) for path in all_cycles],
+            "Cycle": [_arrows(G, path) for path in all_cycles],
             "Sign": cycle_signs,
         }
     )
     return cycles_df
 
 @cache
-def get_paths(G, source, target, form="symbolic") -> sp.Matrix:
+def get_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
+    """Create table of paths including length, sequence and sign.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        source: Source node
+        target: Target node
+        
+    Returns:
+        pd.DataFrame: Path information including length and sign
+    """
     nodes = get_nodes(G, "state")
     A = create_matrix(G, form=form)
     if source not in nodes or target not in nodes or source == target:
@@ -44,7 +73,18 @@ def get_paths(G, source, target, form="symbolic") -> sp.Matrix:
     paths = [sp.prod(A[nodes.index(p[i + 1]), nodes.index(p[i])] for i in range(len(p) - 1)) for p in path_nodes]
     return sp.Matrix(paths)
 
-def paths_table(G, source, target) -> Optional[pd.DataFrame]:
+@cache
+def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFrame]:
+    """Create table of paths between nodes.
+
+    Args:
+        G (nx.DiGraph): NetworkX DiGraph representing signed digraph model
+        source (str): Source node
+        target (str): Target node
+        
+    Returns:
+        Optional[pd.DataFrame]: DataFrame containing path information or None if no paths exist
+    """
     nodes = get_nodes(G, "state") + get_nodes(G, "input") + get_nodes(G, "output")
     if source not in nodes or target not in nodes or source == target:
         raise ValueError("Invalid source or target node")
@@ -56,14 +96,25 @@ def paths_table(G, source, target) -> Optional[pd.DataFrame]:
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in paths],
-            "Path": [arrows(G, path) for path in paths],
-            "Sign": [sign_string(G, path) for path in paths],
+            "Path": [_arrows(G, path) for path in paths],
+            "Sign": [_sign_string(G, path) for path in paths],
         }
     )
     return paths_df.sort_values(["Length", "Path"]).reset_index(drop=True)
 
 @cache
-def complementary_feedback(G, source, target, form="symbolic") -> sp.Matrix:
+def complementary_feedback(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
+    """Calculate feedback from nodes not on paths between source and target.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        source: Source node
+        target: Target node
+        form: Type of feedback ('symbolic', 'signed', or 'binary')
+        
+    Returns:
+        sp.Matrix: Feedback cycles in complementary subsystem
+    """
     nodes = get_nodes(G, "state")
     n = len(nodes)
     if source not in nodes or target not in nodes or source == target:
@@ -92,7 +143,18 @@ def complementary_feedback(G, source, target, form="symbolic") -> sp.Matrix:
     return sp.Matrix([sp.expand_mul(f) for f in feedback])
 
 @cache
-def system_paths(G, source, target, form="symbolic") -> sp.Matrix:
+def system_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
+    """Calculate combined effect of paths and complementary feedback.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        source: Source node
+        target: Target node
+        form: Type of computation ('symbolic', 'signed', or 'binary')
+        
+    Returns:
+        sp.Matrix: Total effects including paths and feedback
+    """
     if source == target:
         raise ValueError("Source and target must be different nodes")
     path = get_paths(G, source, target, form=form)
@@ -104,7 +166,17 @@ def system_paths(G, source, target, form="symbolic") -> sp.Matrix:
     return sp.Matrix([sp.expand_mul(e) for e in effect])
 
 @cache
-def weighted_paths(G, source, target) -> sp.Matrix:
+def weighted_paths(G: nx.DiGraph, source: str, target: str) -> sp.Matrix:
+    """Calculate ratio of net to total path effects.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        source: Source node
+        target: Target node
+        
+    Returns:
+        sp.Matrix: Net-to-total ratios for path predictions
+    """
     nodes = get_nodes(G, "state")
     A_sgn = create_matrix(G, form="signed")
     if source not in nodes or target not in nodes or source == target:
@@ -126,7 +198,17 @@ def weighted_paths(G, source, target) -> sp.Matrix:
     return sp.Matrix(wgt_effects)
 
 @cache
-def path_metrics(G, source, target) -> pd.DataFrame:
+def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
+    """Calculate comprehensive metrics for paths between nodes.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        source: Source node
+        target: Target node
+        
+    Returns:
+        pd.DataFrame: Metrics including path length, sign, and feedback
+    """
     nodes = get_nodes(G, "state")
     if source not in nodes or target not in nodes or source == target:
         raise ValueError("Invalid source or target node")
@@ -146,7 +228,7 @@ def path_metrics(G, source, target) -> pd.DataFrame:
         {
             "Length": [len(path) - 1 for path in paths],
             "Path": [", ".join(str(x) for x in path) for path in paths],
-            "Path sign": ["+" if sign == 1 else "-" for sign in path_signs[:n]],
+            "Path sign": ["+" if sign == 1 else "−" for sign in path_signs[:n]],
             "Complementary subsystem": [
                 ", ".join(str(x) for x in nodes) if nodes else None for nodes in complementary_nodes
             ],

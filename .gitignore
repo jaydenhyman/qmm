@@ -72,7 +72,8 @@ instance/
 .scrapy
 
 # Sphinx documentation
-docs/_build/
+docs/python-api/_build/
+docs/python-api/api/
 
 # PyBuilder
 .pybuilder/
@@ -165,3 +166,12 @@ cython_debug/
 #.idea/
 
 .pypirc
+/.quarto/
+
+# Quarto documentation
+docs/api/
+docs/_build/
+docs/source/_build/
+
+# Quarto private API docs
+docs/website/_private/

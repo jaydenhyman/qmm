@@ -16,7 +16,6 @@ from .core.stability import (
     absolute_determinants,
     weighted_determinants,
     determinants_metrics,
-    create_model_c,
     conditional_stability,
     simulation_stability,
 )
@@ -38,7 +37,6 @@ from .core.prediction import (
 from .core.helper import (
     list_to_digraph,
     digraph_to_list,
-    powerplay_labels,
     perm,
     get_nodes,
     get_positive,
@@ -126,7 +124,6 @@ __all__ = [
     "absolute_determinants",
     "weighted_determinants",
     "determinants_metrics",
-    "create_model_c",
     "conditional_stability",
     "simulation_stability",
     # press.py
@@ -142,7 +139,6 @@ __all__ = [
     # helper.py
     "list_to_digraph",
     "digraph_to_list",
-    "powerplay_labels",
     "perm",
     "get_nodes",
     "get_positive",
@@ -173,7 +169,6 @@ __all__ = [
     # helper.py
     "list_to_digraph",
     "digraph_to_list",
-    "powerplay_labels",
     "perm",
     "get_nodes",
     "get_positive",

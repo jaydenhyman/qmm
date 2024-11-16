@@ -6,6 +6,16 @@ from typing import List, Union, Dict, Any
 from dataclasses import dataclass
 
 def list_to_digraph(matrix, ids=None) -> nx.DiGraph:
+    """Convert an adjacency matrix to a directed graph.
+    
+    Args:
+        matrix: A square matrix (list of lists or numpy array) representing the adjacency matrix.
+            Non-zero values indicate edges, where the value represents the sign of the edge.
+        ids: Optional list of node identifiers. If None, nodes will be labeled 1 to n.
+    
+    Returns:
+        nx.DiGraph: A NetworkX directed graph with signed edges.
+    """
     if not isinstance(matrix, (list, np.ndarray)):
         raise ValueError("Input must be a list of lists or a numpy array")
     if isinstance(matrix, list):
@@ -29,6 +39,14 @@ def list_to_digraph(matrix, ids=None) -> nx.DiGraph:
     return G
 
 def digraph_to_list(G) -> str:
+    """Convert a directed graph to an adjacency matrix string representation.
+    
+    Args:
+        G: A NetworkX directed graph with signed edges.
+        
+    Returns:
+        str: String representation of the adjacency matrix.
+    """
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
     n = G.number_of_nodes()
@@ -41,10 +59,17 @@ def digraph_to_list(G) -> str:
         matrix[j][i] = sign
     return str(matrix)
 
-def powerplay_labels(input_str) -> List[str]:
-    return [item.split(": ")[1] for item in input_str.split(", ")]
-
 def get_nodes(G: nx.DiGraph, node_type: str = "state", labels: bool = False) -> List[Union[str, Dict[str, Any]]]:
+    """Get nodes of a specific type from a directed graph.
+    
+    Args:
+        G: NetworkX directed graph to extract nodes from.
+        node_type: Type of nodes to extract ('state' or 'all').
+        labels: If True, return node labels instead of node ids.
+        
+    Returns:
+        List of node identifiers or dictionaries containing node data.
+    """
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
 
@@ -54,6 +79,16 @@ def get_nodes(G: nx.DiGraph, node_type: str = "state", labels: bool = False) -> 
         return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True) if d.get("category") == node_type]
 
 def get_weight(net, absolute, no_effect=sp.nan) -> sp.Matrix:
+    """Calculate weight matrix by dividing net effect by absolute effect.
+    
+    Args:
+        net: Matrix of net terms.
+        absolute: Matrix of absolute terms.
+        no_effect: Value to use when absolute terms is 0 (default: sympy.nan).
+        
+    Returns:
+        sympy.Matrix: Matrix of weights.
+    """
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -65,8 +100,16 @@ def get_weight(net, absolute, no_effect=sp.nan) -> sp.Matrix:
                 result[i, j] = net[i, j] / absolute[i, j]
     return result
 
-
 def get_positive(net, absolute) -> sp.Matrix:
+    """Calculate matrix of positive terms.
+    
+    Args:
+        net: Matrix of net terms.
+        absolute: Matrix of absolute terms.
+        
+    Returns:
+        sympy.Matrix: Matrix of positive terms.
+    """
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -75,8 +118,16 @@ def get_positive(net, absolute) -> sp.Matrix:
             result[i, j] = (net[i, j] + absolute[i, j]) // 2
     return result
 
-
 def get_negative(net, absolute) -> sp.Matrix:
+    """Calculate matrix of negative terms.
+    
+    Args:
+        net: Matrix of net terms.
+        absolute: Matrix of absolute terms.
+        
+    Returns:
+        sympy.Matrix: Matrix of negative terms.
+    """
     if net.shape != absolute.shape:
         raise ValueError("Matrices must have the same shape")
     result = sp.zeros(*net.shape)
@@ -86,6 +137,16 @@ def get_negative(net, absolute) -> sp.Matrix:
     return result
 
 def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
+    """Calculate sign determinacy matrix from prediction weights.
+    
+    Args:
+        wmat: Matrix of prediction weights.
+        tmat: Matrix of absolute feedback.
+        method: Method to use for probability calculation ('average' or '95_bound').
+        
+    Returns:
+        sympy.Matrix: Probability of sign determinacy.
+    """
     def compute_prob(w, t, method):
         if w == sp.Integer(0):
             return sp.Rational(1, 2)
@@ -118,7 +179,7 @@ def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
     pmat = sp.Matrix(rows, cols, lambda i, j: calc_prob(i, j))
     return pmat
 
-def arrows(G, path) -> str:
+def _arrows(G, path) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
@@ -128,7 +189,7 @@ def arrows(G, path) -> str:
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 
-def sign_string(G, path) -> str:
+def _sign_string(G, path) -> str:
     signs = []
     for from_node, to_node in zip(path, path[1:]):
         sign = G[from_node][to_node]["sign"]
@@ -142,18 +203,13 @@ def sign_string(G, path) -> str:
     else:
         return "0"
 
-def symbolic_path(G, A, path, nodes) -> str:
-    if len(path) == 1:
-        return str(A[nodes.index(path[0]), nodes.index(path[0])])
-    return " * ".join(str(A[nodes.index(path[i]), nodes.index(path[i + 1])]) for i in range(len(path) - 1))
-
 @dataclass(frozen=True)
-class NodeSign:
+class _NodeSign:
     node: str
     sign: int
     
     @classmethod
-    def from_str(cls, s: str) -> 'NodeSign':
+    def from_str(cls, s: str) -> '_NodeSign':
         """Create from string like 'B:+' or 'B: +'"""
         # Strip whitespace
         s = s.strip()
@@ -170,6 +226,15 @@ class NodeSign:
         return (self.node, self.sign)
 
 def perm(A, method="glynn"):
+    """Calculate the permanent of a matrix using specified method.
+    
+    Args:
+        A: NumPy array representing the input matrix.
+        method: Algorithm to use ('glynn' or 'ryser').
+        
+    Returns:
+        float: Permanent of the matrix.
+    """
     # Permanent function is a reimplementation of the following code:
     # Brajesh Gupt, Josh Izaac and Nicolás Quesada. The Walrus: a library for the calculation of hafnians, Hermite polynomials and Gaussian boson sampling. Journal of Open Source Software, 4(44), 1705 (2019)
     # https://the-walrus.readthedocs.io/en/latest/_modules/thewalrus/_permanent.html

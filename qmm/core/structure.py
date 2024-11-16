@@ -4,7 +4,17 @@ import networkx as nx
 import sympy as sp
 from .helper import get_nodes
 
-def import_digraph(data, file_path=True) -> nx.DiGraph:
+
+def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph:
+    """Import a JSON model and convert to a NetworkX DiGraph with sign attributes.
+
+    Args:
+        data: Path to JSON file or dictionary containing model structure
+        file_path: If True, data is a file path. If False, data is a dictionary
+
+    Returns:
+        nx.DiGraph: Signed directed graph (signed digraph)
+    """
     if file_path:
         with open(data, "r") as file:
             data = json.load(file)
@@ -26,15 +36,22 @@ def import_digraph(data, file_path=True) -> nx.DiGraph:
     nx.set_node_attributes(G, "state", "category")
     return G
 
-def create_matrix(G, form="symbolic", matrix_type="A") -> sp.Matrix:
-    if not isinstance(G, nx.DiGraph):
-        raise TypeError("Input must be a networkx.DiGraph.")
-    if form not in ["symbolic", "signed", "binary"]:
-        raise ValueError("Invalid form. Choose 'symbolic', 'signed', or 'binary'.")
-    if matrix_type not in ["A", "B", "C", "D"]:
-        raise ValueError("Invalid matrix_type. Choose 'A', 'B', 'C', or 'D'.")
+
+def create_matrix(G: nx.DiGraph, form: str = "symbolic", matrix_type: str = "A") -> sp.Matrix:
+    """Create an interaction matrix from a signed digraph in symbolic, signed, or binary form.
+
+    Args:
+        G: NetworkX DiGraph representing a signed digraph model
+        form: Type of matrix elements ('symbolic', 'signed', or 'binary')
+        matrix_type: Type of matrix to create ('A', 'B', 'C', or 'D')
+
+    Returns:
+        sp.Matrix: Interaction matrix
+    """
+
     def sym(source: str, target: str, prefix: str) -> sp.Symbol:
         return sp.Symbol(f"{prefix}_{target},{source}")
+
     def sign(source: str, target: str, prefix: str) -> Union[sp.Symbol, int]:
         if form == "symbolic":
             return sym(source, target, prefix) * G[source][target].get("sign", 1)
@@ -42,11 +59,13 @@ def create_matrix(G, form="symbolic", matrix_type="A") -> sp.Matrix:
             return G[source][target].get("sign", 1)
         else:  # form == 'binary'
             return int(G.has_edge(source, target))
+
     def product(path: List[str]) -> Union[sp.Symbol, int]:
         effect = 1
         for i in range(len(path) - 1):
             effect *= sign(path[i], path[i + 1], prefix)
         return effect
+
     state_n = get_nodes(G, "state")
     input_n = get_nodes(G, "input")
     output_n = get_nodes(G, "output")
@@ -69,11 +88,17 @@ def create_matrix(G, form="symbolic", matrix_type="A") -> sp.Matrix:
                 matrix[i, j] = sum(product(path) for path in valid)
     return matrix
 
-def create_equations(G, form="state") -> sp.Matrix:
-    if not isinstance(G, nx.DiGraph):
-        raise TypeError("Input must be a networkx.DiGraph.")
-    if form not in ["state", "output"]:
-        raise ValueError("Invalid form. Choose 'state' or 'output'.")
+
+def create_equations(G: nx.DiGraph, form: str = "state") -> sp.Matrix:
+    """Create linear system of differential equations from a signed digraph.
+
+    Args:
+        G: NetworkX DiGraph representing a signed digraph model
+        form: Type of equations to create ('state' or 'output')
+
+    Returns:
+        sp.Matrix: Linear system of differential equations
+    """
     A = create_matrix(G, form="symbolic", matrix_type="A")
     B = create_matrix(G, form="symbolic", matrix_type="B")
     C = create_matrix(G, form="symbolic", matrix_type="C")

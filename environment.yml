@@ -17,3 +17,7 @@ dependencies:
     - build
     - twine
     - ruff
+    - sphinx
+    - sphinx-rtd-theme
+    - sphinx-copybutton
+    - sphinx-autodoc-typehints

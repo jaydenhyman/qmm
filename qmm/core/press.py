@@ -3,9 +3,21 @@ import sympy as sp
 from functools import cache
 from .structure import create_matrix
 from .helper import perm, get_weight, get_nodes, sign_determinacy
+from typing import Optional
+import networkx as nx
 
 @cache
-def adjoint_matrix(G, form="symbolic", perturb=None) -> sp.Matrix:
+def adjoint_matrix(G: nx.DiGraph, form: str = "symbolic", perturb: Optional[str] = None) -> sp.Matrix:
+    """Calculate elements of classical adjoint matrix for press perturbation response.
+    
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        form: Type of computation ('symbolic', 'signed')
+        perturb: Node to perturb (None for full matrix)
+        
+    Returns:
+        sp.Matrix: Classical adjoint matrix elements
+    """
     A = create_matrix(G, form=form)
     A = sp.Matrix(-A)
     nodes = get_nodes(G, "state")
@@ -17,7 +29,16 @@ def adjoint_matrix(G, form="symbolic", perturb=None) -> sp.Matrix:
     return sp.Matrix(adjoint_matrix)
 
 @cache
-def absolute_feedback_matrix(G, perturb=None) -> sp.Matrix:
+def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp.Matrix:
+    """Calculate total number of both positive and negative terms for press perturbation response.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        perturb: Node to perturb (None for full matrix)
+        
+    Returns:
+        sp.Matrix: Absolute feedback matrix elements
+    """
     A = create_matrix(G, form="binary")
     A_np = np.array(sp.matrix2numpy(A), dtype=int)
     nodes = get_nodes(G, "state")
@@ -37,7 +58,18 @@ def absolute_feedback_matrix(G, perturb=None) -> sp.Matrix:
     return sp.Matrix(tmat)
 
 @cache
-def weighted_predictions_matrix(G, as_nan=True, as_abs=False, perturb=None) -> sp.Matrix:
+def weighted_predictions_matrix(G: nx.DiGraph, as_nan: bool = True, as_abs: bool = False, perturb: Optional[str] = None) -> sp.Matrix:
+    """Calculate ratio of net to total terms for a press perturbation response.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        as_nan: Return NaN for undefined ratios 
+        as_abs: Return absolute values
+        perturb: Node to perturb (None for full matrix)
+        
+    Returns:
+        sp.Matrix: Prediction weights
+    """
     amat = adjoint_matrix(G, perturb=perturb, form="signed")
     if as_abs:
         amat = sp.Abs(amat)
@@ -49,14 +81,40 @@ def weighted_predictions_matrix(G, as_nan=True, as_abs=False, perturb=None) -> s
     return sp.Matrix(wmat)
 
 @cache
-def sign_determinacy_matrix(G, method="average", as_nan=True, as_abs=False, perturb=None) -> sp.Matrix:
+def sign_determinacy_matrix(G: nx.DiGraph, method: str = "average", as_nan: bool = True, as_abs: bool = False, perturb: Optional[str] = None) -> sp.Matrix:
+    """Calculate probability of a correct sign prediction (matches adjoint).
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        method: Method for computing determinacy ('average', '95_bound', 'simulation')
+        as_nan: Return NaN for undefined ratios
+        as_abs: Return absolute values
+        perturb: Node to perturb (None for full matrix)
+        
+    Returns:
+        sp.Matrix: Probability of sign determinacy
+    """
     wmat = weighted_predictions_matrix(G, perturb=perturb, as_nan=as_nan, as_abs=as_abs)
     tmat = sp.Matrix(absolute_feedback_matrix(G, perturb=perturb))
     pmat = sign_determinacy(wmat, tmat, method)
     return sp.Matrix(pmat)
 
 @cache
-def numerical_simulations(G, n_sim=10000, dist="uniform", seed=42, as_nan=True, as_abs=False, perturb=None) -> sp.Matrix:
+def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, as_nan: bool = True, as_abs: bool = False, perturb: Optional[str] = None) -> sp.Matrix:
+    """Calculate proportion of positive and negative responses from stable simulations.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        n_sim: Number of simulations
+        dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong')
+        seed: Random seed
+        as_nan: Return NaN for undefined ratios
+        as_abs: Return absolute values
+        perturb: Node and sign to perturb (None for full matrix)
+        
+    Returns:
+        sp.Matrix: Average proportion of positive and negative responses
+    """
     np.random.seed(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
     state_nodes = get_nodes(G, "state")
@@ -93,6 +151,4 @@ def numerical_simulations(G, n_sim=10000, dist="uniform", seed=42, as_nan=True, 
     smat = sp.Matrix([[sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)] for i in range(n)])
     if not as_nan:
         smat = sp.Matrix([[0 if sp.nan == x else x for x in row] for row in smat.tolist()])
-    if as_abs:
-        smat = sp.Abs(smat)
     return sp.Matrix(smat)

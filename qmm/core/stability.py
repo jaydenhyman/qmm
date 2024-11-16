@@ -6,8 +6,9 @@ from itertools import combinations
 from functools import cache
 from .structure import create_matrix
 from .helper import perm, get_positive, get_negative, get_weight
+from typing import Optional
 
-def colour_test(G) -> str:
+def _colour_test(G) -> str:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     colour = {i: "black" if A[i, i] != 0 else "white" for i in range(n)}
@@ -30,7 +31,15 @@ def colour_test(G) -> str:
                 return "Pass"
         return "Fail"
 
-def sign_stability(G) -> pd.DataFrame:
+def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
+    """Evaluate necessary and sufficient conditions for sign stability including color test.
+    
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        pd.DataFrame: Test results for sign stability conditions
+    """
     A = sp.matrix2numpy(create_matrix(G, form="signed")).astype(int)
     n = A.shape[0]
     conditions = [
@@ -40,7 +49,7 @@ def sign_stability(G) -> pd.DataFrame:
         all(len(cycle) < 3 for cycle in nx.simple_cycles(nx.DiGraph(A))),
         np.linalg.det(A) != 0,
     ]
-    colour_result = colour_test(G) == "Fail"
+    colour_result = _colour_test(G) == "Fail"
     is_sign_stable = all(conditions) and colour_result
     return pd.DataFrame(
         {
@@ -67,7 +76,17 @@ def sign_stability(G) -> pd.DataFrame:
     )
 
 @cache
-def system_feedback(G, level=None, form="symbolic") -> sp.Matrix:
+def system_feedback(G: nx.DiGraph, level: Optional[int] = None, form: str = "symbolic") -> sp.Matrix:
+    """Calculate the product of conjunct and disjunct feedback cycles for any level of the system (coefficients of the characteristic polynomial).
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level of feedback to compute (None for all levels)
+        form: Type of feedback ('symbolic', 'signed', or 'binary')
+
+    Returns:
+        sp.Matrix: Feedback cycle products at specified levels
+    """
     A = create_matrix(G, form=form)
     if level == 0:
         return sp.Matrix([-1])
@@ -81,11 +100,30 @@ def system_feedback(G, level=None, form="symbolic") -> sp.Matrix:
     return sp.Matrix(fb)
 
 @cache
-def net_feedback(G, level=None) -> sp.Matrix:
+def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+    """Calculate net feedback at a specified level of the system.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level of feedback to compute (None for all levels)
+        
+    Returns:
+        sp.Matrix: Net feedback at specified levels
+    """
     return system_feedback(G, level=level, form="signed")
 
 @cache
-def absolute_feedback(G, level=None, method="combinations") -> sp.Matrix:
+def absolute_feedback(G: nx.DiGraph, level: Optional[int] = None, method: str = "combinations") -> sp.Matrix:
+    """Calculate absolute feedback at a specified level of the system.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level of feedback to compute (None for all levels) 
+        method: Method for computing feedback ('combinations' or 'polynomial')
+        
+    Returns:
+        sp.Matrix: Total number of feedback terms at specified levels
+    """
     A = create_matrix(G, form="signed")
     if level == 0:
         return sp.Matrix([1])
@@ -112,12 +150,21 @@ def absolute_feedback(G, level=None, method="combinations") -> sp.Matrix:
     return sp.Matrix(fb)
 
 @cache
-def weighted_feedback(G, level=None) -> sp.Matrix:
+def weighted_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+    """Calculate ratio of net to total feedback terms at each level of the system.
+    
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level to compute weighted feedback (None for all levels)
+        
+    Returns:
+        sp.Matrix: Weighted feedback metrics for each level
+    """
     net_fb = net_feedback(G, level=level)
     tot_fb = absolute_feedback(G, level=level)
     return get_weight(net_fb, tot_fb)
 
-def hurwitz_matrix(fb, level) -> sp.Matrix:
+def _hurwitz_matrix(fb, level) -> sp.Matrix:
     fb_pos = fb * sp.Integer(-1)
     if level == 0:
         return sp.Matrix([fb_pos[0]])
@@ -130,7 +177,15 @@ def hurwitz_matrix(fb, level) -> sp.Matrix:
     return H
 
 @cache
-def feedback_metrics(G) -> pd.DataFrame:
+def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
+    """Calculate net, absolute and weighted feedback metrics at each level of the system.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        pd.DataFrame: Feedback metrics for each system level
+    """
     net = net_feedback(G)
     absolute = absolute_feedback(G)
     positive = get_positive(net, absolute)
@@ -151,28 +206,56 @@ def feedback_metrics(G) -> pd.DataFrame:
     return pd.DataFrame(df)
 
 @cache
-def hurwitz_determinants(G, level=None, form="symbolic") -> sp.Matrix:
+def hurwitz_determinants(G: nx.DiGraph, level: Optional[int] = None, form: str = "symbolic") -> sp.Matrix:
+    """Calculate Hurwitz determinants for analysing system stability.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model  
+        level: Level to compute determinants (None for all Hurwitz determinants)
+        form: Type of computation ('symbolic', 'signed', or 'binary')
+
+    Returns:
+        sp.Matrix: Hurwitz determinants at specified levels
+    """
     fb = system_feedback(G, level=None, form=form)
     n = len(fb) - 1
     if n > 5 and form == "symbolic":
         raise ValueError("Limited to systems with five or fewer variables.")
     if level is None:
-        h = hurwitz_matrix(fb, n)
+        h = _hurwitz_matrix(fb, n)
         hd = sp.Matrix([sp.det(h[:k, :k]) for k in range(0, n + 1)])
     else:
-        h = hurwitz_matrix(fb, level)
+        h = _hurwitz_matrix(fb, level)
         hd = sp.Matrix([sp.det(h[:level, :level])])
     return sp.Matrix(hd)
 
 @cache
-def net_determinants(G, level=None) -> sp.Matrix:
+def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+    """Calculate net terms in Hurwitz determinants.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level to compute determinants (None for all Hurwitz determinants)
+        
+    Returns:
+        sp.Matrix: Net terms in Hurwitz determinants
+    """
     return hurwitz_determinants(G, level=level, form="signed")
 
 @cache
-def absolute_determinants(G, level=None) -> sp.Matrix:
+def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+    """Calculate absolute terms in Hurwitz determinants.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level to compute determinants (None for all Hurwitz determinants)
+        
+    Returns:
+        sp.Matrix: Absolute terms in Hurwitz determinants
+    """
     tot_fb = absolute_feedback(G)
     n = tot_fb.shape[0] - 1
-    h = hurwitz_matrix(tot_fb, n)
+    h = _hurwitz_matrix(tot_fb, n)
     if level is None:
         td = [sp.Integer(1)]
         for k in range(1, n + 1):
@@ -189,14 +272,31 @@ def absolute_determinants(G, level=None) -> sp.Matrix:
     return sp.Matrix(td)
 
 @cache
-def weighted_determinants(G, level=None) -> sp.Matrix:
+def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
+    """Calculate ratio of net to total terms for Hurwitz determinants.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        level: Level to compute determinants (None for all Hurwitz determinants)
+        
+    Returns:
+        sp.Matrix: Ratio of net to total terms for Hurwitz determinants
+    """
     net_det = net_determinants(G, level=level)
     tot_det = absolute_determinants(G, level=level)
     wgt_det = get_weight(net_det, tot_det)
     return wgt_det
 
 @cache
-def determinants_metrics(G) -> pd.DataFrame:
+def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
+    """Calculate net, absolute and weighted Hurwitz determinant metrics.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        pd.DataFrame: Hurwitz determinant metrics
+    """
     net = net_determinants(G)
     absolute = absolute_determinants(G)
     weighted = weighted_determinants(G)
@@ -211,7 +311,7 @@ def determinants_metrics(G) -> pd.DataFrame:
     return pd.DataFrame(df)
 
 @cache
-def create_model_c(n) -> nx.DiGraph:
+def _create_model_c(n: int) -> nx.DiGraph:
     C = nx.DiGraph()
     for i in range(n):
         C.add_node(i)
@@ -223,12 +323,20 @@ def create_model_c(n) -> nx.DiGraph:
     return C
 
 @cache
-def conditional_stability(G) -> pd.DataFrame:
+def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
+    """Analyse conditional stability metrics and model stability class.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+
+    Returns:
+        pd.DataFrame: Conditional stability metrics and model class
+    """
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     w_fb = weighted_feedback(G)
     w_det = weighted_determinants(G, level=n - 1)[0]
-    C = create_model_c(n)
+    C = _create_model_c(n)
     w_det_c = weighted_determinants(C, level=n - 1)[0]
     ratio_C = w_det / w_det_c
     max_fb_n = np.max(w_fb) == w_fb[-1]
@@ -265,7 +373,16 @@ def conditional_stability(G) -> pd.DataFrame:
     return stability_metrics
 
 @cache
-def simulation_stability(G, n_sim=10000) -> pd.DataFrame:
+def simulation_stability(G: nx.DiGraph, n_sim: int = 10000) -> pd.DataFrame:
+    """Analyse stability using randomly sampled interaction strengths from a uniform distribution.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        n_sim: Number of simulations to perform (default 10000)
+        
+    Returns:
+        pd.DataFrame: Proportion of stable matrices and proportion that fail Hurwitz criteria
+    """
     A = create_matrix(G, "signed")
     A = sp.matrix2numpy(A).astype(int)
     n_stable = 0

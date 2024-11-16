@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "qmm-core"
-version = "0.2.25"
+version = "0.2.26"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]
@@ -29,6 +29,14 @@ dependencies = [
     "pandas>=2.2.3",
     "seaborn>=0.13.2",
     "matplotlib>=3.9.2",
+    "sphinx",
+    "sphinx-rtd-theme",
+]
+
+[project.optional-dependencies]
+docs = [
+    "sphinx",
+    "sphinx-rtd-theme",
 ]
 
 [project.urls]

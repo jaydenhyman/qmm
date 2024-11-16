@@ -7,6 +7,15 @@ from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix, absolute_feedback_matrix
 
 def define_state_space(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.DiGraph:
+    """Define model components as state variables, inputs and outputs.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        remove_disconnected: Remove disconnected components
+        
+    Returns:
+        nx.DiGraph: Model with state-space classification
+    """
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
     G_def = G.copy()
@@ -35,6 +44,15 @@ def define_state_space(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.Di
 
 @cache
 def cumulative_effects(G: nx.DiGraph, form: str = "symbolic") -> sp.Matrix:
+    """Calculate cumulative effects to multiple inputs using state-space representation.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        form: Type of computation ('symbolic', 'signed', or 'binary')
+        
+    Returns:
+        sp.Matrix: Cumulative effects on state variables and outputs
+    """
     B = create_matrix(G, form=form, matrix_type="B")
     C = create_matrix(G, form=form, matrix_type="C")
     D = create_matrix(G, form=form, matrix_type="D")
@@ -54,16 +72,40 @@ def cumulative_effects(G: nx.DiGraph, form: str = "symbolic") -> sp.Matrix:
 
 @cache
 def net_effects(G: nx.DiGraph) -> sp.Matrix:
+    """Calculate net effects from multiple inputs.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        sp.Matrix: Net effects on state variables and outputs
+    """
     return cumulative_effects(G, form="signed")
 
 
 @cache
 def absolute_effects(G: nx.DiGraph) -> sp.Matrix:
+    """Calculate absolute effects from multiple inputs.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        sp.Matrix: Total effects on state variables and outputs
+    """
     return cumulative_effects(G, form="binary")
 
 
 @cache
 def positive_effects(G: nx.DiGraph) -> sp.Matrix:
+    """Calculate positive effects from multiple inputs.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        SymPy Matrix containing positive effects
+    """
     net = net_effects(G)
     absolute = absolute_effects(G)
     return get_positive(net, absolute)
@@ -71,6 +113,14 @@ def positive_effects(G: nx.DiGraph) -> sp.Matrix:
 
 @cache
 def negative_effects(G: nx.DiGraph) -> sp.Matrix:
+    """Calculate negative effects from multiple inputs.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        SymPy Matrix containing negative effects
+    """
     net = net_effects(G)
     absolute = absolute_effects(G)
     return get_negative(net, absolute)
@@ -78,6 +128,14 @@ def negative_effects(G: nx.DiGraph) -> sp.Matrix:
 
 @cache
 def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
+    """Calculate ratio of net to total terms for predicting cumulative effects.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Returns:
+        sp.Matrix: Ratio of net to total effects
+    """
     net = net_effects(G)
     absolute = absolute_effects(G)
     return get_weight(net, absolute)
@@ -85,6 +143,16 @@ def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
 
 @cache
 def sign_determinacy_effects(G: nx.DiGraph, method: str = "average") -> sp.Matrix:
+    """Calculate probability of correct sign prediction for cumulative effects.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        method: Method for computing determinacy ('average', '95_bound')
+        
+    Returns:
+        sp.Matrix: Sign determinacy probabilities for effects
+    """
+
     wmat = weighted_effects(G)
     tmat = absolute_effects(G)
     return sign_determinacy(wmat, tmat, method=method)
@@ -92,6 +160,17 @@ def sign_determinacy_effects(G: nx.DiGraph, method: str = "average") -> sp.Matri
 
 @cache
 def get_simulations(G, n_sim=10000, dist="uniform", seed=42, perturb=None, observe=None):
+    """Calculate average proportion of positive and negative effects from stable numerical simulations.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        n_sim: Number of simulations
+        dist: Distribution for sampling
+        seed: Random seed
+        
+    Returns:
+        sp.Matrix: Proportion of positive and negative effects from stable simulations
+    """
     np.random.seed(seed)
     A, B, C, D = [create_matrix(G, form="symbolic", matrix_type=m) for m in "ABCD"]
     state_nodes, input_nodes, output_nodes = [get_nodes(G, t) for t in ["state", "input", "output"]]
@@ -167,6 +246,17 @@ def get_simulations(G, n_sim=10000, dist="uniform", seed=42, perturb=None, obser
 
 
 def simulation_effects(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42) -> sp.Matrix:
+    """Performs numerical simulations of cumulative effects using random interaction strengths.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        n_sim: Number of simulations
+        dist: Distribution for sampling ("uniform", "weak", "moderate", "strong")
+        seed: Random seed
+        
+    Returns:
+        SymPy Matrix containing simulation results
+    """
     sims = get_simulations(G, n_sim, dist, seed)
     tmat = sims["tmat"]
     state_nodes = get_nodes(G, "state")

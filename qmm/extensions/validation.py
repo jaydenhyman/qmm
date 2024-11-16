@@ -3,25 +3,49 @@ import numpy as np
 import pandas as pd
 from functools import cache
 from .effects import get_simulations
-from ..core.helper import get_nodes, arrows, NodeSign
+from ..core.helper import get_nodes, _arrows, _NodeSign
+import networkx as nx
+from typing import List, Optional
 
 
-def parse_observations(s: str) -> tuple[tuple[str, int], ...]:
-    """Parse comma-separated observations into tuple of tuples"""
+def _parse_observations(s: str) -> tuple[tuple[str, int], ...]:
     if not s:
         return tuple()
-    return tuple(NodeSign.from_str(obs.strip()).to_tuple() 
+    return tuple(_NodeSign.from_str(obs.strip()).to_tuple() 
                 for obs in s.split(","))
 
 @cache
-def marginal_likelihood(G, perturb: str, observe: str, n_sim=10000, distribution="uniform", seed=42) -> float:
+def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> float:
+    """Calculate proportion of simulations matching qualitative observations.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        perturb: Node and sign to perturb
+        observe: String of observations
+        n_sim: Number of simulations
+        distribution: Distribution for sampling 
+        seed: Random seed
+
+    Returns:
+        float: Marginal likelihood
+    """
     sims = get_simulations(G, n_sim, distribution, seed,
-                          NodeSign.from_str(perturb).to_tuple(),
-                          parse_observations(observe))
+                          _NodeSign.from_str(perturb).to_tuple(),
+                          _parse_observations(observe))
     return sum(sims["valid_sims"]) / n_sim
 
 @cache
-def model_validation(G, perturb: str, observe: str, n_sim=10000, distribution="uniform", seed=42) -> pd.DataFrame:
+def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
+    """Compare marginal likelihoods from alternative model structures.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        perturb: Node and sign to perturb
+        observe: String of observations
+        
+    Returns:
+        pd.DataFrame: Marginal likelihood comparison for model variants
+    """
     dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
     variants = []
     edge_presence = []
@@ -36,24 +60,37 @@ def model_validation(G, perturb: str, observe: str, n_sim=10000, distribution="u
         edge_presence.append(presence)
     
     likelihoods = [marginal_likelihood(G, perturb, observe, n_sim, distribution, seed) for G in variants]
-    columns = ["Marginal likelihood"] + [arrows(G, [u, v]) for u, v in dashed_edges]
+    columns = ["Marginal likelihood"] + [_arrows(G, [u, v]) for u, v in dashed_edges]
     rows = []
     for i in range(len(variants)):
         row = {
             "Marginal likelihood": likelihoods[i]
         }
         for j, (u, v) in enumerate(dashed_edges):
-            row[arrows(G, [u, v])] = "\u2713" if edge_presence[i][j] else ""
+            row[_arrows(G, [u, v])] = "\u2713" if edge_presence[i][j] else ""
         rows.append(row)
     df = pd.DataFrame(rows, columns=columns).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)    
     df["Marginal likelihood"] = df["Marginal likelihood"].apply(lambda x: f"{x:.3f}")
     return df
 
 @cache
-def posterior_predictions(G, perturb: str, observe: str = "", n_sim=10000, dist="uniform", seed=42) -> sp.Matrix:
+def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim: int = 10000, dist: str = "uniform", seed: int = 42) -> sp.Matrix:
+    """Calculate model predictions conditioned on observations.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        perturb: Node and sign to perturb
+        observe: String of observations
+        n_sim: Number of simulations
+        dist: Distribution for sampling
+        seed: Random seed
+        
+    Returns:
+        sp.Matrix: Predictions conditioned on observations
+    """
     sims = get_simulations(G, n_sim, dist, seed,
-                          NodeSign.from_str(perturb).to_tuple(),
-                          parse_observations(observe))
+                          _NodeSign.from_str(perturb).to_tuple(),
+                          _parse_observations(observe))
     state_nodes, output_nodes = get_nodes(G, "state"), get_nodes(G, "output")
     n, m = len(state_nodes), len(output_nodes)
     valid_count = sum(sims["valid_sims"])
@@ -71,12 +108,12 @@ def posterior_predictions(G, perturb: str, observe: str = "", n_sim=10000, dist=
     negative = np.sum(effects < 0, axis=0)
     smat = positive / valid_count
     tmat_np = np.array(tmat.tolist(), dtype=bool)
-    perturb_node = NodeSign.from_str(perturb).node
+    perturb_node = _NodeSign.from_str(perturb).node
     perturb_index = sims["all_nodes"].index(perturb_node)
     smat = [np.nan if not tmat_np[i, perturb_index] else smat[i] for i in range(n + m)]
     
     if observe:
-        observations = parse_observations(observe)
+        observations = _parse_observations(observe)
         for node, value in observations:
             index = (
                 state_nodes.index(node)
@@ -90,7 +127,16 @@ def posterior_predictions(G, perturb: str, observe: str = "", n_sim=10000, dist=
     return sp.Matrix(smat)
 
 @cache
-def diagnose_observations(G, observe: str, n_sim=10000, distribution="uniform", seed=42) -> pd.DataFrame:
+def diagnose_observations(G: nx.DiGraph, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
+    """Identify possible perturbations from marginal likelihoods.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        observe: String of observations
+        
+    Returns:
+        pd.DataFrame: Ranked perturbations matching observations
+    """
     perturb_nodes = get_nodes(G, "state") + get_nodes(G, "input")
     results = []
     for node in perturb_nodes:
@@ -103,7 +149,23 @@ def diagnose_observations(G, observe: str, n_sim=10000, distribution="uniform", 
     return pd.DataFrame(results).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
 
 
-def bayes_factors(G_list, perturb: str, observe: str, n_sim=10000, distribution="uniform", seed=42, names=None):
+def bayes_factors(G_list: List[nx.DiGraph], perturb: str, observe: str,
+                 n_sim: int = 10000, distribution: str = "uniform", 
+                 seed: int = 42, names: Optional[List[str]] = None) -> pd.DataFrame:
+    """Calculate Bayes factors from the ratio of marginal likelihoods of alternative models.
+
+    Args:
+        G_list (List[nx.DiGraph]): List of NetworkX DiGraphs representing alternative models
+        perturb (str): Node and sign to perturb
+        observe (str): String of observations
+        n_sim (int): Number of simulations
+        distribution (str): Distribution for sampling
+        seed (int): Random seed
+        names (Optional[List[str]]): Optional list of model names
+        
+    Returns:
+        pd.DataFrame: DataFrame containing Bayes factors
+    """
     likelihoods = [marginal_likelihood(G, perturb, observe, n_sim, distribution, seed) for G in G_list]
     model_names = names if names and len(names) == len(G_list) else [f"Model {chr(65+i)}" for i in range(len(G_list))]
     bayes_factors = {f"{model_names[i]}/{model_names[j]}": (

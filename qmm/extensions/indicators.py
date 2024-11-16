@@ -2,17 +2,29 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from functools import cache
-from ..core.helper import get_nodes, NodeSign
+from ..core.helper import get_nodes, _NodeSign
 from .effects import get_simulations
+from typing import Union, List
 
 @cache
-def mutual_information(models, perturb: str, n_sim=10000, seed=42):
+def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42) -> pd.DataFrame:
+    """Calculate mutual information of variables for alternative models.
+
+    Args:
+        models: One or more NetworkX DiGraphs representing alternative models
+        perturb: Node and sign to perturb
+        n_sim: Number of simulations
+        seed: Random seed
+        
+    Returns:
+        pd.DataFrame: Mutual information for indicator selection
+    """
     models = [models] if not isinstance(models, (list, tuple)) else list(models)
     models = [nx.DiGraph(G) if not isinstance(G, nx.DiGraph) else G for G in models]
     nodes = sorted(set(node for G in models for node in get_nodes(G, "state") + get_nodes(G, "output")))
     all_effects = []
     for G in models:
-        sims = get_simulations(G, n_sim=n_sim, seed=seed, perturb=NodeSign.from_str(perturb).to_tuple())
+        sims = get_simulations(G, n_sim=n_sim, seed=seed, perturb=_NodeSign.from_str(perturb).to_tuple())
         response_nodes = get_nodes(G, "state") + get_nodes(G, "output")
         node_map = {node: i for i, node in enumerate(response_nodes)}
         sim_effects = []

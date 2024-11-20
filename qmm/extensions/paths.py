@@ -63,7 +63,7 @@ def get_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -
     Returns:
         pd.DataFrame: Path information including length and sign
     """
-    nodes = get_nodes(G, "state")
+    nodes = get_nodes(G, "all")
     A = create_matrix(G, form=form)
     if source not in nodes or target not in nodes or source == target:
         raise ValueError("Invalid source or target node")
@@ -85,7 +85,7 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
     Returns:
         Optional[pd.DataFrame]: DataFrame containing path information or None if no paths exist
     """
-    nodes = get_nodes(G, "state") + get_nodes(G, "input") + get_nodes(G, "output")
+    nodes = get_nodes(G, "all")
     if source not in nodes or target not in nodes or source == target:
         raise ValueError("Invalid source or target node")
     if not nx.has_path(G, source, target):

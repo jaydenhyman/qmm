@@ -1,6 +1,7 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
+from scipy.stats import truncnorm
 from functools import cache
 from ..core.helper import get_nodes, get_weight, get_positive, get_negative, sign_determinacy
 from ..core.structure import create_matrix
@@ -182,6 +183,9 @@ def get_simulations(G, n_sim=10000, dist="uniform", seed=42, perturb=None, obser
         "weak": lambda size: np.random.beta(1, 3, size),
         "moderate": lambda size: np.random.beta(2, 2, size),
         "strong": lambda size: np.random.beta(3, 1, size),
+        "normal_weak": lambda size: truncnorm.rvs(a=0, b=3, loc=0, scale=1/3, size=size),
+        "normal_moderate": lambda size: truncnorm.rvs(a=-3, b=3, loc=0.5, scale=1/6, size=size),
+        "normal_strong": lambda size: truncnorm.rvs(a=-3, b=0, loc=1, scale=1/3, size=size)
     }
     pert_idx, perturb_sign = (node_idx[perturb[0]], perturb[1]) if perturb else (None, 1)
     n_state, n_input, n_output = len(state_nodes), len(input_nodes), len(output_nodes)

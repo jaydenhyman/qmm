@@ -19,20 +19,11 @@ Core modules
 Extension modules
 ------------------
 
-.. automodule:: qmm.extensions.effects
-   :members:
-
 .. automodule:: qmm.extensions.life
    :members:
 
 .. automodule:: qmm.extensions.senstability
    :members:
 
-.. automodule:: qmm.extensions.indicators
-   :members:
-
 .. automodule:: qmm.extensions.paths
-   :members:
-
-.. automodule:: qmm.extensions.validation
    :members:

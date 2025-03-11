@@ -5,7 +5,8 @@ import sympy as sp
 from itertools import combinations
 from functools import cache
 from .structure import create_matrix
-from .helper import perm, get_positive, get_negative, get_weight
+from .helper import get_positive, get_negative, get_weight
+from thewalrus import perm
 from typing import Optional
 
 def _colour_test(G) -> str:

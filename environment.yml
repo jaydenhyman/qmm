@@ -10,8 +10,6 @@ dependencies:
   - networkx=2.6.3
   - numba=0.60.0
   - pandas=2.2.3
-  - seaborn=0.13.2
-  - matplotlib=3.9.2
   - scipy=1.11.4
   - pip
   - pip:

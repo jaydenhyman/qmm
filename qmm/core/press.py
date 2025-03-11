@@ -1,6 +1,7 @@
 import numpy as np
 import sympy as sp
 from functools import cache
+from scipy.stats import truncnorm
 from .structure import create_matrix
 from .helper import perm, get_weight, get_nodes, sign_determinacy
 from typing import Optional
@@ -100,7 +101,9 @@ def sign_determinacy_matrix(G: nx.DiGraph, method: str = "average", as_nan: bool
     return sp.Matrix(pmat)
 
 @cache
-def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, as_nan: bool = True, as_abs: bool = False, perturb: Optional[str] = None) -> sp.Matrix:
+def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, 
+                         as_nan: bool = True, as_abs: bool = False, positive_only: bool = False, 
+                         perturb: Optional[str] = None) -> sp.Matrix:
     """Calculate proportion of positive and negative responses from stable simulations.
 
     Args:
@@ -109,12 +112,20 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong')
         seed: Random seed
         as_nan: Return NaN for undefined ratios
-        as_abs: Return absolute values
+        positive_only: Return just the proportion of positive responses instead of sign-dominant proportions.
+        as_abs: Return absolute values of proportions
         perturb: Node and sign to perturb (None for full matrix)
         
     Returns:
         sp.Matrix: Average proportion of positive and negative responses
+        
+    Raises:
+        ValueError: If positive_only=True is used with as_nan=False
     """
+    if positive_only and not as_nan:
+        raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=False")
+    if as_abs and not as_nan:
+        raise ValueError("Invalid parameter combination: as_abs=True requires as_nan=True")
     np.random.seed(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
     state_nodes = get_nodes(G, "state")
@@ -128,6 +139,9 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         "weak": lambda size: np.random.beta(1, 3, size),
         "moderate": lambda size: np.random.beta(2, 2, size),
         "strong": lambda size: np.random.beta(3, 1, size),
+        "normal_weak": lambda size: truncnorm.rvs(a=0, b=3, loc=0, scale=1/3, size=size),
+        "normal_moderate": lambda size: truncnorm.rvs(a=-3, b=3, loc=0.5, scale=1/6, size=size),
+        "normal_strong": lambda size: truncnorm.rvs(a=-3, b=0, loc=1, scale=1/3, size=size)
     }
     positive = np.zeros((n, n), dtype=int)
     negative = np.zeros((n, n), dtype=int)
@@ -144,11 +158,16 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
                 total_simulations += 1
             except np.linalg.LinAlgError:
                 continue
-    smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
+    if positive_only:
+        smat = positive / n_sim
+    else:
+        smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
     smat = sp.Matrix(smat.astype(float).tolist())
     tmat = absolute_feedback_matrix(G)
     tmat_np = np.array(tmat.tolist(), dtype=bool)
     smat = sp.Matrix([[sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)] for i in range(n)])
+    if as_abs:
+        smat = sp.Matrix([[sp.Abs(x) if x != sp.nan else sp.nan for x in row] for row in smat.tolist()])
     if not as_nan:
         smat = sp.Matrix([[0 if sp.nan == x else x for x in row] for row in smat.tolist()])
     return sp.Matrix(smat)

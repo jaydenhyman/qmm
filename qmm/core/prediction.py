@@ -1,9 +1,7 @@
 import numpy as np
 import sympy as sp
 import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from typing import Dict, Any, Tuple, Union, List, Optional
+from typing import Union, List, Optional
 
 def table_of_predictions(M: Union[sp.Matrix, np.ndarray], t1: float = 0.8, t2: float = 1.0,
                         index: Optional[List[str]] = None, 
@@ -58,48 +56,3 @@ def compare_predictions(M1: pd.DataFrame, M2: pd.DataFrame) -> pd.DataFrame:
     )
     return combined
 
-def create_plot(data: pd.DataFrame, **kwargs: Any) -> Tuple[plt.Figure, plt.Axes]:
-    """Create heatmap visualization of qualitative predictions matrix.
-
-    Args:
-        data: Matrix of qualitative predictions
-        **kwargs: Additional arguments passed to seaborn.heatmap
-        
-    Returns:
-        tuple[Figure, Axes]: Matplotlib objects for customizing visualization
-    """
-    plt.rcParams.update(
-        {
-            "xtick.top": True,
-            "xtick.bottom": False,
-            "xtick.labeltop": True,
-            "xtick.labelbottom": False,
-            "xtick.major.width": 0.5,
-            "ytick.major.width": 0.5,
-            "xtick.major.size": 3,
-            "ytick.major.size": 3,
-            "xtick.minor.size": 1.5,
-            "ytick.minor.size": 1.5,
-        }
-    )
-    args: Dict[str, Any] = {
-        "annot": True,
-        "linewidths": 0.75,
-        "linecolor": "white",
-        "cbar": False,
-        "cmap": None,
-    }
-    args.update(kwargs)
-    figsize = args.pop("figsize", None)
-    if figsize:
-        fig, ax = plt.subplots(figsize=figsize)
-    else:
-        fig, ax = plt.subplots()
-    sns.heatmap(data, ax=ax, **args)
-    plt.setp(ax.get_xticklabels(), rotation=0, ha="center")
-    plt.setp(ax.get_yticklabels(), rotation=0, ha="right")
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_color("white")
-        spine.set_linewidth(0.5)
-    return fig, ax

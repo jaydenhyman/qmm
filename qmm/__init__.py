@@ -31,7 +31,6 @@ from .core.press import (
 from .core.prediction import (
     table_of_predictions,
     compare_predictions,
-    create_plot,
 )
 
 from .core.helper import (
@@ -135,7 +134,6 @@ __all__ = [
     # prediction.py
     "table_of_predictions",
     "compare_predictions",
-    "create_plot",
     # helper.py
     "list_to_digraph",
     "digraph_to_list",

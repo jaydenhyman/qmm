@@ -11,6 +11,7 @@ dependencies:
   - numba=0.60.0
   - pandas=2.2.3
   - scipy=1.11.4
+  - thewalrus=0.21.0
   - pip
   - pip:
     - build

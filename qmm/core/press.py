@@ -3,7 +3,9 @@ import sympy as sp
 from functools import cache
 from scipy.stats import truncnorm
 from .structure import create_matrix
-from .helper import perm, get_weight, get_nodes, sign_determinacy
+from .helper import get_weight, get_nodes, sign_determinacy
+from thewalrus import perm
+
 from typing import Optional
 import networkx as nx
 

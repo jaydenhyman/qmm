@@ -112,7 +112,6 @@ __all__ = [
     # helper.py
     "list_to_digraph",
     "digraph_to_list",
-    "perm",
     "get_nodes",
     "get_positive",
     "get_negative",
@@ -139,12 +138,4 @@ __all__ = [
     "system_paths",
     "weighted_paths",
     "path_metrics",
-    # helper.py
-    "list_to_digraph",
-    "digraph_to_list",
-    "get_nodes",
-    "get_positive",
-    "get_negative",
-    "get_weight",
-    "sign_determinacy",
 ]

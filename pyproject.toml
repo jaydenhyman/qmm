@@ -23,7 +23,7 @@ dependencies = [
     "sympy",
     "networkx",
     "pandas",
-    "thewalrus=0.21.0"
+    "thewalrus==0.21.0"
 ]
 
 [project.optional-dependencies]

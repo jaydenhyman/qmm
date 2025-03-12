@@ -26,9 +26,11 @@ jobs:
         version: "0.6.3"
         enable-cache: true
         cache-dependency-glob: "pyproject.toml"
-    - name: Install dependencies
+    - name: Setup with uv sync
       run: |
-        uv pip install -e ".[dev]"
+        uv python install ${{ matrix.python-version }}
+        uv python pin ${{ matrix.python-version }}
+        uv sync
     - name: Lint with Ruff
       run: |
         uv run ruff check qmm
@@ -54,9 +56,11 @@ jobs:
           version: "0.6.3"
           enable-cache: true
           cache-dependency-glob: "pyproject.toml"
-      - name: Install build dependencies
+      - name: Setup with uv sync
         run: |
-          uv pip install -e ".[dev]"
+          uv python install 3.11
+          uv python pin 3.11
+          uv sync
       - name: Build package
         run: uv run python -m build
       - name: Publish package

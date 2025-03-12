@@ -1,7 +1,6 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from numba import jit
 from typing import List, Union, Dict, Any
 from dataclasses import dataclass
 
@@ -224,94 +223,3 @@ class _NodeSign:
     def to_tuple(self) -> tuple[str, int]:
         """Convert to tuple format for internal use"""
         return (self.node, self.sign)
-
-def perm(A, method="glynn"):
-    """Calculate the permanent of a matrix using specified method.
-    
-    Args:
-        A: NumPy array representing the input matrix.
-        method: Algorithm to use ('glynn' or 'ryser').
-        
-    Returns:
-        float: Permanent of the matrix.
-    """
-    # Permanent function is a reimplementation of the following code:
-    # Brajesh Gupt, Josh Izaac and Nicolás Quesada. The Walrus: a library for the calculation of hafnians, Hermite polynomials and Gaussian boson sampling. Journal of Open Source Software, 4(44), 1705 (2019)
-    # https://the-walrus.readthedocs.io/en/latest/_modules/thewalrus/_permanent.html
-    #
-    # The original code is licensed under the Apache License, Version 2.0
-    # (http://www.apache.org/licenses/LICENSE-2.0).
-    if not isinstance(A, np.ndarray):
-        raise TypeError("Input matrix must be a NumPy array.")
-    matshape = A.shape
-    if matshape[0] != matshape[1]:
-        raise ValueError("Input matrix must be square.")
-    if np.isnan(A).any():
-        raise ValueError("Input matrix must not contain NaNs.")
-    if matshape[0] == 0:
-        return 1
-    if matshape[0] == 1:
-        return A[0, 0]
-    if matshape[0] == 2:
-        return A[0, 0] * A[1, 1] + A[0, 1] * A[1, 0]
-    if matshape[0] == 3:
-        return (
-            A[0, 2] * A[1, 1] * A[2, 0]
-            + A[0, 1] * A[1, 2] * A[2, 0]
-            + A[0, 2] * A[1, 0] * A[2, 1]
-            + A[0, 0] * A[1, 2] * A[2, 1]
-            + A[0, 1] * A[1, 0] * A[2, 2]
-            + A[0, 0] * A[1, 1] * A[2, 2]
-        )
-    return _ryser(A) if method != "glynn" else _glynn(A)
-
-@jit(nopython=True)
-def _ryser(A):
-    n = len(A)
-    if n == 0:
-        return 1
-    row_comb = np.zeros((n), dtype=A.dtype)
-    total = 0
-    old_grey = 0
-    sign = +1
-    binary_power_dict = [2**i for i in range(n)]
-    num_loops = 2**n
-    for k in range(0, num_loops):
-        bin_index = (k + 1) % num_loops
-        reduced = np.prod(row_comb)
-        total += sign * reduced
-        new_grey = bin_index ^ (bin_index // 2)
-        grey_diff = old_grey ^ new_grey
-        grey_diff_index = binary_power_dict.index(grey_diff)
-        new_vector = A[grey_diff_index]
-        direction = (old_grey > new_grey) - (old_grey < new_grey)
-        for i in range(n):
-            row_comb[i] += new_vector[i] * direction
-        sign = -sign
-        old_grey = new_grey
-    return total
-
-@jit(nopython=True)
-def _glynn(A):
-    n = len(A)
-    if n == 0:
-        return 1
-    row_comb = np.sum(A, 0)
-    total = 0
-    old_gray = 0
-    sign = +1
-    binary_power_dict = [2**i for i in range(n)]
-    num_loops = 2 ** (n - 1)
-    for bin_index in range(1, num_loops + 1):
-        reduced = np.prod(row_comb)
-        total += sign * reduced
-        new_gray = bin_index ^ (bin_index // 2)
-        gray_diff = old_gray ^ new_gray
-        gray_diff_index = binary_power_dict.index(gray_diff)
-        new_vector = A[gray_diff_index]
-        direction = 2 * ((old_gray > new_gray) - (old_gray < new_gray))
-        for i in range(n):
-            row_comb[i] += new_vector[i] * direction
-        sign = -sign
-        old_gray = new_gray
-    return total / num_loops

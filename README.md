@@ -5,7 +5,7 @@
 
 ![QMM Logo](logo.png)
 
-Qualitative Mathematical Modelling (QMM) is a method for analysing the structure of complex systems where general causal relationships are known but precise quantitative data are lacking. By utilising networks (signed digraphs) to visualise system structure, QMM enables users to build models of real-world systems and generate testable predictions of system response to perturbations.
+Qualitative Mathematical Modelling (QMM) is a method for analysing the structure of complex systems where general causal relationships are known but precise quantitative data are lacking. By utilising signed directed digraphs to visualise system structure, QMM enables users to build models of real-world systems and generate testable predictions of system response to perturbations.
 
 ## Features
 
@@ -16,7 +16,7 @@ Qualitative Mathematical Modelling (QMM) is a method for analysing the structure
 
 1. Install using pip: ```pip install qmm-core```.
 2. Create a model using the prototype [web application](https://dev.d1u6yx7pe96k0m.amplifyapp.com/).
-3. Analyse your model in Python. See `qmm.ipynb` for a complete tutorial and example.
+3. Import functions using ```import qmm``` to analyse your model in Python.
 
 ## Documentation
 

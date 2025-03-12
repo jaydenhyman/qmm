@@ -12,7 +12,7 @@ jobs:
     strategy:
       max-parallel: 5
       matrix:
-        python-version: ['3.9', '3.10', '3.11', '3.12']
+        python-version: ['3.9', '3.10']
 
     steps:
     - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: '3.11' 
+          python-version: '3.10' 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -58,8 +58,8 @@ jobs:
           cache-dependency-glob: "pyproject.toml"
       - name: Setup with uv sync
         run: |
-          uv python install 3.11
-          uv python pin 3.11
+          uv python install 3.10
+          uv python pin 3.10
           uv sync
       - name: Build package
         run: uv run python -m build

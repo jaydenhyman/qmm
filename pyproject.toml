@@ -17,15 +17,13 @@ classifiers = [
     "License :: OSI Approved :: BSD License",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
     "numpy",
     "sympy",
     "networkx",
     "pandas",
-    "thewalrus"
+    "thewalrus=0.21.0"
 ]
 
 [project.optional-dependencies]

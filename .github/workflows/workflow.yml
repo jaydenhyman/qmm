@@ -30,7 +30,7 @@ jobs:
       run: |
         uv python install ${{ matrix.python-version }}
         uv python pin ${{ matrix.python-version }}
-        uv sync
+        uv sync --dev
     - name: Lint with Ruff
       run: |
         uv run ruff check qmm
@@ -60,7 +60,7 @@ jobs:
         run: |
           uv python install 3.10
           uv python pin 3.10
-          uv sync
+          uv sync --dev
       - name: Build package
         run: uv run python -m build
       - name: Publish package

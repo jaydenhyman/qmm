@@ -177,3 +177,4 @@ docs/source/_build/
 docs/website/_private/
 
 uv.lock
+.python-version

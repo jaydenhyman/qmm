@@ -32,6 +32,7 @@ dev = [
     "sphinx-rtd-theme",
     "sphinx-copybutton",
     "sphinx-autodoc-typehints",
+    "pytest",
     "ruff",
     "build",
     "twine"

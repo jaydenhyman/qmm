@@ -36,7 +36,6 @@ from .core.prediction import (
 from .core.helper import (
     list_to_digraph,
     digraph_to_list,
-    perm,
     get_nodes,
     get_positive,
     get_negative,
@@ -143,7 +142,6 @@ __all__ = [
     # helper.py
     "list_to_digraph",
     "digraph_to_list",
-    "perm",
     "get_nodes",
     "get_positive",
     "get_negative",

@@ -175,3 +175,5 @@ docs/source/_build/
 
 # Quarto private API docs
 docs/website/_private/
+
+uv.lock

@@ -30,7 +30,3 @@ This project is licensed under the BSD 3-Clause License and is **free** and **op
 ## Contact
 
 Jayden Hyman - <j.hyman@uq.edu.au>
-
-## Contributing
-
-This software was initially developed as part of Dr Jayden Hyman's PhD research at Griffith University. We welcome contributions to improve and expand the QMM software. As the project is in its early stages of development, we appreciate your patience and support in helping us refine the software.

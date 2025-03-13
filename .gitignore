@@ -122,6 +122,9 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 
+uv.lock
+.python-version
+
 # SageMath parsed files
 *.sage.py
 
@@ -176,5 +179,3 @@ docs/source/_build/
 # Quarto private API docs
 docs/website/_private/
 
-uv.lock
-.python-version

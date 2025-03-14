@@ -70,6 +70,28 @@ from .extensions.paths import (
     path_metrics,
 )
 
+from .extensions.effects import (
+    define_input_output,
+    cumulative_effects,
+    absolute_effects,
+    weighted_effects,
+    sign_determinacy_effects,
+    get_simulations,
+    simulation_effects,
+)
+
+from .extensions.indicators import (
+    mutual_information,
+)
+
+from .extensions.validation import (
+    marginal_likelihood,
+    model_validation,
+    posterior_predictions,
+    diagnose_observations,
+    bayes_factors,
+)
+
 import pandas as pd
 
 def configure_pandas_display(max_columns=None, max_rows=None, max_colwidth=None, display_width=None):
@@ -138,4 +160,20 @@ __all__ = [
     "system_paths",
     "weighted_paths",
     "path_metrics",
+    # effects.py
+    "define_input_output",
+    "cumulative_effects",
+    "absolute_effects",
+    "weighted_effects",
+    "sign_determinacy_effects",
+    "get_simulations",
+    "simulation_effects",
+    # indicators.py
+    "mutual_information",
+    # validation.py
+    "marginal_likelihood",
+    "model_validation",
+    "posterior_predictions",
+    "diagnose_observations",
+    "bayes_factors",
 ]

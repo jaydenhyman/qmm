@@ -205,7 +205,7 @@ def get_simulations(G, n_sim=10000, dist="uniform", seed=42, perturb=None, obser
     return {"effects": effects, "valid_sims": valid_sims, "all_nodes": all_nodes, "tmat": tmat}
 
 
-def simulation_effects(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42) -> sp.Matrix:
+def simulation_effects(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, positive_only: bool = False) -> sp.Matrix:
     """Performs numerical simulations of cumulative effects using random interaction strengths.
 
     Args:
@@ -213,6 +213,7 @@ def simulation_effects(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform",
         n_sim: Number of simulations
         dist: Distribution for sampling ("uniform", "weak", "moderate", "strong")
         seed: Random seed
+        positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
         
     Returns:
         SymPy Matrix containing simulation results
@@ -229,7 +230,10 @@ def simulation_effects(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform",
     for effect in sims["effects"]:
         positive += effect > 0
         negative += effect < 0
-    smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
+    if positive_only:
+        smat = positive / n_sim
+    else:
+        smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
     smat = sp.Matrix(smat)
     smat = sp.Matrix([[sp.nan if not tmat[i, j] else smat[i, j] for j in range(smat.cols)] for i in range(smat.rows)])
     return smat

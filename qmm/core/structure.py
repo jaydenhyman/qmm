@@ -32,6 +32,8 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
                 att["sign"] = 1
             elif arr_type == "circle":
                 att["sign"] = -1
+        if "dashes" not in att:
+            att["dashes"] = False
         G.add_edge(source, target, **att)
     nx.set_node_attributes(G, "state", "category")
     return G

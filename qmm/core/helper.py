@@ -151,7 +151,7 @@ def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
         sympy.Matrix: Probability of sign determinacy.
     """
 
-    MAX_PROB = sp.Float('0.99999')
+    MAX_PROB = sp.Float('0.999999')
     
     def compute_prob(w, t, method):
         if w == sp.Integer(0):

@@ -135,6 +135,10 @@ def get_negative(net, absolute) -> sp.Matrix:
             result[i, j] = (absolute[i, j] - net[i, j]) // 2
     return result
 
+import sympy as sp
+import numpy as np
+import pandas as pd
+
 def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
     """Calculate sign determinacy matrix from prediction weights.
     
@@ -146,6 +150,9 @@ def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
     Returns:
         sympy.Matrix: Probability of sign determinacy.
     """
+
+    MAX_PROB = sp.Float('0.99999')
+    
     def compute_prob(w, t, method):
         if w == sp.Integer(0):
             return sp.Rational(1, 2)
@@ -156,16 +163,44 @@ def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
         elif t == sp.Integer(0):
             return sp.nan
         return compute_prob_average(w, t) if method == "average" else compute_prob_95_bound(w, t)
+    
     def compute_prob_average(w, t):
         bw = 3.45962
         bwt = 0.03417
-        prob = sp.exp(bw * w + bwt * w * t) / (1 + sp.exp(bw * w + bwt * w * t))
-        return max(sp.Rational(1, 2), prob)
+        w_float = float(w)
+        t_float = float(t)
+        exponent = bw * w_float + bwt * w_float * t_float
+        
+        if exponent > 700:  # exp(700) is near the float64 limit
+            return MAX_PROB
+            
+        prob_float = np.exp(exponent) / (1 + np.exp(exponent))
+        prob = sp.Float(prob_float)
+        
+        prob = max(sp.Rational(1, 2), prob)
+
+        if prob >= MAX_PROB:
+            prob = MAX_PROB
+        return prob
+    
     def compute_prob_95_bound(w, t):
         bw = 9.766
         bwt = 0.139
-        prob = sp.exp(bw * w + bwt * w * t) / (1253.992 + sp.exp(bw * w + bwt * w * t))
-        return max(sp.Rational(1, 2), prob)
+        w_float = float(w)
+        t_float = float(t)
+        exponent = bw * w_float + bwt * w_float * t_float
+        
+        if exponent > 700:
+            return MAX_PROB
+            
+        prob_float = np.exp(exponent) / (1253.992 + np.exp(exponent))
+        prob = sp.Float(prob_float)
+        
+        prob = max(sp.Rational(1, 2), prob)
+        if prob >= MAX_PROB:
+            prob = MAX_PROB
+        return prob
+    
     if method not in ["average", "95_bound"]:
         raise ValueError("Invalid method. Choose 'average' or '95_bound'.")
     rows, cols = wmat.shape
@@ -173,10 +208,14 @@ def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
         w, t = wmat[i, j], tmat[i, j]
         if w.is_zero:
             return sp.Rational(1, 2)
+        if sp.Abs(w) == sp.Integer(1):
+            return sp.sign(w) * sp.Integer(1)
         prob = compute_prob(sp.Abs(w), t, method)
         return sp.sign(w) * prob if prob is not None else sp.nan
+    
     pmat = sp.Matrix(rows, cols, lambda i, j: calc_prob(i, j))
     return pmat
+
 
 def _arrows(G, path) -> str:
     arrows = []

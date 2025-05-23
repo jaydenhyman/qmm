@@ -135,10 +135,6 @@ def get_negative(net, absolute) -> sp.Matrix:
             result[i, j] = (absolute[i, j] - net[i, j]) // 2
     return result
 
-import sympy as sp
-import numpy as np
-import pandas as pd
-
 def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
     """Calculate sign determinacy matrix from prediction weights.
     

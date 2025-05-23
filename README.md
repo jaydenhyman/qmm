@@ -2,7 +2,6 @@
 
 [![Status](https://img.shields.io/badge/Status-Active%20Development-yellow)]()
 [![Python Version](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](https://opensource.org/licenses/BSD-3-Clause)
 
 ![QMM Logo](logo.png)
 
@@ -16,7 +15,7 @@ Qualitative Mathematical Modelling (QMM) is a method for analysing the structure
 ## Quick start
 
 1. Install using pip: ```pip install qmm-core```.
-2. Create a model using the prototype [web application](https://dev.d1u6yx7pe96k0m.amplifyapp.com/).
+2. Create a model using the prototype [web application](https://www.digraphbuilder.com/).
 3. Import functions using ```import qmm``` to analyse your model in Python.
 
 ## Documentation
@@ -25,7 +24,7 @@ Detailed documentation for the `qmm` package and its modules is not currently av
 
 ## Licensing
 
-This project is licensed under the BSD 3-Clause License and is **free** and **open source**.
+This project is licensed under the the GNU General Public License v3.0 and is **free** and **open source**.
 
 ## Contact
 

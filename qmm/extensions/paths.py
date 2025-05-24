@@ -1,3 +1,5 @@
+"""Analyse causal pathways, cycles and complementary feedback."""
+
 import pandas as pd
 import networkx as nx
 import sympy as sp
@@ -9,16 +11,13 @@ from ..core.helper import get_nodes, _sign_string, _arrows, get_positive, get_ne
 
 @cache
 def get_cycles(G: nx.DiGraph) -> sp.Matrix:
-    """Find all causal pathways between two nodes.
+    """Find all feedback cycles in the signed digraph.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        source: Source node
-        target: Target node
-        form: Type of path products ('symbolic', 'signed', or 'binary')
         
     Returns:
-        sp.Matrix: Products of interactions along each path
+        sp.Matrix: Products of interactions along each cycle
     """
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
@@ -37,7 +36,7 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
         G: NetworkX DiGraph representing signed digraph model
         
     Returns:
-        sp.Matrix: Products of interactions in each cycle
+        pd.DataFrame: Table with cycle length, path representation, and sign
     """
     cycle_nodes = sorted([path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x))
     all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
@@ -53,15 +52,16 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
 
 @cache
 def get_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
-    """Create table of paths including length, sequence and sign.
+    """Find all causal pathways between two nodes.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
         source: Source node
         target: Target node
+        form: Type of path products ('symbolic', 'signed', or 'binary')
         
     Returns:
-        pd.DataFrame: Path information including length and sign
+        sp.Matrix: Products of interactions along each path
     """
     nodes = get_nodes(G, "all")
     A = create_matrix(G, form=form)

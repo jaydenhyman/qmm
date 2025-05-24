@@ -1,3 +1,5 @@
+"""Analyse the sensitivity of system stability to direct effects within feedback cycles."""
+
 import sympy as sp
 import networkx as nx
 from functools import cache

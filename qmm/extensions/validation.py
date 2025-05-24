@@ -1,3 +1,5 @@
+"""Validate qualitative predictions of system response to press perturbations from observations."""
+
 import sympy as sp
 import numpy as np
 import pandas as pd

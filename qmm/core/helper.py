@@ -1,10 +1,12 @@
+"""Utility functions for model development and analysis."""
+
 import numpy as np
 import sympy as sp
 import networkx as nx
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 from dataclasses import dataclass
 
-def list_to_digraph(matrix, ids=None) -> nx.DiGraph:
+def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
     """Convert an adjacency matrix to a directed graph.
     
     Args:
@@ -37,7 +39,7 @@ def list_to_digraph(matrix, ids=None) -> nx.DiGraph:
     nx.set_node_attributes(G, "state", "category")
     return G
 
-def digraph_to_list(G) -> str:
+def digraph_to_list(G: nx.DiGraph) -> str:
     """Convert a directed graph to an adjacency matrix string representation.
     
     Args:
@@ -77,7 +79,7 @@ def get_nodes(G: nx.DiGraph, node_type: str = "state", labels: bool = False) -> 
     else:
         return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True) if d.get("category") == node_type]
 
-def get_weight(net, absolute, no_effect=sp.nan) -> sp.Matrix:
+def get_weight(net: sp.Matrix, absolute: sp.Matrix, no_effect: Union[sp.Basic, float] = sp.nan) -> sp.Matrix:
     """Calculate weight matrix by dividing net effect by absolute effect.
     
     Args:
@@ -99,7 +101,7 @@ def get_weight(net, absolute, no_effect=sp.nan) -> sp.Matrix:
                 result[i, j] = net[i, j] / absolute[i, j]
     return result
 
-def get_positive(net, absolute) -> sp.Matrix:
+def get_positive(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
     """Calculate matrix of positive terms.
     
     Args:
@@ -117,7 +119,7 @@ def get_positive(net, absolute) -> sp.Matrix:
             result[i, j] = (net[i, j] + absolute[i, j]) // 2
     return result
 
-def get_negative(net, absolute) -> sp.Matrix:
+def get_negative(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
     """Calculate matrix of negative terms.
     
     Args:
@@ -135,7 +137,7 @@ def get_negative(net, absolute) -> sp.Matrix:
             result[i, j] = (absolute[i, j] - net[i, j]) // 2
     return result
 
-def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
+def sign_determinacy(wmat: sp.Matrix, tmat: sp.Matrix, method: str = "average") -> sp.Matrix:
     """Calculate sign determinacy matrix from prediction weights.
     
     Args:
@@ -213,7 +215,7 @@ def sign_determinacy(wmat, tmat, method="average") -> sp.Matrix:
     return pmat
 
 
-def _arrows(G, path) -> str:
+def _arrows(G: nx.DiGraph, path: List[str]) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
@@ -223,7 +225,7 @@ def _arrows(G, path) -> str:
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 
-def _sign_string(G, path) -> str:
+def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
     signs = []
     for from_node, to_node in zip(path, path[1:]):
         sign = G[from_node][to_node]["sign"]

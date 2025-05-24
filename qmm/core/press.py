@@ -1,3 +1,5 @@
+"""Analyse direct and indirect effects of press perturbations."""
+
 import numpy as np
 import sympy as sp
 from functools import cache

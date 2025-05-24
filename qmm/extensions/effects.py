@@ -1,3 +1,5 @@
+"""Analyse cumulative effects from perturbation scenarios with multiple-inputs and multiple-outputs."""
+
 import numpy as np
 import sympy as sp
 import networkx as nx
@@ -6,6 +8,7 @@ from functools import cache
 from ..core.helper import get_nodes, get_weight, sign_determinacy
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix, absolute_feedback_matrix
+from typing import Dict, List, Optional, Any
 
 def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.DiGraph:
     """Define model components as state variables, inputs and outputs.
@@ -116,7 +119,7 @@ def sign_determinacy_effects(G: nx.DiGraph, method: str = "average") -> sp.Matri
 
 
 @cache
-def get_simulations(G, n_sim=10000, dist="uniform", seed=42, perturb=None, observe=None):
+def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, perturb: Optional[tuple[str, int]] = None, observe: Optional[List[tuple[str, int]]] = None) -> Dict[str, Any]:
     """Calculate average proportion of positive and negative effects from stable numerical simulations.
 
     Args:

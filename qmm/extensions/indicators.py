@@ -1,3 +1,5 @@
+"""Identify informative indicators from press perturbations."""
+
 import pandas as pd
 import numpy as np
 import networkx as nx

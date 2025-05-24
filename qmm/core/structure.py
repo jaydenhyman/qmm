@@ -1,3 +1,5 @@
+"""Define model structure in graph, matrix or equation forms."""
+
 import json
 from typing import Union, List, Dict, Tuple
 import networkx as nx

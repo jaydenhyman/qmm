@@ -1,3 +1,5 @@
+"""Analyse the stability properties of a system based on its structure."""
+
 import numpy as np
 import pandas as pd
 import networkx as nx

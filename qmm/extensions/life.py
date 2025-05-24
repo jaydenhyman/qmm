@@ -1,3 +1,5 @@
+"""Analyse change in life expectancy from press perturbations."""
+
 import sympy as sp
 from functools import cache
 from ..core.structure import create_matrix

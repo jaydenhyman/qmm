@@ -1,3 +1,5 @@
+"""Generate qualitative predictions of system response to press perturbations with thresholds for ambiguity."""
+
 import numpy as np
 import sympy as sp
 import pandas as pd

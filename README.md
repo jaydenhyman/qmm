@@ -24,7 +24,7 @@ Detailed documentation for the `qmm` package and its modules is not currently av
 
 ## Licensing
 
-This project is licensed under the the GNU General Public License v3.0 and is **free** and **open source**.
+This project is licensed under the the BSD 3-Clause Licence and is **free** and **open source**.
 
 ## Contact
 

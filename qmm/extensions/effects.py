@@ -8,7 +8,7 @@ from functools import cache
 from ..core.helper import get_nodes, get_weight, sign_determinacy
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix, absolute_feedback_matrix
-from typing import Dict, List, Union, Optional, Any
+from typing import Dict, List, Optional, Any
 
 def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.DiGraph:
     """Define model components as state variables, inputs and outputs.

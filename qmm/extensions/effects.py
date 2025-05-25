@@ -8,7 +8,7 @@ from functools import cache
 from ..core.helper import get_nodes, get_weight, sign_determinacy
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix, absolute_feedback_matrix
-from typing import Dict, List, Optional, Any
+from typing import Dict, Optional, Any, Tuple
 
 def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.DiGraph:
     """Define model components as state variables, inputs and outputs.
@@ -119,7 +119,7 @@ def sign_determinacy_effects(G: nx.DiGraph, method: str = "average") -> sp.Matri
 
 
 @cache
-def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, perturb: Optional[tuple[str, int]] = None, observe: Optional[List[tuple[str, int]]] = None) -> Dict[str, Any]:
+def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, perturb: Optional[Tuple[str, int]] = None, observe: Optional[Tuple[Tuple[str, int], ...]] = None) -> Dict[str, Any]:
     """Calculate average proportion of positive and negative effects from stable numerical simulations.
 
     Args:
@@ -127,9 +127,11 @@ def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", se
         n_sim: Number of simulations
         dist: Distribution for sampling
         seed: Random seed
+        perturb: Optional tuple of (node, sign) to perturb
+        observe: Optional tuple of observations as (node, sign) tuples
         
     Returns:
-        sp.Matrix: Proportion of positive and negative effects from stable simulations
+        Dict containing effects, valid_sims, all_nodes, and tmat
     """
     np.random.seed(seed)
     A, B, C, D = [create_matrix(G, form="symbolic", matrix_type=m) for m in "ABCD"]

@@ -7,10 +7,10 @@ from functools import cache
 from .effects import get_simulations
 from ..core.helper import get_nodes, _arrows, _NodeSign
 import networkx as nx
-from typing import List, Optional
+from typing import List, Optional, Tuple, Union
 
 
-def _parse_observations(s: str) -> tuple[tuple[str, int], ...]:
+def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
     if not s:
         return tuple()
     return tuple(_NodeSign.from_str(obs.strip()).to_tuple() 
@@ -31,9 +31,9 @@ def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 
     Returns:
         float: Marginal likelihood
     """
-    sims = get_simulations(G, n_sim, distribution, seed,
-                          _NodeSign.from_str(perturb).to_tuple(),
-                          _parse_observations(observe))
+    sims = get_simulations(G, n_sim=n_sim, dist=distribution, seed=seed,
+                          perturb=_NodeSign.from_str(perturb).to_tuple(),
+                          observe=_parse_observations(observe) if observe else None)
     return sum(sims["valid_sims"]) / n_sim
 
 @cache
@@ -90,9 +90,9 @@ def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim:
     Returns:
         sp.Matrix: Predictions conditioned on observations
     """
-    sims = get_simulations(G, n_sim, dist, seed,
-                          _NodeSign.from_str(perturb).to_tuple(),
-                          _parse_observations(observe))
+    sims = get_simulations(G, n_sim=n_sim, dist=dist, seed=seed,
+                          perturb=_NodeSign.from_str(perturb).to_tuple(),
+                          observe=_parse_observations(observe) if observe else None)
     state_nodes, output_nodes = get_nodes(G, "state"), get_nodes(G, "output")
     n, m = len(state_nodes), len(output_nodes)
     valid_count = sum(sims["valid_sims"])
@@ -151,23 +151,25 @@ def diagnose_observations(G: nx.DiGraph, observe: str, n_sim: int = 10000, distr
     return pd.DataFrame(results).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
 
 
-def bayes_factors(G_list: List[nx.DiGraph], perturb: str, observe: str,
+def bayes_factors(G_list: Union[List[nx.DiGraph], Tuple[nx.DiGraph, ...]], perturb: str, observe: str,
                  n_sim: int = 10000, distribution: str = "uniform", 
                  seed: int = 42, names: Optional[List[str]] = None) -> pd.DataFrame:
     """Calculate Bayes factors from the ratio of marginal likelihoods of alternative models.
 
     Args:
-        G_list (List[nx.DiGraph]): List of NetworkX DiGraphs representing alternative models
-        perturb (str): Node and sign to perturb
-        observe (str): String of observations
-        n_sim (int): Number of simulations
-        distribution (str): Distribution for sampling
-        seed (int): Random seed
-        names (Optional[List[str]]): Optional list of model names
+        G_list: List or tuple of NetworkX DiGraphs representing alternative models
+        perturb: Node and sign to perturb
+        observe: String of observations
+        n_sim: Number of simulations
+        distribution: Distribution for sampling
+        seed: Random seed
+        names: Optional list of model names
         
     Returns:
         pd.DataFrame: DataFrame containing Bayes factors
     """
+    # Convert tuple to list if needed
+    G_list = list(G_list) if isinstance(G_list, tuple) else G_list
     likelihoods = [marginal_likelihood(G, perturb, observe, n_sim, distribution, seed) for G in G_list]
     model_names = names if names and len(names) == len(G_list) else [f"Model {chr(65+i)}" for i in range(len(G_list))]
     bayes_factors = {f"{model_names[i]}/{model_names[j]}": (

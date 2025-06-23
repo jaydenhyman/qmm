@@ -1,0 +1,84 @@
+site_name: Qualitative Mathematical Modelling
+site_description: Documentation for the QMM Python Package
+site_url: https://jaydenhyman.github.io/qmm
+repo_url: https://github.com/jaydenhyman/qmm
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  features:
+    - announce.dismiss
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - toc.integrate
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.annotation
+    - content.code.copy
+  palette:
+    scheme: default
+    primary: white
+    accent: blue
+
+plugins:
+  - search
+  - mkdocs-jupyter:
+      include_source: True
+      execute: False
+      allow_errors: false
+      kernel_name: python3
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+            show_signature_annotations: true
+            show_if_no_docstring: true
+            docstring_style: google
+            merge_init_into_class: true
+            separate_signature: true
+            line_length: 80
+            members_order: source
+            filters: ["!^_"]
+  - autorefs
+
+nav:
+  - Overview: index.md
+  - Getting Started: getting-started.md
+  - Digraph Builder: https://www.digraphbuilder.com/
+  - Reference: reference.md
+
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.mark
+  - attr_list
+
+extra:
+  announce:
+    text: 'Create and visualize your digraphs with <a href="https://www.digraphbuilder.com/" target="_blank">Digraph Builder</a> 🚀'
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/jaydenhyman/qmm
+      name: GitHub
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js 

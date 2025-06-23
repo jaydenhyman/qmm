@@ -107,7 +107,7 @@ def sign_determinacy_matrix(G: nx.DiGraph, method: str = "average", as_nan: bool
 @cache
 def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, 
                          as_nan: bool = True, as_abs: bool = False, positive_only: bool = False, 
-                         perturb: Optional[str] = None) -> sp.Matrix:
+                         match_adjoint: bool = False) -> sp.Matrix:
     """Calculate proportion of positive and negative responses from stable simulations.
 
     Args:
@@ -118,26 +118,32 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         as_nan: Return NaN for undefined ratios
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions.
         as_abs: Return absolute values of proportions
-        perturb: Node and sign to perturb (None for full matrix)
+        match_adjoint: If true, counts the proportion of simulations matching the sign of the adjoint matrix predictions.
         
     Returns:
         sp.Matrix: Average proportion of positive and negative responses
         
     Raises:
-        ValueError: If positive_only=True is used with as_nan=False
+        ValueError: If invalid parameter combinations are used.
     """
     if positive_only and not as_nan:
         raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=False")
     if as_abs and not as_nan:
         raise ValueError("Invalid parameter combination: as_abs=True requires as_nan=True")
+    if match_adjoint:
+        if as_abs:
+            raise ValueError("Invalid parameter combination: match_adjoint=True requires as_abs=False")
+        if not as_nan:
+            raise ValueError("Invalid parameter combination: match_adjoint=True requires as_nan=True")
+        if positive_only:
+            raise ValueError("Invalid parameter combination: match_adjoint=True requires positive_only=False")
+
     np.random.seed(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
     state_nodes = get_nodes(G, "state")
-    node_idx = {node: i for i, node in enumerate(state_nodes)}
     n = len(state_nodes)
     symbols = list(A.free_symbols)
     A_sp = sp.lambdify(symbols, A)
-    pert_idx, sign = (node_idx[perturb[0]], perturb[1]) if perturb else (None, 1)
     dist_funcs = {
         "uniform": lambda size: np.random.uniform(0, 1, size),
         "weak": lambda size: np.random.beta(1, 3, size),
@@ -147,8 +153,13 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         "normal_moderate": lambda size: truncnorm.rvs(a=-3, b=3, loc=0.5, scale=1/6, size=size),
         "normal_strong": lambda size: truncnorm.rvs(a=-3, b=0, loc=1, scale=1/3, size=size)
     }
-    positive = np.zeros((n, n), dtype=int)
-    negative = np.zeros((n, n), dtype=int)
+    if match_adjoint:
+        adj_mat = adjoint_matrix(G, form="signed")
+        adj_sign_np = np.array(adj_mat.applyfunc(sp.sign).tolist(), dtype=float)
+        matches = np.zeros((n, n), dtype=int)
+    else:
+        positive = np.zeros((n, n), dtype=int)
+        negative = np.zeros((n, n), dtype=int)
     total_simulations = 0
     while total_simulations < n_sim:
         values = dist_funcs[dist](len(symbols))
@@ -156,22 +167,30 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         if np.all(np.real(np.linalg.eigvals(sim_A)) < 0):
             try:
                 inv_A = np.linalg.inv(-sim_A)
-                effect = inv_A[:, pert_idx] * sign if pert_idx is not None else inv_A
-                positive += effect > 0
-                negative += effect < 0
+                if match_adjoint:
+                    matches += (np.sign(inv_A) == adj_sign_np)
+                else:
+                    positive += inv_A > 0
+                    negative += inv_A < 0
                 total_simulations += 1
             except np.linalg.LinAlgError:
                 continue
-    if positive_only:
-        smat = positive / n_sim
+    if total_simulations == 0:
+        smat = np.full((n, n), np.nan)
+    elif match_adjoint:
+        smat = matches / total_simulations
+    elif positive_only:
+        smat = positive / total_simulations
     else:
-        smat = np.where(negative > positive, -negative / n_sim, positive / n_sim)
+        smat = np.where(negative > positive, -negative / total_simulations, positive / total_simulations)
     smat = sp.Matrix(smat.astype(float).tolist())
-    tmat = absolute_feedback_matrix(G)
-    tmat_np = np.array(tmat.tolist(), dtype=bool)
-    smat = sp.Matrix([[sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)] for i in range(n)])
-    if as_abs:
-        smat = sp.Matrix([[sp.Abs(x) if x != sp.nan else sp.nan for x in row] for row in smat.tolist()])
+    if total_simulations > 0:
+        tmat = absolute_feedback_matrix(G)
+        tmat_np = np.array(tmat.tolist(), dtype=bool)
+        smat = sp.Matrix([[sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)] for i in range(n)])
+        if as_abs and not match_adjoint:
+            smat = sp.Matrix([[sp.Abs(x) if x != sp.nan else sp.nan for x in row] for row in smat.tolist()])
+
     if not as_nan:
         smat = sp.Matrix([[0 if sp.nan == x else x for x in row] for row in smat.tolist()])
     return sp.Matrix(smat)

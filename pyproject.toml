@@ -29,15 +29,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = [
-    "sphinx",
-    "sphinx-rtd-theme",
-    "sphinx-copybutton",
-    "sphinx-autodoc-typehints",
-    "pytest",
+dev = ["pytest", "ruff"]
+docs = [
+    "mkdocs>=1.5.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.24.0",
+    "mkdocs-jupyter",
+    "mkdocs-autorefs",
     "ruff",
-    "build",
-    "twine"
 ]
 
 [project.urls]

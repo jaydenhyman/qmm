@@ -5,8 +5,9 @@ repo_url: https://github.com/jaydenhyman/qmm
 
 theme:
   name: material
-  logo: docs/logo.png
-  favicon: docs/logo.png
+  custom_dir: docs
+  logo: logo.png
+  favicon: logo.png
   features:
     - announce.dismiss
     - navigation.sections

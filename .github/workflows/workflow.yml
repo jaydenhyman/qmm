@@ -58,7 +58,7 @@ jobs:
       - name: Create virtual environment and install
         run: |
           uv venv
-          uv pip install -e ".[dev]"
+          uv pip install -e ".[dev]" build
       - name: Build package
         run: uv run python -m build
       - name: Publish package

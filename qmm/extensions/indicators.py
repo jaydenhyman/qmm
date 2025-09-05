@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from functools import cache
-from ..core.helper import get_nodes, _NodeSign
+from ..core.helper import get_nodes, _parse_perturbations
 from .effects import get_simulations
 from typing import Union, List
 
@@ -14,7 +14,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
 
     Args:
         models: One or more NetworkX DiGraphs representing alternative models
-        perturb: Node and sign to perturb
+        perturb: Node and sign to perturb (can be comma-separated for multiple perturbations)
         n_sim: Number of simulations
         seed: Random seed
         
@@ -26,7 +26,8 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
     nodes = sorted(set(node for G in models for node in get_nodes(G, "state") + get_nodes(G, "output")))
     all_effects = []
     for G in models:
-        sims = get_simulations(G, n_sim=n_sim, seed=seed, perturb=_NodeSign.from_str(perturb).to_tuple())
+        G_modified, perturb_tuple = _parse_perturbations(G, perturb)
+        sims = get_simulations(G_modified, n_sim=n_sim, seed=seed, perturb=perturb_tuple)
         response_nodes = get_nodes(G, "state") + get_nodes(G, "output")
         node_map = {node: i for i, node in enumerate(response_nodes)}
         sim_effects = []

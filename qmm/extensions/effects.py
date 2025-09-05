@@ -186,14 +186,14 @@ def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", se
                             node in state_nodes
                             and (
                                 (tmat[node_idx[node], pert_idx] == 0 and obs == 0)
-                                or (obs != 0 and np.sign(effect[node_idx[node]]) == obs)
+                                or (tmat[node_idx[node], pert_idx] != 0 and obs != 0 and np.sign(effect[node_idx[node]]) == obs)
                             )
                         )
                         or (
                             node in output_nodes
                             and (
                                 (tmat[len(state_nodes) + output_nodes.index(node), pert_idx] == 0 and obs == 0)
-                                or (obs != 0 and np.sign(effect[len(state_nodes) + output_nodes.index(node)]) == obs)
+                                or (tmat[len(state_nodes) + output_nodes.index(node), pert_idx] != 0 and obs != 0 and np.sign(effect[len(state_nodes) + output_nodes.index(node)]) == obs)
                             )
                         )
                         for node, obs in observe

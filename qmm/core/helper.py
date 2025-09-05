@@ -3,7 +3,7 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from typing import List, Union, Dict, Any, Optional
+from typing import List, Union, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
 
 def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
@@ -246,17 +246,35 @@ class _NodeSign:
     
     @classmethod
     def from_str(cls, s: str) -> '_NodeSign':
-        """Create from string like 'B:+' or 'B: +'"""
+        """Create from string like 'B:+' or 'B: +' or 'B:0'"""
         # Strip whitespace
         s = s.strip()
         node, sign = s.split(":")
         node = node.strip()
         sign = sign.strip()
         
-        if sign not in ["+", "-"]:
-            raise ValueError(f"Sign must be + or -, got '{sign}'")
-        return cls(node, 1 if sign == "+" else -1)
+        if sign not in ["+", "-", "0"]:
+            raise ValueError(f"Sign must be +, -, or 0, got '{sign}'")
+        return cls(node, 1 if sign == "+" else (-1 if sign == "-" else 0))
     
     def to_tuple(self) -> tuple[str, int]:
         """Convert to tuple format for internal use"""
         return (self.node, self.sign)
+
+def _parse_perturbations(G: nx.DiGraph, perturb: str) -> Tuple[nx.DiGraph, Tuple[str, int]]:
+    perturbations = [p.strip() for p in perturb.split(',')]
+    if len(perturbations) > 1:
+        G_mod = G.copy()
+        G_mod.add_node('_P', category='input')
+        for p in perturbations:
+            ns = _NodeSign.from_str(p)
+            G_mod.add_edge('_P', ns.node, sign=ns.sign)
+        return G_mod, ('_P', 1)
+    return G, _NodeSign.from_str(perturb).to_tuple()
+
+def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
+    if not s:
+        return tuple()
+    return tuple(_NodeSign.from_str(obs.strip()).to_tuple() 
+                for obs in s.split(","))
+

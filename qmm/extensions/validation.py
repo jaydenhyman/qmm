@@ -5,16 +5,11 @@ import numpy as np
 import pandas as pd
 from functools import cache
 from .effects import get_simulations
-from ..core.helper import get_nodes, _arrows, _NodeSign
+from ..core.helper import get_nodes, _arrows, _parse_perturbations, _parse_observations
 import networkx as nx
 from typing import List, Optional, Tuple, Union
 
 
-def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
-    if not s:
-        return tuple()
-    return tuple(_NodeSign.from_str(obs.strip()).to_tuple() 
-                for obs in s.split(","))
 
 @cache
 def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> float:
@@ -22,7 +17,7 @@ def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        perturb: Node and sign to perturb
+        perturb: Node and sign to perturb (can be comma-separated for multiple perturbations)
         observe: String of observations
         n_sim: Number of simulations
         distribution: Distribution for sampling 
@@ -31,8 +26,9 @@ def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 
     Returns:
         float: Marginal likelihood
     """
-    sims = get_simulations(G, n_sim=n_sim, dist=distribution, seed=seed,
-                          perturb=_NodeSign.from_str(perturb).to_tuple(),
+    graph, pert = _parse_perturbations(G, perturb)
+    sims = get_simulations(graph, n_sim=n_sim, dist=distribution, seed=seed,
+                          perturb=pert,
                           observe=_parse_observations(observe) if observe else None)
     return sum(sims["valid_sims"]) / n_sim
 
@@ -76,22 +72,24 @@ def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 100
     return df
 
 @cache
-def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim: int = 10000, dist: str = "uniform", seed: int = 42) -> sp.Matrix:
+def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim: int = 10000, dist: str = "uniform", seed: int = 42, positive_only: bool = False) -> sp.Matrix:
     """Calculate model predictions conditioned on observations.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        perturb: Node and sign to perturb
+        perturb: Node and sign to perturb (can be comma-separated for multiple perturbations)
         observe: String of observations
         n_sim: Number of simulations
         dist: Distribution for sampling
         seed: Random seed
+        positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
         
     Returns:
         sp.Matrix: Predictions conditioned on observations
     """
-    sims = get_simulations(G, n_sim=n_sim, dist=dist, seed=seed,
-                          perturb=_NodeSign.from_str(perturb).to_tuple(),
+    graph, pert = _parse_perturbations(G, perturb)
+    sims = get_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
+                          perturb=pert,
                           observe=_parse_observations(observe) if observe else None)
     state_nodes, output_nodes = get_nodes(G, "state"), get_nodes(G, "output")
     n, m = len(state_nodes), len(output_nodes)
@@ -110,8 +108,7 @@ def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim:
     negative = np.sum(effects < 0, axis=0)
     smat = positive / valid_count
     tmat_np = np.array(tmat.tolist(), dtype=bool)
-    perturb_node = _NodeSign.from_str(perturb).node
-    perturb_index = sims["all_nodes"].index(perturb_node)
+    perturb_index = sims["all_nodes"].index(pert[0])
     smat = [np.nan if not tmat_np[i, perturb_index] else smat[i] for i in range(n + m)]
     
     if observe:
@@ -124,22 +121,32 @@ def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim:
             )
             if index is not None:
                 smat[index] = 1 if value > 0 else (0 if value < 0 else np.nan)
-
-    smat = np.where(negative > positive, -negative / valid_count, smat)
+    if not positive_only:
+        smat = np.where(negative > positive, -negative / valid_count, smat)
     return sp.Matrix(smat)
 
 @cache
-def diagnose_observations(G: nx.DiGraph, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
+def diagnose_observations(G: nx.DiGraph, observe: str, perturb_nodes: Union[str, List[str]] = None, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
     """Identify possible perturbations from marginal likelihoods.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
         observe: String of observations
+        perturb_nodes: Node subset to test - comma-separated string, 'state', 'input', or list of nodes
         
     Returns:
         pd.DataFrame: Ranked perturbations matching observations
     """
-    perturb_nodes = get_nodes(G, "state") + get_nodes(G, "input")
+    if perturb_nodes is None:
+        perturb_nodes = get_nodes(G, "state") + get_nodes(G, "input")
+    elif isinstance(perturb_nodes, str):
+        if perturb_nodes == "state":
+            perturb_nodes = get_nodes(G, "state")
+        elif perturb_nodes == "input":
+            perturb_nodes = get_nodes(G, "input")
+        else:
+            # Parse comma-separated string like "N,R,P"
+            perturb_nodes = [node.strip() for node in perturb_nodes.split(",")]
     results = []
     for node in perturb_nodes:
         for sign in ["+", "-"]:

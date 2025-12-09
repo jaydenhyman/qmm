@@ -224,6 +224,8 @@ def hurwitz_determinants(G: nx.DiGraph, level: Optional[int] = None, form: str =
     n = len(fb) - 1
     if n > 5 and form == "symbolic":
         raise ValueError("Limited to systems with five or fewer variables.")
+    if level is not None and (level < 0 or level > n):
+        raise ValueError(f"Level must be between 0 and {n}")
     if level is None:
         h = _hurwitz_matrix(fb, n)
         hd = sp.Matrix([sp.det(h[:k, :k]) for k in range(0, n + 1)])
@@ -323,6 +325,7 @@ def _create_model_c(n: int) -> nx.DiGraph:
         C.add_edge(i, i - 1, sign=1)
     C.add_edge(n - 1, n - 1, sign=-1)
     nx.set_node_attributes(C, "state", "category")
+    nx.freeze(C)
     return C
 
 @cache

@@ -3,8 +3,9 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from typing import List, Union, Dict, Any, Optional, Tuple
+from typing import List, Union, Dict, Any, Optional, Tuple, Literal
 from dataclasses import dataclass
+from scipy.stats import truncnorm
 
 def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
     """Convert an adjacency matrix to a directed graph.
@@ -37,6 +38,7 @@ def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[Li
             if matrix[i][j] != 0:
                 G.add_edge(node_ids[j], node_ids[i], sign=int(matrix[i][j]))
     nx.set_node_attributes(G, "state", "category")
+    nx.freeze(G)
     return G
 
 def digraph_to_list(G: nx.DiGraph) -> str:
@@ -139,7 +141,9 @@ def get_negative(net: sp.Matrix, absolute: sp.Matrix) -> sp.Matrix:
 
 def sign_determinacy(wmat: sp.Matrix, tmat: sp.Matrix, method: str = "average") -> sp.Matrix:
     """Calculate sign determinacy matrix from prediction weights.
-    
+
+    See Hosack et al. 2008. Ecological Applications 18, 1070–1082. https://doi.org/10.1890/07-0482.1
+
     Args:
         wmat: Matrix of prediction weights.
         tmat: Matrix of absolute feedback.
@@ -152,13 +156,7 @@ def sign_determinacy(wmat: sp.Matrix, tmat: sp.Matrix, method: str = "average") 
     MAX_PROB = sp.Float('0.999999')
     
     def compute_prob(w, t, method):
-        if w == sp.Integer(0):
-            return sp.Rational(1, 2)
-        elif w == sp.Integer(1):
-            return sp.Integer(1)
-        elif w == sp.Integer(-1):
-            return sp.Integer(-1)
-        elif t == sp.Integer(0):
+        if t == sp.Integer(0):
             return sp.nan
         return compute_prob_average(w, t) if method == "average" else compute_prob_95_bound(w, t)
     
@@ -236,8 +234,7 @@ def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
         return "+"
     elif product < 0:
         return "\u2212"
-    else:
-        return "0"
+
 
 @dataclass(frozen=True)
 class _NodeSign:
@@ -269,6 +266,7 @@ def _parse_perturbations(G: nx.DiGraph, perturb: str) -> Tuple[nx.DiGraph, Tuple
         for p in perturbations:
             ns = _NodeSign.from_str(p)
             G_mod.add_edge('_P', ns.node, sign=ns.sign)
+        nx.freeze(G_mod)
         return G_mod, ('_P', 1)
     return G, _NodeSign.from_str(perturb).to_tuple()
 
@@ -278,3 +276,64 @@ def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
     return tuple(_NodeSign.from_str(obs.strip()).to_tuple() 
                 for obs in s.split(","))
 
+
+def _check_direct_io_edges(G: nx.DiGraph) -> None:
+    """Check for unsupported direct input-to-output edges.
+    
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        
+    Raises:
+        ValueError: If direct input-to-output edge exists
+    """
+    input_nodes = get_nodes(G, "input")
+    output_nodes = get_nodes(G, "output")
+    for inp in input_nodes:
+        for out in output_nodes:
+            if G.has_edge(inp, out):
+                raise ValueError(
+                    f"Direct input to output edge ({inp} to {out}) not supported."
+                )
+
+
+distribution_types = Literal["uniform", "weak", "moderate", "strong", "normal_weak", "normal_moderate", "normal_strong"]
+valid_distributions = frozenset({"uniform", "weak", "moderate", "strong", "normal_weak", "normal_moderate", "normal_strong"})
+
+
+def _random_sampler(dist: distribution_types, size: int) -> np.ndarray:
+    """Sample random interaction strengths from a specified distribution.
+    
+    Used for numerical simulations where interaction strengths are drawn from
+    probability distributions representing different assumptions about the
+    magnitude of interactions.
+    
+    Args:
+        dist: Distribution type for sampling:
+            - "uniform": Uniform(0, 1) - no assumption about interaction strength
+            - "weak": Beta(1, 3) - weak interactions predominate
+            - "moderate": Beta(2, 2) - moderate interactions predominate  
+            - "strong": Beta(3, 1) - strong interactions predominate
+            - "normal_weak": Truncated normal, mean near 0
+            - "normal_moderate": Truncated normal, mean at 0.5
+            - "normal_strong": Truncated normal, mean near 1
+        size: Number of samples to draw
+        
+    Returns:
+        np.ndarray: Array of sampled interaction strengths
+        
+    Raises:
+        ValueError: If dist is not a valid distribution name
+    """
+    if dist not in valid_distributions:
+        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: {sorted(valid_distributions)}")
+    
+    samplers = {
+        "uniform": lambda: np.random.uniform(0, 1, size),
+        "weak": lambda: np.random.beta(1, 3, size),
+        "moderate": lambda: np.random.beta(2, 2, size),
+        "strong": lambda: np.random.beta(3, 1, size),
+        "normal_weak": lambda: truncnorm.rvs(a=0, b=3, loc=0, scale=1/3, size=size),
+        "normal_moderate": lambda: truncnorm.rvs(a=-3, b=3, loc=0.5, scale=1/6, size=size),
+        "normal_strong": lambda: truncnorm.rvs(a=-3, b=0, loc=1, scale=1/3, size=size),
+    }
+    return samplers[dist]()

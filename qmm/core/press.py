@@ -3,9 +3,8 @@
 import numpy as np
 import sympy as sp
 from functools import cache
-from scipy.stats import truncnorm
 from .structure import create_matrix
-from .helper import get_weight, get_nodes, sign_determinacy
+from .helper import get_weight, get_nodes, sign_determinacy, _random_sampler
 from thewalrus import perm
 
 from typing import Optional
@@ -142,17 +141,8 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
     A = create_matrix(G, form="symbolic", matrix_type="A")
     state_nodes = get_nodes(G, "state")
     n = len(state_nodes)
-    symbols = list(A.free_symbols)
+    symbols = sorted(list(A.free_symbols), key=str)
     A_sp = sp.lambdify(symbols, A)
-    dist_funcs = {
-        "uniform": lambda size: np.random.uniform(0, 1, size),
-        "weak": lambda size: np.random.beta(1, 3, size),
-        "moderate": lambda size: np.random.beta(2, 2, size),
-        "strong": lambda size: np.random.beta(3, 1, size),
-        "normal_weak": lambda size: truncnorm.rvs(a=0, b=3, loc=0, scale=1/3, size=size),
-        "normal_moderate": lambda size: truncnorm.rvs(a=-3, b=3, loc=0.5, scale=1/6, size=size),
-        "normal_strong": lambda size: truncnorm.rvs(a=-3, b=0, loc=1, scale=1/3, size=size)
-    }
     if match_adjoint:
         adj_mat = adjoint_matrix(G, form="signed")
         adj_sign_np = np.array(adj_mat.applyfunc(sp.sign).tolist(), dtype=float)
@@ -162,7 +152,7 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         negative = np.zeros((n, n), dtype=int)
     total_simulations = 0
     while total_simulations < n_sim:
-        values = dist_funcs[dist](len(symbols))
+        values = _random_sampler(dist, len(symbols))
         sim_A = A_sp(*values)
         if np.all(np.real(np.linalg.eigvals(sim_A)) < 0):
             try:
@@ -183,7 +173,7 @@ def numerical_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "unifor
         smat = positive / total_simulations
     else:
         smat = np.where(negative > positive, -negative / total_simulations, positive / total_simulations)
-    smat = sp.Matrix(smat.astype(float).tolist())
+    smat = sp.Matrix(smat.tolist())
     if total_simulations > 0:
         tmat = absolute_feedback_matrix(G)
         tmat_np = np.array(tmat.tolist(), dtype=bool)

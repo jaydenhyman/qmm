@@ -3,12 +3,12 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from scipy.stats import truncnorm
 from functools import cache
-from ..core.helper import get_nodes, get_weight, sign_determinacy
+from ..core.helper import get_nodes, get_weight, sign_determinacy, _random_sampler
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix, absolute_feedback_matrix
 from typing import Dict, Optional, Any, Tuple
+
 
 def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.DiGraph:
     """Define model components as state variables, inputs and outputs.
@@ -43,6 +43,7 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.D
                     reclassified = True
         if not reclassified:
             break
+    nx.freeze(G_def)
     return G_def
 
 
@@ -118,6 +119,13 @@ def sign_determinacy_effects(G: nx.DiGraph, method: str = "average") -> sp.Matri
     return sign_determinacy(weighted, absolute, method=method)
 
 
+def _observation_matches(obs: int, effect_val: float, effect_expected: bool) -> bool:
+    """Check if observation matches simulated effect."""
+    if not effect_expected:
+        return obs == 0
+    return obs != 0 and np.sign(effect_val) == obs
+
+
 @cache
 def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, perturb: Optional[Tuple[str, int]] = None, observe: Optional[Tuple[Tuple[str, int], ...]] = None) -> Dict[str, Any]:
     """Calculate average proportion of positive and negative effects from stable numerical simulations.
@@ -139,68 +147,46 @@ def get_simulations(G: nx.DiGraph, n_sim: int = 10000, dist: str = "uniform", se
     all_nodes = state_nodes + input_nodes + output_nodes
     node_idx = {node: i for i, node in enumerate(all_nodes)}
     tmat = sp.matrix2numpy(absolute_effects(G)).astype(int)
-    dist_funcs = {
-        "uniform": lambda size: np.random.uniform(0, 1, size),
-        "weak": lambda size: np.random.beta(1, 3, size),
-        "moderate": lambda size: np.random.beta(2, 2, size),
-        "strong": lambda size: np.random.beta(3, 1, size),
-        "normal_weak": lambda size: truncnorm.rvs(a=0, b=3, loc=0, scale=1/3, size=size),
-        "normal_moderate": lambda size: truncnorm.rvs(a=-3, b=3, loc=0.5, scale=1/6, size=size),
-        "normal_strong": lambda size: truncnorm.rvs(a=-3, b=0, loc=1, scale=1/3, size=size)
-    }
     pert_idx, perturb_sign = (node_idx[perturb[0]], perturb[1]) if perturb else (None, 1)
     n_state, n_input, n_output = len(state_nodes), len(input_nodes), len(output_nodes)
     n_rows, n_cols = n_state + n_output, n_state + n_input
-    symbols = list(set(A.free_symbols) | set(B.free_symbols) | set(C.free_symbols) | set(D.free_symbols))
+    symbols = set(A.free_symbols) | set(sp.Symbol(f"a_{u},{v}") for u, v in G.edges)
+    for matrix in [B, C, D]:
+        if matrix is not None:
+            symbols |= set(matrix.free_symbols)
+    symbols = sorted(symbols, key=str)
+
     A_sp = sp.lambdify(symbols, A)
     B_sp = sp.lambdify(symbols, B) if n_input > 0 else None
     C_sp = sp.lambdify(symbols, C) if n_output > 0 else None
     D_sp = sp.lambdify(symbols, D) if D.shape != (0, 0) else None
+    
+    def get_idx(node):
+        return node_idx[node] if node in state_nodes else n_state + output_nodes.index(node)
+    
     effects, valid_sims = [], []
     for _ in range(n_sim * 100):
-        values = dist_funcs[dist](len(symbols))
+        values = _random_sampler(dist, len(symbols))
         sim_A = A_sp(*values)
         if np.all(np.real(np.linalg.eigvals(sim_A)) < 0):
             try:
                 inv_A = np.linalg.inv(-sim_A)
-                B_np = B_sp(*values) if B_sp else np.array([]).reshape(n_state, 0)
-                D_np = D_sp(*values) if D_sp else np.array([]).reshape(n_output, n_input)
-                C_np = C_sp(*values) if C_sp else np.array([]).reshape(0, n_state)
+                B_np = B_sp(*values) if B_sp else np.zeros((n_state, 0))
+                C_np = C_sp(*values) if C_sp else np.zeros((0, n_state))
+                D_np = D_sp(*values) if D_sp else np.zeros((n_output, n_input))
                 effect_matrix = np.zeros((n_rows, n_cols))
                 if n_state > 0:
                     effect_matrix[:n_state, :n_state] = inv_A
                     if n_input > 0:
                         effect_matrix[:n_state, n_state:] = inv_A @ B_np
-                if n_output > 0:
-                    if n_state > 0:
-                        effect_matrix[n_state:, :n_state] = C_np @ inv_A
-                        if n_input > 0:
-                            effect_matrix[n_state:, n_state:] = C_np @ inv_A @ B_np + D_np
-                    elif n_input > 0:
-                        effect_matrix[n_state:, n_state:] = D_np
+                if n_output > 0 and n_state > 0:
+                    effect_matrix[n_state:, :n_state] = C_np @ inv_A
+                    if n_input > 0:
+                        effect_matrix[n_state:, n_state:] = C_np @ inv_A @ B_np + D_np
                 effect = effect_matrix[:, pert_idx] * perturb_sign if pert_idx is not None else effect_matrix
                 effects.append(effect)
-                if observe:
-                    valid = all(
-                        (
-                            node in state_nodes
-                            and (
-                                (tmat[node_idx[node], pert_idx] == 0 and obs == 0)
-                                or (tmat[node_idx[node], pert_idx] != 0 and obs != 0 and np.sign(effect[node_idx[node]]) == obs)
-                            )
-                        )
-                        or (
-                            node in output_nodes
-                            and (
-                                (tmat[len(state_nodes) + output_nodes.index(node), pert_idx] == 0 and obs == 0)
-                                or (tmat[len(state_nodes) + output_nodes.index(node), pert_idx] != 0 and obs != 0 and np.sign(effect[len(state_nodes) + output_nodes.index(node)]) == obs)
-                            )
-                        )
-                        for node, obs in observe
-                    )
-                    valid_sims.append(valid)
-                else:
-                    valid_sims.append(True)
+                valid = not observe or all(_observation_matches(obs, effect[get_idx(node)], tmat[get_idx(node), pert_idx] != 0) for node, obs in observe)
+                valid_sims.append(valid)
                 if len(effects) == n_sim:
                     break
             except np.linalg.LinAlgError:

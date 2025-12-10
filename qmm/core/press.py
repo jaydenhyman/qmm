@@ -4,8 +4,7 @@ import numpy as np
 import sympy as sp
 from functools import cache
 from .structure import create_matrix
-from .helper import get_weight, get_nodes, sign_determinacy, _random_sampler
-from thewalrus import perm
+from .helper import get_weight, get_nodes, sign_determinacy, _random_sampler, perm
 
 from typing import Optional
 import networkx as nx
@@ -39,12 +38,12 @@ def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp
     Args:
         G: NetworkX DiGraph representing signed digraph model
         perturb: Node to perturb (None for full matrix)
-        
+
     Returns:
         sp.Matrix: Absolute feedback matrix elements
     """
     A = create_matrix(G, form="binary")
-    A_np = np.array(sp.matrix2numpy(A), dtype=int)
+    A_np = np.array(sp.matrix2numpy(A), dtype=float)
     nodes = get_nodes(G, "state")
     n = A_np.shape[0]
     if perturb is not None:
@@ -52,13 +51,13 @@ def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp
         result = np.zeros(n, dtype=int)
         for j in range(n):
             minor = np.delete(np.delete(A_np, perturb_index, 0), j, 1)
-            result[j] = int(perm(minor.astype(float)))
+            result[j] = int(perm(minor))
         return sp.Matrix(result)
     tmat = np.zeros((n, n), dtype=int)
     for i in range(n):
         for j in range(n):
             minor = np.delete(np.delete(A_np, j, 0), i, 1)
-            tmat[i, j] = int(perm(minor.astype(float)))
+            tmat[i, j] = int(perm(minor))
     return sp.Matrix(tmat)
 
 @cache

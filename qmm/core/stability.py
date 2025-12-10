@@ -7,8 +7,7 @@ import sympy as sp
 from itertools import combinations
 from functools import cache
 from .structure import create_matrix
-from .helper import get_positive, get_negative, get_weight
-from thewalrus import perm
+from .helper import get_positive, get_negative, get_weight, perm
 from typing import Optional
 
 def _colour_test(G) -> str:
@@ -137,10 +136,10 @@ def absolute_feedback(G: nx.DiGraph, level: Optional[int] = None, method: str = 
         if level is None:
             fb = []
             for k in range(n + 1):
-                fb_k = sum(perm(A[np.ix_(c, c)], method="glynn") for c in combinations(range(n), k))
+                fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), k))
                 fb.append(int(fb_k))
         else:
-            fb_k = sum(perm(A[np.ix_(c, c)], method="glynn") for c in combinations(range(n), level))
+            fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), level))
             fb = [int(fb_k)]
     elif method == "polynomial":
         lam = sp.Symbol("lambda")

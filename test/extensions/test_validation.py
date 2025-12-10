@@ -1,10 +1,8 @@
 """Tests for qmm.extensions.validation module."""
 
 import pytest
-import sympy as sp
 import pandas as pd
 import numpy as np
-import networkx as nx
 from qmm.extensions.validation import (
     marginal_likelihood,
     model_validation,

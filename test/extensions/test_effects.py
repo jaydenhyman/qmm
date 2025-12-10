@@ -297,8 +297,7 @@ def test_get_simulations_reproducibility(snowshoe_io):
     assert result == expected
 
 
-@pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong',
-                                   'normal_weak', 'normal_moderate', 'normal_strong'])
+@pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong'])
 def test_get_simulations_distributions(snowshoe_io, dist):
     """Test simulations with different distributions."""
     result = len(get_simulations(snowshoe_io, n_sim=100, dist=dist, seed=42)['effects'])

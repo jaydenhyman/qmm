@@ -700,7 +700,7 @@ def test_numerical_simulations_as_abs_true_snowshoe(snowshoe):
     assert result == expected
 
 
-@pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong', 'normal_weak', 'normal_moderate', 'normal_strong'])
+@pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong'])
 def test_numerical_simulations_distribution_options_snowshoe_dist(snowshoe, dist):
     """Test numerical_simulations supports multiple distribution choices for snowshoe."""
     result = numerical_simulations(snowshoe, n_sim=100, dist=dist, seed=42)

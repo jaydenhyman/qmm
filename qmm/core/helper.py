@@ -224,14 +224,9 @@ def _arrows(G: nx.DiGraph, path: List[str]) -> str:
     return " ".join(arrows)
 
 def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
-    signs = []
+    product = 1
     for from_node, to_node in zip(path, path[1:]):
-        sign = G[from_node][to_node]["sign"]
-        if sign != 0:
-            signs.append(int(sign))
-    if not signs:
-        return "0"
-    product = sp.prod(signs)
+        product *= G[from_node][to_node]["sign"]
     if product > 0:
         return "+"
     elif product < 0:

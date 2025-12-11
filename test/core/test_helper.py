@@ -2,6 +2,7 @@
 
 import pytest
 import networkx as nx
+import numpy as np
 import sympy as sp
 
 from qmm import (
@@ -13,7 +14,7 @@ from qmm import (
     get_negative,
     sign_determinacy,
 )
-from qmm.core.helper import _arrows, _sign_string, _NodeSign, _parse_perturbations, _parse_observations, _random_sampler
+from qmm.core.helper import _arrows, _sign_string, _NodeSign, _parse_perturbations, _parse_observations, _random_sampler, perm, _perm_ryser, _perm_bbfg
 from qmm.core.stability import net_feedback, absolute_feedback
 
 
@@ -411,6 +412,14 @@ def test_sign_string_chain_edges_chain(chain):
     assert result == expected
 
 
+def test_sign_string_zero_product_no_fixture():
+    G = nx.DiGraph()
+    G.add_edge('A', 'B', sign=0)
+    result = _sign_string(G, ['A', 'B'])
+    expected = '0'
+    assert result == expected
+
+
 # =============================================================================
 # _NodeSign
 # =============================================================================
@@ -482,3 +491,87 @@ def test_random_sampler_invalid_distribution_no_fixture():
     """Test _random_sampler raises ValueError for invalid distribution."""
     with pytest.raises(ValueError, match="Invalid distribution"):
         _random_sampler("invalid_dist", 10)
+
+
+# =============================================================================
+# perm()
+# =============================================================================
+
+def test_perm_not_array_no_fixture():
+    with pytest.raises(TypeError, match="NumPy array"):
+        perm([[1, 2], [3, 4]])
+
+
+def test_perm_non_square_no_fixture():
+    with pytest.raises(ValueError, match="square"):
+        perm(np.array([[1, 2, 3], [4, 5, 6]]))
+
+
+def test_perm_contains_nan_no_fixture():
+    with pytest.raises(ValueError, match="NaN"):
+        perm(np.array([[1, np.nan], [3, 4]]))
+
+
+def test_perm_empty_matrix_no_fixture():
+    A = np.array([]).reshape(0, 0)
+    result = perm(A)
+    expected = 1.0
+    assert result == expected
+
+
+def test_perm_1x1_no_fixture():
+    A = np.array([[5.0]])
+    result = perm(A)
+    expected = 5.0
+    assert result == expected
+
+
+def test_perm_2x2_no_fixture():
+    A = np.array([[1, 2], [3, 4]])
+    result = perm(A)
+    expected = 1*4 + 2*3
+    assert result == expected
+
+
+def test_perm_3x3_no_fixture():
+    A = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
+    result = perm(A)
+    expected = 450.0
+    assert result == expected
+
+
+def test_perm_4x4_bbfg_no_fixture():
+    A = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=float)
+    result = perm(A, method="bbfg")
+    expected = 24.0
+    assert result == expected
+
+
+def test_perm_4x4_ryser_no_fixture():
+    A = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=float)
+    result = perm(A, method="ryser")
+    expected = 24.0
+    assert result == expected
+
+
+def test_perm_methods_agree_no_fixture():
+    A = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], dtype=float)
+    result_bbfg = perm(A, method="bbfg")
+    result_ryser = perm(A, method="ryser")
+    result = abs(result_bbfg - result_ryser) < 1e-10
+    expected = True
+    assert result == expected
+
+
+def test_perm_ryser_empty_no_fixture():
+    A = np.array([], dtype=float).reshape(0, 0)
+    result = _perm_ryser(A)
+    expected = 1.0
+    assert result == expected
+
+
+def test_perm_bbfg_empty_no_fixture():
+    A = np.array([], dtype=float).reshape(0, 0)
+    result = _perm_bbfg(A)
+    expected = 1.0
+    assert result == expected

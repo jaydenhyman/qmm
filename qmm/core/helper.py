@@ -158,6 +158,11 @@ def sign_determinacy(wmat: sp.Matrix, tmat: sp.Matrix, method: str = "average") 
     def compute_prob(w, t, method):
         if t == sp.Integer(0):
             return sp.nan
+        # Special-case handling for deterministic weight values
+        if w == sp.Integer(0):
+            return sp.Rational(1, 2)  # Maximum uncertainty
+        if w == sp.Integer(1):
+            return sp.Integer(1)  # Deterministic positive
         return compute_prob_average(w, t) if method == "average" else compute_prob_95_bound(w, t)
     
     def compute_prob_average(w, t):
@@ -234,6 +239,8 @@ def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
         return "+"
     elif product < 0:
         return "\u2212"
+    else:
+        return "0"
 
 
 @dataclass(frozen=True)

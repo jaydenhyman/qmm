@@ -158,11 +158,12 @@ def sign_determinacy(wmat: sp.Matrix, tmat: sp.Matrix, method: str = "average") 
     def compute_prob(w, t, method):
         if t == sp.Integer(0):
             return sp.nan
-        # Special-case handling for deterministic weight values
         if w == sp.Integer(0):
-            return sp.Rational(1, 2)  # Maximum uncertainty
+            return sp.Rational(1, 2)
         if w == sp.Integer(1):
-            return sp.Integer(1)  # Deterministic positive
+            return sp.Integer(1)
+        if w == sp.Integer(-1):
+            return sp.Integer(-1)
         return compute_prob_average(w, t) if method == "average" else compute_prob_95_bound(w, t)
     
     def compute_prob_average(w, t):

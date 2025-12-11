@@ -9,7 +9,7 @@ from .effects import get_simulations
 from typing import Union, List
 
 @cache
-def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, epsilon: float = 1e-5, include_null: bool = False) -> pd.DataFrame:
+def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False) -> pd.DataFrame:
     """Calculate mutual information of variables for alternative models.
 
     Args:
@@ -17,7 +17,6 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         perturb: Node and sign to perturb (can be comma-separated for multiple perturbations)
         n_sim: Number of simulations
         seed: Random seed
-        epsilon: Small value to avoid log(0)
         include_null: If True, include a null model with equal probability (1/3)
             of positive, negative, or NaN response across simulations
         

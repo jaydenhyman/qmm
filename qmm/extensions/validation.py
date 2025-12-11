@@ -33,30 +33,43 @@ def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 
     return sum(sims["valid_sims"]) / n_sim
 
 @cache
-def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
+def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42, combinations: bool = True) -> Union[pd.DataFrame, List[nx.DiGraph]]:
     """Compare marginal likelihoods from alternative model structures.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
         perturb: Node and sign to perturb
         observe: String of observations
-        
+        n_sim: Number of simulations
+        distribution: Distribution for sampling
+        seed: Random seed
+        combinations: If True, evaluate every combination of dashed edges. If False, only compare the full model vs. all dashed edges removed.
+
     Returns:
-        pd.DataFrame: Marginal likelihood comparison for model variants
+        pd.DataFrame: Marginal likelihood comparison for requested dashed-edge configurations.
     """
     dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
+    if not dashed_edges:
+        mask_values = [0]
+    elif combinations:
+        mask_values = range(2 ** len(dashed_edges))
+    else:
+        all_on_mask = (1 << len(dashed_edges)) - 1
+        mask_values = [all_on_mask, 0]
+
     variants = []
     edge_presence = []
-    for i in range(2 ** len(dashed_edges)):
+    for mask in mask_values:
         G_variant = G.copy()
         presence = []
         for j, (u, v) in enumerate(dashed_edges):
-            if not (i & (1 << j)):
+            include_edge = bool(mask & (1 << j))
+            if not include_edge:
                 G_variant.remove_edge(u, v)
-            presence.append(bool(i & (1 << j)))
+            presence.append(include_edge)
         variants.append(G_variant)
         edge_presence.append(presence)
-    
+
     likelihoods = [marginal_likelihood(G, perturb, observe, n_sim, distribution, seed) for G in variants]
     columns = ["Marginal likelihood"] + [_arrows(G, [u, v]) for u, v in dashed_edges]
     rows = []
@@ -67,7 +80,7 @@ def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 100
         for j, (u, v) in enumerate(dashed_edges):
             row[_arrows(G, [u, v])] = "\u2713" if edge_presence[i][j] else ""
         rows.append(row)
-    df = pd.DataFrame(rows, columns=columns).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)    
+    df = pd.DataFrame(rows, columns=columns).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
     df["Marginal likelihood"] = df["Marginal likelihood"].apply(lambda x: f"{x:.3f}")
     return df
 
@@ -121,11 +134,11 @@ def posterior_predictions(G: nx.DiGraph, perturb: str, observe: str = "", n_sim:
             )
             if index is not None:
                 smat[index] = 1 if value > 0 else (0 if value < 0 else np.nan)
+    smat = np.array(smat)
     if not positive_only:
         smat = np.where(negative > positive, -negative / valid_count, smat)
-    return sp.Matrix(smat)
+    return sp.Matrix(smat.tolist())
 
-@cache
 def diagnose_observations(G: nx.DiGraph, observe: str, perturb_nodes: Union[str, List[str]] = None, n_sim: int = 10000, distribution: str = "uniform", seed: int = 42) -> pd.DataFrame:
     """Identify possible perturbations from marginal likelihoods.
 
@@ -155,6 +168,8 @@ def diagnose_observations(G: nx.DiGraph, observe: str, perturb_nodes: Union[str,
                 results.append({"Input": node, "Sign": sign, "Marginal likelihood": likelihood})
             except Exception as e:
                 print(f"Error for node {node} with sign {sign}: {str(e)}")
+    if not results:
+        return pd.DataFrame(columns=["Input", "Sign", "Marginal likelihood"])
     return pd.DataFrame(results).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
 
 

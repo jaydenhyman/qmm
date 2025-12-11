@@ -1,0 +1,249 @@
+"""Tests for qmm.core.prediction module."""
+
+import pytest
+import pandas as pd
+import pandas.testing as pdt
+
+from qmm import (
+    get_nodes,
+    weighted_predictions_matrix,
+    table_of_predictions,
+    compare_predictions,
+    numerical_simulations,
+    simulation_effects,
+)
+
+
+# =============================================================================
+# table_of_predictions()
+# =============================================================================
+
+def test_table_of_predictions_default_thresholds_snowshoe(snowshoe):
+    """Test table_of_predictions with weighted predictions on the snowshoe model."""
+    expected = pd.DataFrame(
+        [["+", "−", "+"], ["+", "+", "−"], ["+", "+", "+"]],
+        index=["R", "C", "P"],
+        columns=["R", "C", "P"],
+    )
+    nodes = get_nodes(snowshoe, "state")
+    result = table_of_predictions(
+        weighted_predictions_matrix(snowshoe),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_table_of_predictions_default_thresholds_chain(chain):
+    """Test table_of_predictions with weighted predictions on the chain model."""
+    expected = pd.DataFrame(
+        [
+            ["+", "−", "+", "−", "+"],
+            ["+", "+", "−", "+", "−"],
+            ["+", "+", "+", "−", "+"],
+            ["+", "+", "+", "+", "−"],
+            ["+", "+", "+", "+", "+"],
+        ],
+        index=["1", "2", "3", "4", "5"],
+        columns=["1", "2", "3", "4", "5"],
+    )
+    nodes = get_nodes(chain, "state")
+    result = table_of_predictions(
+        weighted_predictions_matrix(chain),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_table_of_predictions_default_thresholds_snowshoe_na(snowshoe_na):
+    """Test table_of_predictions with weighted predictions on the snowshoe_na model."""
+    expected = pd.DataFrame(
+        [["+", "−", "?"], ["0", "+", "−"], ["0", "0", "+"]],
+        index=["1", "2", "3"],
+        columns=["1", "2", "3"],
+    )
+    nodes = get_nodes(snowshoe_na, "state")
+    result = table_of_predictions(
+        weighted_predictions_matrix(snowshoe_na),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_table_of_predictions_simulation_effects_snowshoe_io_na(snowshoe_io_na):
+    """Test table_of_predictions with simulation_effects output for snowshoe IO NaN graph."""
+    expected = pd.DataFrame(
+        [
+            ["+", "−", "+", "+", "+", "−"],
+            ["+", "+", "−", "+", "?", "+"],
+            ["+", "+", "+", "+", "?", "−"],
+            ["0", "0", "0", "+", "0", "0"],
+            ["?", "?", "+", "?", "?", "−"],
+            ["+", "+", "−", "+", "?", "+"],
+        ],
+        index=["R", "C", "P", "N", "Out1", "Out2"],
+        columns=["R", "C", "P", "N", "Inp1", "Inp2"],
+    )
+    rows = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "output")
+    cols = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "input")
+    result = table_of_predictions(
+        simulation_effects(snowshoe_io_na, n_sim=500, seed=42),
+        t1=0.8,
+        t2=1.0,
+        index=rows,
+        columns=cols,
+    )
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_table_of_predictions_default_thresholds_mesocosm(mesocosm):
+    """Test table_of_predictions with numerical_simulations for the mesocosm model."""
+    expected = pd.DataFrame(
+        [
+            ["+", "?", "?", "−", "?", "+", "?", "?"],
+            ["?", "(+)", "(−)", "?", "(−)", "?", "(+)", "(−)"],
+            ["?", "?", "(+)", "?", "(+)", "?", "?", "(+)"],
+            ["+", "?", "?", "(+)", "?", "+", "?", "?"],
+            ["?", "(+)", "(−)", "?", "?", "?", "?", "?"],
+            ["+", "?", "(+)", "−", "?", "+", "?", "?"],
+            ["?", "?", "(−)", "?", "?", "?", "(+)", "(−)"],
+            ["?", "(+)", "(−)", "?", "?", "?", "(+)", "?"],
+        ],
+        index=["P", "A1", "A2", "AP", "H1", "H2", "C1", "C2"],
+        columns=["P", "A1", "A2", "AP", "H1", "H2", "C1", "C2"],
+    )
+    nodes = get_nodes(mesocosm, "state")
+    result = table_of_predictions(
+        numerical_simulations(mesocosm, n_sim=500, seed=42),
+        t1=0.8,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    pdt.assert_frame_equal(result, expected)
+
+
+def test_table_of_predictions_threshold_consistency_snowshoe(snowshoe):
+    """Test table_of_predictions keeps determinate results when thresholds repeat."""
+    nodes = get_nodes(snowshoe, "state")
+    wpm = weighted_predictions_matrix(snowshoe)
+    base = table_of_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+    repeat = table_of_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+    pdt.assert_frame_equal(repeat, base)
+
+
+# =============================================================================
+# compare_predictions()
+# =============================================================================
+
+def test_compare_predictions_identical_tables_snowshoe(snowshoe):
+    """Test compare_predictions returns identical table for snowshoe inputs."""
+    nodes = get_nodes(snowshoe, "state")
+    preds = table_of_predictions(
+        weighted_predictions_matrix(snowshoe),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    result = compare_predictions(preds, preds.copy())
+    pdt.assert_frame_equal(result, preds)
+
+
+def test_compare_predictions_identical_tables_chain(chain):
+    """Test compare_predictions returns identical table for chain inputs."""
+    nodes = get_nodes(chain, "state")
+    preds = table_of_predictions(
+        weighted_predictions_matrix(chain),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    result = compare_predictions(preds, preds.copy())
+    pdt.assert_frame_equal(result, preds)
+
+
+def test_compare_predictions_identical_tables_mesocosm(mesocosm):
+    """Test compare_predictions returns identical table for mesocosm inputs."""
+    nodes = get_nodes(mesocosm, "state")
+    preds = table_of_predictions(
+        numerical_simulations(mesocosm, n_sim=500, seed=42),
+        t1=0.8,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    result = compare_predictions(preds, preds.copy())
+    pdt.assert_frame_equal(result, preds)
+
+
+def test_compare_predictions_variant_mismatch_mesocosm_alt_models(mesocosm_alt_models):
+    """Test compare_predictions highlights differing entries across mesocosm variants."""
+    base, alt = mesocosm_alt_models
+    nodes = get_nodes(base, "state")
+    base_preds = table_of_predictions(
+        numerical_simulations(base, n_sim=500, seed=42),
+        t1=0.8,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    alt_preds = table_of_predictions(
+        numerical_simulations(alt, n_sim=500, seed=42),
+        t1=0.8,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    result = compare_predictions(base_preds, alt_preds)
+    assert result.loc["P", "P"] == "+"
+    assert result.loc["P", "C2"] == "?, (−)"
+    assert result.loc["A1", "A1"] == "(+), +"
+    assert result.loc["C2", "P"] == "?, (+)"
+
+
+def test_compare_predictions_single_difference_snowshoe(snowshoe):
+    """Test compare_predictions reports comma-separated differences for snowshoe."""
+    nodes = get_nodes(snowshoe, "state")
+    preds = table_of_predictions(
+        weighted_predictions_matrix(snowshoe),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    modified = preds.copy()
+    modified.loc["R", "R"] = "−"
+    result = compare_predictions(preds, modified)
+    assert result.loc["R", "R"] == "+, −"
+    assert result.loc["C", "R"] == preds.loc["C", "R"]
+
+
+def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
+    """Test compare_predictions raises ValueError when labels differ for snowshoe tables."""
+    nodes = get_nodes(snowshoe, "state")
+    preds = table_of_predictions(
+        weighted_predictions_matrix(snowshoe),
+        t1=0.5,
+        t2=1.0,
+        index=nodes,
+        columns=nodes,
+    )
+    shuffled = table_of_predictions(
+        weighted_predictions_matrix(snowshoe),
+        t1=0.5,
+        t2=1.0,
+        index=nodes[::-1],
+        columns=nodes,
+    )
+    with pytest.raises(ValueError):
+        compare_predictions(preds, shuffled)

@@ -38,6 +38,7 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
             att["dashes"] = False
         G.add_edge(source, target, **att)
     nx.set_node_attributes(G, "state", "category")
+    nx.freeze(G)
     return G
 
 
@@ -81,6 +82,14 @@ def create_matrix(G: nx.DiGraph, form: str = "symbolic", matrix_type: str = "A")
     }
     rows, cols, prefix, category = matrix_configs[matrix_type]
     matrix = sp.zeros(len(rows), len(cols))
+    if matrix_type == "D":
+        for inp in input_n:
+            for out in output_n:
+                if G.has_edge(inp, out):
+                    raise ValueError(
+                        f"Direct input to output edge ({inp} to {out}) not supported."
+                    )
+        return matrix
     for i, target in enumerate(rows):
         for j, source in enumerate(cols):
             if matrix_type == "A":

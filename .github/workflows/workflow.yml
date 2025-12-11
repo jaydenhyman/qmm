@@ -35,7 +35,7 @@ jobs:
         uv run ruff check qmm
     - name: Run tests
       run: |
-        uv run pytest test/core.py
+        uv run pytest test/
       env:
         PYTHONPATH: ${{ github.workspace }}
 

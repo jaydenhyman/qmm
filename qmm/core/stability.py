@@ -7,8 +7,7 @@ import sympy as sp
 from itertools import combinations
 from functools import cache
 from .structure import create_matrix
-from .helper import get_positive, get_negative, get_weight
-from thewalrus import perm
+from .helper import get_positive, get_negative, get_weight, perm
 from typing import Optional
 
 def _colour_test(G) -> str:
@@ -137,10 +136,10 @@ def absolute_feedback(G: nx.DiGraph, level: Optional[int] = None, method: str = 
         if level is None:
             fb = []
             for k in range(n + 1):
-                fb_k = sum(perm(A[np.ix_(c, c)], method="glynn") for c in combinations(range(n), k))
+                fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), k))
                 fb.append(int(fb_k))
         else:
-            fb_k = sum(perm(A[np.ix_(c, c)], method="glynn") for c in combinations(range(n), level))
+            fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), level))
             fb = [int(fb_k)]
     elif method == "polynomial":
         lam = sp.Symbol("lambda")
@@ -224,6 +223,8 @@ def hurwitz_determinants(G: nx.DiGraph, level: Optional[int] = None, form: str =
     n = len(fb) - 1
     if n > 5 and form == "symbolic":
         raise ValueError("Limited to systems with five or fewer variables.")
+    if level is not None and (level < 0 or level > n):
+        raise ValueError(f"Level must be between 0 and {n}")
     if level is None:
         h = _hurwitz_matrix(fb, n)
         hd = sp.Matrix([sp.det(h[:k, :k]) for k in range(0, n + 1)])
@@ -323,6 +324,7 @@ def _create_model_c(n: int) -> nx.DiGraph:
         C.add_edge(i, i - 1, sign=1)
     C.add_edge(n - 1, n - 1, sign=-1)
     nx.set_node_attributes(C, "state", "category")
+    nx.freeze(C)
     return C
 
 @cache

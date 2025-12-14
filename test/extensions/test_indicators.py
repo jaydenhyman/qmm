@@ -40,7 +40,6 @@ def test_mutual_information_multiple_perturbations_mesocosm_alt_models(mesocosm_
 
 def test_mutual_information_include_null_mesocosm(mesocosm):
     """Test mutual_information with include_null=True for mesocosm model."""
-    mutual_information.cache_clear()
     result = mutual_information(mesocosm, perturb='P:+', n_sim=100, seed=42, include_null=True)
     result['Mutual Information'] = result['Mutual Information'].round(6)
     expected = pd.DataFrame({
@@ -52,11 +51,9 @@ def test_mutual_information_include_null_mesocosm(mesocosm):
 
 def test_mutual_information_nan_effects_snowshoe(snowshoe):
     """Test mutual_information handles NaN effects when nodes are missing."""
-    import networkx as nx
     G1 = snowshoe.copy()
     G2 = snowshoe.copy()
     G2.remove_node('P')
-    mutual_information.cache_clear()
     result = mutual_information((G1, G2), perturb='R:+', n_sim=100, seed=42)
     assert 'P' in result['Node'].values
     nan_node_mi = result[result['Node'] == 'P']['Mutual Information'].iloc[0]

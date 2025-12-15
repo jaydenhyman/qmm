@@ -476,3 +476,45 @@ def _random_sampler(dist: distribution_types, size: int) -> np.ndarray:
         "strong": lambda: np.random.beta(3, 1, size),
     }
     return samplers[dist]()
+
+
+def get_dashed_alternatives(G: nx.DiGraph, combinations: bool = True) -> List[nx.DiGraph]:
+    """Generate all alternative model structures based on dashed edges.
+
+    Args:
+        G: NetworkX DiGraph with potentially dashed edges (edges with dashes=True attribute)
+        combinations: If True, return all 2^n combinations of dashed edges.
+                     If False, return base graph (no dashed edges) plus variants with each single dashed edge added.
+
+    Returns:
+        List[nx.DiGraph]: List of graph variants with different dashed edge configurations.
+                         If no dashed edges exist, returns a list containing only the original graph.
+    """
+    dashed_edges = [(j, i, d) for j, i, d in G.edges(data=True) if d.get("dashes", False)]
+
+    if not dashed_edges:
+        return [G]
+
+    if combinations:
+        mask_values = range(2 ** len(dashed_edges))
+        variants = []
+        for mask in mask_values:
+            G_variant = G.copy()
+            for idx, (j, i, _) in enumerate(dashed_edges):
+                include_edge = bool(mask & (1 << idx))
+                if not include_edge:
+                    G_variant.remove_edge(j, i)
+            variants.append(G_variant)
+    else:
+        G_base = G.copy()
+        for j, i, _ in dashed_edges:
+            G_base.remove_edge(j, i)
+
+        variants = [G_base]
+
+        for j, i, edge_data in dashed_edges:
+            G_variant = G_base.copy()
+            G_variant.add_edge(j, i, **edge_data)
+            variants.append(G_variant)
+
+    return variants

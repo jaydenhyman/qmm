@@ -14,7 +14,7 @@ from qmm import (
     get_negative,
     sign_determinacy,
 )
-from qmm.core.helper import _arrows, _sign_string, _NodeSign, _parse_perturbations, _parse_observations, _random_sampler, perm, _perm_ryser, _perm_bbfg
+from qmm.core.helper import _arrows, _sign_string, _NodeSign, _parse_perturbations, _parse_observations, _random_sampler, perm, _perm_ryser, _perm_bbfg, get_dashed_alternatives
 from qmm.core.stability import net_feedback, absolute_feedback
 
 
@@ -575,3 +575,37 @@ def test_perm_bbfg_empty_no_fixture():
     result = _perm_bbfg(A)
     expected = 1.0
     assert result == expected
+
+
+# =============================================================================
+# get_dashed_alternatives()
+# =============================================================================
+
+def test_get_dashed_alternatives_no_dashed_edges_snowshoe(snowshoe):
+    """Test get_dashed_alternatives returns original graph when no dashed edges exist."""
+    result = get_dashed_alternatives(snowshoe)
+    assert len(result) == 1
+    assert result[0].number_of_edges() == snowshoe.number_of_edges()
+
+
+def test_get_dashed_alternatives_combinations_true_snowshoe_dashed(snowshoe_dashed):
+    """Test get_dashed_alternatives with snowshoe model having 3 dashed edges and combinations=True."""
+    result = get_dashed_alternatives(snowshoe_dashed, combinations=True)
+    assert len(result) == 8  # 2^3 combinations
+    assert result[0].number_of_edges() == 6  # Base: all dashed removed
+    assert result[7].number_of_edges() == 9  # All edges included
+
+
+def test_get_dashed_alternatives_combinations_false_snowshoe_dashed(snowshoe_dashed):
+    """Test get_dashed_alternatives with snowshoe model having 3 dashed edges and combinations=False."""
+    result = get_dashed_alternatives(snowshoe_dashed, combinations=False)
+    assert len(result) == 4 
+    assert result[0].number_of_edges() == 6
+    assert result[1].number_of_edges() == 7
+    assert result[2].number_of_edges() == 7
+    assert result[3].number_of_edges() == 7
+    base_edges = set(result[0].edges())
+    assert ('R', 'R') in base_edges
+    assert ('R', 'C') in base_edges
+    assert ('C', 'R') in base_edges
+    assert ('R', 'P') not in base_edges

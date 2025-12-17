@@ -79,7 +79,7 @@ def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 100
         for i in range(len(variants))
     ]
     df = pd.DataFrame(rows, columns=["Marginal likelihood"] + edge_cols)
-    df = df.sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
+    df = df.sort_values("Marginal likelihood", ascending=False, kind="mergesort").reset_index(drop=True)
     df["Marginal likelihood"] = df["Marginal likelihood"].apply(lambda x: f"{x:.3f}")
     return df
 

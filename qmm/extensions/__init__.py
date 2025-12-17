@@ -35,6 +35,7 @@ from .effects import (
     sign_determinacy_effects,
     get_simulations,
     simulation_effects,
+    simulations_table,
 )
 
 from .indicators import (
@@ -79,6 +80,7 @@ __all__ = [
     "sign_determinacy_effects",
     "get_simulations",
     "simulation_effects",
+    "simulations_table",
     # indicators.py
     "mutual_information",
     # validation.py

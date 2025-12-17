@@ -23,6 +23,18 @@ def snowshoe():
 
 
 @pytest.fixture
+def snowshoe_rp():
+    """Snowshoe model with an added positive R->P link."""
+    A = [
+        [-1, -1, 0],
+        [1, 0, -1],
+        [1, 1, -1],
+    ]
+    labels = ['R', 'C', 'P']
+    return list_to_digraph(A, labels)
+
+
+@pytest.fixture
 def snowshoe_na():
     """3-node model to test as_nan feature - distinguishes ambiguous (0.5) from no effects (nan)."""
     A = [

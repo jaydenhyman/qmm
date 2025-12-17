@@ -458,6 +458,7 @@ def _random_sampler(dist: distribution_types, size: int) -> np.ndarray:
             - "weak": Beta(1, 3) - weak interactions predominate
             - "moderate": Beta(2, 2) - moderate interactions predominate
             - "strong": Beta(3, 1) - strong interactions predominate
+            - "uniform_two_oom": Uniform(0.01, 1)
         size: Number of samples to draw
 
     Returns:
@@ -466,8 +467,11 @@ def _random_sampler(dist: distribution_types, size: int) -> np.ndarray:
     Raises:
         ValueError: If dist is not a valid distribution name
     """
+    if dist == "uniform_two_oom":
+        return np.random.uniform(0.01, 1.0, size)
+
     if dist not in valid_distributions:
-        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: {sorted(valid_distributions)}")
+        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: {sorted(valid_distributions)} or 'uniform_two_oom'.")
 
     samplers = {
         "uniform": lambda: np.random.uniform(0, 1, size),

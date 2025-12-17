@@ -577,6 +577,34 @@ def test_perm_bbfg_empty_no_fixture():
     assert result == expected
 
 
+def test_perm_ryser_py_func_empty_no_fixture():
+    A = np.array([], dtype=float).reshape(0, 0)
+    result = _perm_ryser.py_func(A)
+    expected = 1.0
+    assert result == expected
+
+
+def test_perm_bbfg_py_func_empty_no_fixture():
+    A = np.array([], dtype=float).reshape(0, 0)
+    result = _perm_bbfg.py_func(A)
+    expected = 1.0
+    assert result == expected
+
+
+def test_perm_ryser_py_func_2x2_no_fixture():
+    A = np.array([[1.0, 2.0], [3.0, 4.0]])
+    result = _perm_ryser.py_func(A)
+    expected = 1.0 * 4.0 + 2.0 * 3.0
+    assert result == expected
+
+
+def test_perm_bbfg_py_func_2x2_no_fixture():
+    A = np.array([[1.0, 2.0], [3.0, 4.0]])
+    result = _perm_bbfg.py_func(A)
+    expected = 1.0 * 4.0 + 2.0 * 3.0
+    assert result == expected
+
+
 # =============================================================================
 # get_dashed_alternatives()
 # =============================================================================

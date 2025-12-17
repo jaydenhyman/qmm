@@ -13,7 +13,7 @@ from qmm.extensions.effects import (
     sign_determinacy_effects,
     get_simulations,
     simulation_effects,
-    _observation_matches,
+    simulations_table,
 )
 from qmm.core.press import (
     adjoint_matrix,
@@ -267,7 +267,7 @@ def test_sign_determinacy_effects_nan_for_missing_paths(snowshoe_io_na):
 def test_get_simulations(snowshoe_io):
     """Test basic functionality of get_simulations."""
     result = set(get_simulations(snowshoe_io, n_sim=100, seed=42).keys())
-    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat'}
+    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable', 'n_valid', 'n_attempts'}
     assert result == expected
 
 def test_get_simulations_effects_length(snowshoe_io):
@@ -303,6 +303,67 @@ def test_get_simulations_distributions(snowshoe_io, dist):
     result = len(get_simulations(snowshoe_io, n_sim=100, dist=dist, seed=42)['effects'])
     expected = 100
     assert result == expected
+
+def test_get_simulations_uniform_two_oom(snowshoe_io):
+    """Allow using uniform_two_oom distribution option."""
+    sims = get_simulations(snowshoe_io, n_sim=50, dist="uniform_two_oom", seed=42)
+    assert len(sims["effects"]) == 50
+
+
+def test_get_simulations_presample_applied_before_sampling(snowshoe):
+    """Presampling callback should override symbolic values before draws."""
+    def presample(symbols):
+        return {sp.Symbol('a_R,R'): 1}
+
+    sims = get_simulations(snowshoe, n_sim=100, seed=42, presample=presample, return_samples=True)
+    assert 'a_R,R' in sims['samples']
+    assert np.all(sims['samples']['a_R,R'] == 1)
+
+
+def test_get_simulations_presample_symbols_available(snowshoe_io):
+    """Presampling should receive all symbols when requesting them."""
+    def presample(symbols):
+        expected = {sp.Symbol('a_R,R'), sp.Symbol('b_R,Inp1')}
+        assert set(symbols) >= expected
+        return {sp.Symbol('a_R,R'): 1, sp.Symbol('b_R,Inp1'): 0.5}
+
+    sims = get_simulations(snowshoe_io, n_sim=100, seed=42, presample=presample, return_samples=True)
+    assert 'a_R,R' in sims['samples']
+    assert 'b_R,Inp1' in sims['samples']
+    assert np.all(sims['samples']['a_R,R'] == 1)
+    assert np.all(sims['samples']['b_R,Inp1'] == 0.5)
+
+
+def test_get_simulations_return_samples(snowshoe):
+    """return_samples should include sampled parameter values when requested."""
+    sims = get_simulations(snowshoe, n_sim=100, seed=42, return_samples=True)
+    assert 'samples' in sims
+    assert all(len(v) == 100 for v in sims['samples'].values())
+    assert 'a_R,R' in sims['samples']
+
+
+def test_get_simulations_prop_stable(snowshoe):
+    """proportion of stable simulations is always returned."""
+    sims = get_simulations(snowshoe, n_sim=100, seed=42)
+    assert sims['prop_stable'] == pytest.approx(1.0)
+
+
+def test_get_simulations_attempts_include_failed(monkeypatch, snowshoe_io):
+    """Attempts should count draws that fail stability."""
+    get_simulations.cache_clear()
+    calls = {"n": 0}
+    real_eigvals = np.linalg.eigvals
+
+    def fake_eigvals(A):
+        calls["n"] += 1
+        if calls["n"] <= 2:
+            return np.array([1.0])  # Force instability
+        return real_eigvals(A)
+
+    monkeypatch.setattr(np.linalg, "eigvals", fake_eigvals)
+    sims = get_simulations(snowshoe_io, n_sim=5, seed=0)
+    assert sims['attempts'] >= len(sims['effects']) + 2
+    get_simulations.cache_clear()
 
 
 def test_get_simulations_with_perturb(snowshoe_io):
@@ -367,6 +428,8 @@ def test_get_simulations_runtime_error_max_iterations(positive_loop_graph):
     expected = "Maximum iterations reached."
     assert result == expected
 
+
+
 # =============================================================================
 # simulation_effects
 # =============================================================================
@@ -397,11 +460,32 @@ def test_simulation_effects_positive_only(snowshoe_io):
     assert result == expected
 
 
-@pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong'])
+def test_simulation_effects_presample_full_matrix(snowshoe_rp):
+    """Presample should allow returning full SymPy matrix for snowshoe with R->P link."""
+    def presample(symbols):
+        return {sp.Symbol('a_P,R'): 1}
+
+    result = simulation_effects(snowshoe_rp, n_sim=100, seed=42, presample=presample, positive_only=False)
+    expected = sp.Matrix([
+        [1.0, -1.0, 1.0],
+        [-0.59, 1.0, -1.0],
+        [1.0, -0.54, 1.0],
+    ])
+    assert result == expected
+
+
+@pytest.mark.parametrize("dist", ['uniform', 'uniform_two_oom', 'weak', 'moderate', 'strong'])
 def test_simulation_effects_distributions(snowshoe_io, dist):
     """Test simulation effects with different distributions."""
     expected_mats = {
         'uniform': sp.Matrix([
+            [1.0, -1.0, 1.0, 1.0, -1.0],
+            [1.0, 1.0, -1.0, 0.57, 1.0],
+            [1.0, 1.0, 1.0, 0.57, -1.0],
+            [-0.54, -0.54, 1.0, 0.51, -1.0],
+            [1.0, 1.0, -1.0, 0.57, 1.0],
+        ]),
+        'uniform_two_oom': sp.Matrix([
             [1.0, -1.0, 1.0, 1.0, -1.0],
             [1.0, 1.0, -1.0, 0.57, 1.0],
             [1.0, 1.0, 1.0, 0.57, -1.0],
@@ -478,18 +562,71 @@ def test_simulation_effects_positive_only_nan_for_no_path(snowshoe_io_na):
 
 
 # =============================================================================
-# _observation_matches()
+# simulations_table
 # =============================================================================
 
-def test_observation_matches_no_expected_effect_no_fixture():
-    """Test _observation_matches returns True when no effect expected and obs is 0."""
-    result = _observation_matches(obs=0, effect_val=0.5, effect_expected=False)
-    expected = True
-    assert result == expected
+def test_simulations_table_no_response_nodes(minimal_error_graph):
+    """Simulation table should be empty when there are no response nodes."""
+    graph = define_input_output(minimal_error_graph)
+    result = simulations_table(graph, perturb="A:+", n_sim=5, seed=42)
+    expected_columns = [
+        "model",
+        "effect_on",
+        "negative",
+        "no_effect",
+        "positive",
+        "valid_sims",
+        "stable_sims",
+        "attempts",
+    ]
+    assert result.columns.tolist() == expected_columns
+    assert result.empty
 
 
-def test_observation_matches_no_expected_effect_nonzero_obs_no_fixture():
-    """Test _observation_matches returns False when no effect expected but obs is nonzero."""
-    result = _observation_matches(obs=1, effect_val=0.5, effect_expected=False)
-    expected = False
-    assert result == expected
+def test_simulations_table_no_valid_sims(snowshoe_io):
+    """Simulation table should reflect zero valid simulations when observations conflict."""
+    result = simulations_table(snowshoe_io, perturb="P:+", observe="C:0", n_sim=50, seed=42)
+    assert result["valid_sims"].eq(0).all()
+    assert result["negative"].eq(0).all()
+    assert result["positive"].eq(0).all()
+
+
+def test_simulations_table_counts_match_structure(snowshoe_io_na):
+    """Simulation table should align with the structural effect matrix."""
+    result = simulations_table(snowshoe_io_na, perturb="P:+", n_sim=100, seed=42)
+    expected_columns = [
+        "model",
+        "effect_on",
+        "negative",
+        "no_effect",
+        "positive",
+        "valid_sims",
+        "stable_sims",
+        "attempts",
+    ]
+    assert result.columns.tolist() == expected_columns
+    assert (result["model"] == 1).all()
+
+    tmat = sp.matrix2numpy(absolute_effects(snowshoe_io_na)).astype(int)
+    response_nodes = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "output")
+    perturb_nodes = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "input")
+    p_idx = perturb_nodes.index("P")
+
+    for _, row in result.iterrows():
+        node_idx = response_nodes.index(row["effect_on"])
+        has_effect = tmat[node_idx, p_idx] != 0
+        if has_effect:
+            assert row["no_effect"] == 0
+            assert row["negative"] + row["positive"] == row["valid_sims"]
+        else:
+            assert row["no_effect"] == row["valid_sims"]
+            assert row["negative"] == 0
+            assert row["positive"] == 0
+
+
+def test_simulations_table_importable():
+    """simulations_table should be importable from top-level and extensions."""
+    from qmm import simulations_table as top_level
+    from qmm.extensions import simulations_table as from_extensions
+
+    assert top_level is from_extensions

@@ -23,13 +23,13 @@ def test_marginal_likelihood(mesocosm):
 
 def test_marginal_likelihood_three_observations(mesocosm):
     """Test marginal_likelihood with three observations."""
-    result = marginal_likelihood(mesocosm, perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', distribution='uniform', seed=42)
+    result = marginal_likelihood(mesocosm, perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', dist='uniform', seed=42)
     expected = 0.57
     assert np.allclose(result, expected)
 
 def test_marginal_likelihood_four_observations(mesocosm):
     """Test marginal_likelihood with four observations."""
-    result = marginal_likelihood(mesocosm, perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', distribution='uniform', seed=42)
+    result = marginal_likelihood(mesocosm, perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42)
     expected = 0.47
     assert np.allclose(result, expected)
 
@@ -46,6 +46,20 @@ def test_marginal_likelihood_invalid_perturbation(mesocosm):
     result = exc_info.type
     expected = KeyError
     assert result == expected
+
+def test_marginal_likelihood_zero_observation_dashed_edge(snowshoe_io_na):
+    """Test zero observation on graph with dashed R->N edge."""
+    G = snowshoe_io_na.copy()
+    G.add_edge('R', 'N', sign=1, dashes=True)
+    result = marginal_likelihood(G, perturb='P:+', observe='N:0', n_sim=100, dist='uniform', seed=42)
+    expected = 0.0
+    assert np.allclose(result, expected)
+
+def test_marginal_likelihood_zero_observation_no_edge(snowshoe_io_na):
+    """Test zero observation when no edge connects perturbation to N."""
+    result = marginal_likelihood(snowshoe_io_na, perturb='P:+', observe='N:0', n_sim=100, dist='uniform', seed=42)
+    expected = 1.0
+    assert np.allclose(result, expected)
 
 # =============================================================================
 # model_validation
@@ -206,7 +220,7 @@ def test_diagnose_observations_all_errors_empty_df(minimal_error_graph):
 def test_bayes_factors(mesocosm_alt_models):
     """Test basic functionality of bayes_factors."""
     G, G_alt = mesocosm_alt_models
-    df = bayes_factors((G, G_alt), perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', distribution='uniform', seed=42)
+    df = bayes_factors((G, G_alt), perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', dist='uniform', seed=42)
     result = (
         df['Model comparison'].tolist(),
         np.allclose(df['Likelihood 1'].to_numpy(), [0.57]),
@@ -219,7 +233,7 @@ def test_bayes_factors(mesocosm_alt_models):
 def test_bayes_factors_more_observations(mesocosm_alt_models):
     """Test bayes_factors with additional observations."""
     G, G_alt = mesocosm_alt_models
-    df = bayes_factors((G, G_alt), perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', distribution='uniform', seed=42)
+    df = bayes_factors((G, G_alt), perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42)
     result = (
         df['Model comparison'].tolist(),
         np.allclose(df['Likelihood 1'].to_numpy(), [0.47]),

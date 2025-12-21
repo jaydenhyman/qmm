@@ -31,6 +31,7 @@ from .press import (
 )
 
 from .prediction import (
+    qualitative_predictions,
     table_of_predictions,
     compare_predictions,
 )
@@ -71,7 +72,9 @@ __all__ = [
     "sign_determinacy_matrix",
     "numerical_simulations",
     # prediction.py
+    "qualitative_predictions",
     "table_of_predictions",
+    # prediction.py
     "compare_predictions",
     # helper.py
     "list_to_digraph",

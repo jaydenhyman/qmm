@@ -29,6 +29,7 @@ from .core.press import (
 )
 
 from .core.prediction import (
+    qualitative_predictions,
     table_of_predictions,
     compare_predictions,
 )
@@ -130,6 +131,7 @@ __all__ = [
     "sign_determinacy_matrix",
     "numerical_simulations",
     # prediction.py
+    "qualitative_predictions",
     "table_of_predictions",
     "compare_predictions",
     # helper.py

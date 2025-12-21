@@ -3,11 +3,14 @@
 import pytest
 import pandas as pd
 import pandas.testing as pdt
+import numpy as np
+import sympy as sp
 
 from qmm import (
     get_nodes,
     weighted_predictions_matrix,
     table_of_predictions,
+    qualitative_predictions,
     compare_predictions,
     numerical_simulations,
     simulation_effects,
@@ -127,6 +130,77 @@ def test_table_of_predictions_default_thresholds_mesocosm(mesocosm):
         t2=1.0,
         index=nodes,
         columns=nodes,
+    )
+    pdt.assert_frame_equal(result, expected)
+
+def test_table_of_predictions_threshold_boundaries(snowshoe):
+    """Test threshold labeling on boundary values."""
+    values = np.array([[1.0, 0.95, 0.8, 0.0, -0.8, -0.95, -1.0, np.nan]])
+    expected = pd.DataFrame(
+        [["+", "+", "(+)", "?", "(−)", "−", "−", "0"]],
+        index=["row1"],
+        columns=["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"],
+    )
+    result = table_of_predictions(
+        values,
+        t1=0.8,
+        t2=0.95,
+        index=expected.index.tolist(),
+        columns=expected.columns.tolist(),
+    )
+    pdt.assert_frame_equal(result, expected)
+
+def test_qualitative_predictions_matrix_output(snowshoe):
+    """Test qualitative_predictions returns a symbol matrix."""
+    matrix = np.array([[1.0, 0.95, 0.9, 0.8, 0.0, -0.8, -0.9, -0.95, -1.0, np.nan]])
+    expected = sp.Matrix([[
+        sp.Symbol("+"),
+        sp.Symbol("+"),
+        sp.Symbol("(+)"),
+        sp.Symbol("(+)"),
+        sp.Symbol("?"),
+        sp.Symbol("(−)"),
+        sp.Symbol("(−)"),
+        sp.Symbol("−"),
+        sp.Symbol("−"),
+        sp.Integer(0),
+    ]])
+    result = qualitative_predictions(
+        snowshoe,
+        lambda G: matrix,
+        t1=0.8,
+        t2=0.95,
+    )
+    assert result == expected
+
+def test_table_of_predictions_symbolic_matrix(snowshoe):
+    """Test table_of_predictions returns symbol matrices unchanged."""
+    a, b, c, d = sp.Symbol("a"), sp.Symbol("b"), sp.Symbol("c"), sp.Symbol("d")
+    matrix = sp.Matrix([[a, b], [c, d]])
+    expected = pd.DataFrame([[a, b], [c, d]], index=["r1", "r2"], columns=["c1", "c2"])
+    result = table_of_predictions(
+        matrix,
+        t1=0.8,
+        t2=1.0,
+        index=["r1", "r2"],
+        columns=["c1", "c2"],
+    )
+    pdt.assert_frame_equal(result, expected)
+
+def test_table_of_predictions_typeerror_nan_check(snowshoe):
+    """Test table_of_predictions handles non-numpy NaN checks."""
+    class NanLike:
+        def __eq__(self, other):
+            return other == sp.nan
+
+    matrix = np.array([[NanLike()]], dtype=object)
+    expected = pd.DataFrame([["0"]], index=["r1"], columns=["c1"])
+    result = table_of_predictions(
+        matrix,
+        t1=0.8,
+        t2=1.0,
+        index=["r1"],
+        columns=["c1"],
     )
     pdt.assert_frame_equal(result, expected)
 

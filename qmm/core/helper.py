@@ -3,7 +3,7 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from typing import List, Union, Dict, Any, Optional, Tuple, Literal, Callable
+from typing import List, Union, Dict, Any, Optional, Tuple, Literal
 from dataclasses import dataclass
 from numba import jit
 

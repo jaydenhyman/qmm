@@ -8,7 +8,7 @@ from itertools import combinations
 from functools import cache
 from .structure import create_matrix
 from .helper import get_positive, get_negative, get_weight, perm, _random_sampler
-from typing import Optional, Literal, Union
+from typing import Optional, Literal
 
 def _colour_test(G) -> str:
     A = create_matrix(G, form="signed")

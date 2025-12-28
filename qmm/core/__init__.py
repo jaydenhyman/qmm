@@ -2,6 +2,8 @@
 
 from .structure import (
     import_digraph,
+    nodes_table,
+    edges_table,
     create_matrix,
     create_equations,
 )
@@ -32,7 +34,7 @@ from .press import (
 
 from .prediction import (
     qualitative_predictions,
-    table_of_predictions,
+    matrix_to_predictions,
     compare_predictions,
 )
 
@@ -49,6 +51,8 @@ from .helper import (
 __all__ = [
     # structure.py
     "import_digraph",
+    "nodes_table",
+    "edges_table",
     "create_matrix",
     "create_equations",
     # stability.py
@@ -73,8 +77,7 @@ __all__ = [
     "numerical_simulations",
     # prediction.py
     "qualitative_predictions",
-    "table_of_predictions",
-    # prediction.py
+    "matrix_to_predictions",
     "compare_predictions",
     # helper.py
     "list_to_digraph",

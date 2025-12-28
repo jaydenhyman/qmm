@@ -2,8 +2,33 @@
 
 import pytest
 import networkx as nx
+import subprocess
+from pathlib import Path
 
 from qmm import list_to_digraph, define_input_output
+
+
+def pytest_sessionfinish(session, exitstatus):
+    """Run docstring regeneration after all tests complete."""
+    if exitstatus == 0:  # Only run if tests passed
+        test_dir = Path(__file__).parent
+        update_script = test_dir / "docstrings.py"
+        print("\n" + "="*60)
+        print("Running docstring regeneration...")
+        print("="*60)
+        try:
+            import sys
+            result = subprocess.run(
+                [sys.executable, str(update_script)],
+                cwd=test_dir.parent,
+                capture_output=True,
+                text=True
+            )
+            print(result.stdout)
+            if result.stderr:
+                print("Errors:", result.stderr)
+        except Exception as e:
+            print(f"Failed to regenerate docstrings: {e}")
 
 
 # =============================================================================

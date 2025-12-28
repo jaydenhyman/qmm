@@ -30,12 +30,14 @@ from .paths import (
 from .effects import (
     define_input_output,
     cumulative_effects,
+    net_effects,
     absolute_effects,
     weighted_effects,
     sign_determinacy_effects,
     get_simulations,
     simulation_effects,
     simulations_table,
+    table_of_predictions,
 )
 
 from .indicators import (
@@ -75,12 +77,14 @@ __all__ = [
     # effects.py
     "define_input_output",
     "cumulative_effects",
+    "net_effects",
     "absolute_effects",
     "weighted_effects",
     "sign_determinacy_effects",
     "get_simulations",
     "simulation_effects",
     "simulations_table",
+    "table_of_predictions",
     # indicators.py
     "mutual_information",
     # validation.py

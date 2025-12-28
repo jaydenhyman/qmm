@@ -41,11 +41,9 @@ def test_marginal_likelihood_reproducibility(mesocosm):
 
 def test_marginal_likelihood_invalid_perturbation(mesocosm):
     """Test that marginal_likelihood handles invalid perturbation."""
-    with pytest.raises(Exception) as exc_info:
+    with pytest.raises(ValueError) as exc_info:
         marginal_likelihood(mesocosm, perturb='Invalid:+', observe='A1:+')
-    result = exc_info.type
-    expected = KeyError
-    assert result == expected
+    assert "Unknown perturbation node" in str(exc_info.value)
 
 def test_marginal_likelihood_zero_observation_dashed_edge(snowshoe_io_na):
     """Test zero observation on graph with dashed R->N edge."""

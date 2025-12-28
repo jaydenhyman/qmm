@@ -385,3 +385,84 @@ def test_define_input_output_invalid_input_type_no_fixture():
     """Test define_input_output raising TypeError for non-graph input."""
     with pytest.raises(TypeError):
         define_input_output("not a graph")
+
+# =============================================================================
+# nodes_table() and edges_table()
+# =============================================================================
+
+def test_nodes_table_snowshoe_io(snowshoe_io):
+    """Test nodes_table creates proper metadata table for snowshoe IO model."""
+    from qmm import nodes_table
+    result = nodes_table(snowshoe_io)
+    assert len(result) == 7  # 3 state + 2 input + 2 output
+    assert 'Node' in result.columns
+    assert 'Label' in result.columns
+    assert 'Category' in result.columns
+    assert 'Description' in result.columns
+    # Check that state nodes are formatted as x_{id}
+    state_rows = result[result['Category'] == 'State']
+    assert len(state_rows) == 3
+    # Check that input nodes are formatted as u_{id}
+    input_rows = result[result['Category'] == 'Input']
+    assert len(input_rows) == 2
+    # Check that output nodes are formatted as y_{id}
+    output_rows = result[result['Category'] == 'Output']
+    assert len(output_rows) == 2
+
+def test_edges_table_snowshoe_io(snowshoe_io):
+    """Test edges_table creates proper metadata table for snowshoe IO model."""
+    from qmm import edges_table
+    result = edges_table(snowshoe_io)
+    assert len(result) > 0
+    assert 'Edge' in result.columns
+    assert 'From' in result.columns
+    assert 'Sign' in result.columns
+    assert 'To' in result.columns
+    assert 'Dashes' in result.columns
+    assert 'Description' in result.columns
+    # Check sign labels
+    assert '+' in result['Sign'].values or '-' in result['Sign'].values
+
+def test_create_equations_form_invalid_snowshoe(snowshoe):
+    """Test create_equations raising ValueError for invalid form."""
+    with pytest.raises(ValueError, match="form must be either 'state' or 'output'"):
+        create_equations(snowshoe, form='invalid')
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_edges_table_input_to_output_edge():
+    """Test edges_table handles direct input-to-output edges (D matrix)."""
+    import networkx as nx
+    from qmm import edges_table, define_input_output
+
+    # Create graph with direct D matrix edge
+    G = nx.DiGraph()
+    G.add_node('X', category='state')
+    G.add_node('U', category='input')
+    G.add_node('Y', category='output')
+    G.add_edge('U', 'X', sign=1)
+    G.add_edge('U', 'Y', sign=1)  # Direct input to output
+    G.add_edge('X', 'Y', sign=1)
+    nx.freeze(G)
+
+    result = edges_table(G)
+    # Check that the edge from input to output has prefix 'd'
+    d_edges = result[result['Edge'].str.contains(r'\$d_')]
+    assert len(d_edges) > 0
+
+
+def test_edges_table_non_standard_sign():
+    """Test edges_table handles non +1/-1 sign values."""
+    import networkx as nx
+    from qmm import edges_table
+
+    G = nx.DiGraph()
+    G.add_node('A')
+    G.add_node('B')
+    G.add_edge('A', 'B', sign=0.5)  # Non-standard sign
+
+    result = edges_table(G)
+    assert '0.5' in result['Sign'].values

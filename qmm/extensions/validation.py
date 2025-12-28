@@ -12,12 +12,20 @@ from ..core.helper import (
     _parse_observations,
 )
 import networkx as nx
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 
 
 @cache
-def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, distribution: str = None) -> float:
+def marginal_likelihood(
+    G: nx.DiGraph,
+    perturb: str,
+    observe: str,
+    n_sim: int = 10000,
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
+    distribution: Optional[Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"]] = None,
+) -> float:
     """Calculate proportion of simulations matching qualitative observations.
 
     Args:
@@ -30,6 +38,17 @@ def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 
 
     Returns:
         float: Marginal likelihood
+
+    References:
+        - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
+        - Melbourne-Thomas, J., Wotherspoon, S., Raymond, B., Constable, A. (2012). Comprehensive evaluation of model uncertainty in qualitative network analyses. Ecological Monographs 82, 505–519.
+
+    Examples:
+        ```python
+        from qmm import marginal_likelihood, load_digraph
+        marginal_likelihood(load_digraph("snowshoe_io"), perturb='I:+', observe='H:+', n_sim=1000)
+        # 0.962
+        ```
     """
     graph, pert = _parse_perturbations(G, perturb)
     use_dist = distribution if distribution is not None else dist
@@ -39,7 +58,15 @@ def marginal_likelihood(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 
     return sum(sims["valid_sims"]) / n_sim
 
 @cache
-def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 10000, dist: str = "uniform", seed: int = 42, combinations: bool = True) -> pd.DataFrame:
+def model_validation(
+    G: nx.DiGraph,
+    perturb: str,
+    observe: str,
+    n_sim: int = 10000,
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
+    combinations: bool = True,
+) -> pd.DataFrame:
     """Compare marginal likelihoods from alternative model structures.
 
     Args:
@@ -53,6 +80,22 @@ def model_validation(G: nx.DiGraph, perturb: str, observe: str, n_sim: int = 100
 
     Returns:
         pd.DataFrame: Marginal likelihood comparison for requested dashed-edge configurations.
+
+    References:
+        - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
+        - Melbourne-Thomas, J., Wotherspoon, S., Raymond, B., Constable, A. (2012). Comprehensive evaluation of model uncertainty in qualitative network analyses. Ecological Monographs 82, 505–519.
+
+    Examples:
+        ```python
+        from qmm import model_validation, load_digraph
+        import networkx as nx
+        G = nx.DiGraph(load_digraph("snowshoe_io"))
+        G.add_edge('V', 'H', sign=1, dashes=True)
+        model_validation(G, perturb='I:+', observe='H:+', n_sim=1000, combinations=False)
+        #   Marginal likelihood V → H
+        # 0               0.962     ✓
+        # 1               0.876
+        ```
     """
     dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
     if not dashed_edges:
@@ -89,7 +132,7 @@ def posterior_predictions(
     perturb: str,
     observe: str = "",
     n_sim: int = 10000,
-    dist: str = "uniform",
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
     positive_only: bool = False,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
@@ -108,6 +151,21 @@ def posterior_predictions(
 
     Returns:
         sp.Matrix: Predictions conditioned on observations
+
+    References:
+        - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
+        - Melbourne-Thomas, J., Wotherspoon, S., Raymond, B., Constable, A. (2012). Comprehensive evaluation of model uncertainty in qualitative network analyses. Ecological Monographs 82, 505–519.
+
+    Examples:
+        ```python
+        from qmm import posterior_predictions, load_digraph
+        posterior_predictions(load_digraph("snowshoe_io"), perturb='I:+', observe='H:+', n_sim=1000)
+        # Matrix([
+        # [-0.724532224532225],
+        # [               1.0],
+        # [ 0.594594594594595],
+        # [ 0.708939708939709]])
+        ```
     """
     graph, pert = _parse_perturbations(G, perturb)
     observations = _parse_observations(observe) if observe else None
@@ -136,7 +194,14 @@ def posterior_predictions(
 
     return sp.Matrix(smat)
 
-def diagnose_observations(G: nx.DiGraph, observe: str, perturb_nodes: Union[str, List[str]] = None, n_sim: int = 10000, dist: str = "uniform", seed: int = 42) -> pd.DataFrame:
+def diagnose_observations(
+    G: nx.DiGraph,
+    observe: str,
+    perturb_nodes: Union[str, List[str]] = None,
+    n_sim: int = 10000,
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
+) -> pd.DataFrame:
     """Identify possible perturbations from marginal likelihoods.
 
     Args:
@@ -149,6 +214,15 @@ def diagnose_observations(G: nx.DiGraph, observe: str, perturb_nodes: Union[str,
 
     Returns:
         pd.DataFrame: Ranked perturbations matching observations
+
+    Examples:
+        ```python
+        from qmm import diagnose_observations, load_digraph
+        diagnose_observations(load_digraph("snowshoe_io"), observe='H:+', perturb_nodes='input', n_sim=1000)
+        #   Input Sign  Marginal likelihood
+        # 0     I    +                0.962
+        # 1     I    -                0.038
+        ```
     """
     if perturb_nodes is None:
         perturb_nodes = get_nodes(G, "state") + get_nodes(G, "input")
@@ -174,9 +248,16 @@ def diagnose_observations(G: nx.DiGraph, observe: str, perturb_nodes: Union[str,
     return pd.DataFrame(results).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
 
 
-def bayes_factors(G_list: Union[List[nx.DiGraph], Tuple[nx.DiGraph, ...]], perturb: str, observe: str,
-                 n_sim: int = 10000, dist: str = "uniform",
-                 seed: int = 42, names: Optional[List[str]] = None, distribution: str = None) -> pd.DataFrame:
+def bayes_factors(
+    G_list: Union[List[nx.DiGraph], Tuple[nx.DiGraph, ...]],
+    perturb: str,
+    observe: str,
+    n_sim: int = 10000,
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
+    names: Optional[List[str]] = None,
+    distribution: Optional[Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"]] = None,
+) -> pd.DataFrame:
     """Calculate Bayes factors from the ratio of marginal likelihoods of alternative models.
 
     Args:
@@ -190,6 +271,21 @@ def bayes_factors(G_list: Union[List[nx.DiGraph], Tuple[nx.DiGraph, ...]], pertu
 
     Returns:
         pd.DataFrame: DataFrame containing Bayes factors
+
+    References:
+        - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
+        - Melbourne-Thomas, J., Wotherspoon, S., Raymond, B., Constable, A. (2012). Comprehensive evaluation of model uncertainty in qualitative network analyses. Ecological Monographs 82, 505–519.
+
+    Examples:
+        ```python
+        from qmm import bayes_factors, load_digraph
+        G1 = load_digraph("snowshoe_io")
+        G2 = G1.copy()
+        G2.remove_edge('V', 'P')
+        bayes_factors([G1, G2], perturb='I:+', observe='H:+', n_sim=1000)
+        #   Model comparison  Likelihood 1  Likelihood 2  Bayes factor
+        # 0  Model A/Model B         0.962           1.0         0.962
+        ```
     """
     graphs = list(G_list) if isinstance(G_list, tuple) else G_list
     use_dist = distribution if distribution is not None else dist

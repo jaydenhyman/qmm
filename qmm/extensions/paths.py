@@ -4,7 +4,7 @@ import pandas as pd
 import networkx as nx
 import sympy as sp
 from functools import cache
-from typing import Optional
+from typing import Optional, Literal
 from ..core.structure import create_matrix
 from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback
 from ..core.helper import get_nodes, get_positive, get_negative, get_weight, _check_direct_io_edges, _sign_string, _arrows
@@ -15,9 +15,26 @@ def get_cycles(G: nx.DiGraph) -> sp.Matrix:
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        
+
     Returns:
         sp.Matrix: Products of interactions along each cycle
+
+    References:
+        - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import get_cycles, load_digraph
+        get_cycles(load_digraph("snowshoe"))
+        # Matrix([
+        # [           -a_V,V],
+        # [           -a_P,P],
+        # [     -a_H,V*a_V,H],
+        # [     -a_H,P*a_P,H],
+        # [a_H,P*a_P,V*a_V,H]])
+        ```
     """
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
@@ -34,9 +51,26 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        
+
     Returns:
         pd.DataFrame: Table with cycle length, path representation, and sign
+
+    References:
+        - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import cycles_table, load_digraph
+        cycles_table(load_digraph("snowshoe"))
+        #    Length          Cycle Sign
+        # 0       1          P ⊸ P    −
+        # 1       1          V ⊸ V    −
+        # 2       2      H → P ⊸ H    −
+        # 3       2      V → H ⊸ V    −
+        # 4       3  V → P ⊸ H ⊸ V    +
+        ```
     """
     cycle_nodes = sorted([path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x))
     all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
@@ -51,7 +85,12 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
     return cycles_df
 
 @cache
-def get_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
+def get_paths(
+    G: nx.DiGraph,
+    source: str,
+    target: str,
+    form: Literal["symbolic", "signed", "binary"] = "symbolic",
+) -> sp.Matrix:
     """Find all causal pathways between two nodes.
 
     Args:
@@ -59,9 +98,39 @@ def get_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -
         source: Source node
         target: Target node (can be same as source for self-effect)
         form: Type of path products ('symbolic', 'signed', or 'binary')
-        
+
     Returns:
         sp.Matrix: Products of interactions along each path
+
+    References:
+        - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import get_paths, load_digraph
+        get_paths(load_digraph("snowshoe_io"), 'I', 'H', form='symbolic')
+        # Matrix([
+        # [       a_H,V*b_V,I],
+        # [-a_H,P*a_P,V*b_V,I],
+        # [             b_H,I],
+        # [       a_H,P*b_P,I]])
+
+        get_paths(load_digraph("snowshoe_io"), 'I', 'H', form='signed')
+        # Matrix([
+        # [ 1],
+        # [-1],
+        # [ 1],
+        # [ 1]])
+
+        get_paths(load_digraph("snowshoe_io"), 'I', 'H', form='binary')
+        # Matrix([
+        # [1],
+        # [1],
+        # [1],
+        # [1]])
+        ```
     """
     all_nodes = get_nodes(G, "all")
     if source not in all_nodes or target not in all_nodes:
@@ -104,9 +173,25 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
         G (nx.DiGraph): NetworkX DiGraph representing signed digraph model
         source (str): Source node
         target (str): Target node
-        
+
     Returns:
         Optional[pd.DataFrame]: DataFrame containing path information or None if no paths exist
+
+    References:
+        - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import paths_table, load_digraph
+        paths_table(load_digraph("snowshoe_io"), 'I', 'H')
+        #    Length           Path Sign
+        # 0       2      I → V → H    +
+        # 1       3  I → V → P ⊸ H    −
+        # 2       1          I → H    +
+        # 3       2      I ⊸ P ⊸ H    +
+        ```
     """
     nodes = get_nodes(G, "all")
     if source not in nodes or target not in nodes or source == target:
@@ -124,7 +209,12 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
     return paths_df
 
 @cache
-def complementary_feedback(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
+def complementary_feedback(
+    G: nx.DiGraph,
+    source: str,
+    target: str,
+    form: Literal["symbolic", "signed", "binary"] = "symbolic",
+) -> sp.Matrix:
     """Calculate feedback from state nodes not on paths between source and target.
 
     Args:
@@ -132,9 +222,39 @@ def complementary_feedback(G: nx.DiGraph, source: str, target: str, form: str = 
         source: Source node
         target: Target node (can be same as source for self-effect)
         form: Type of feedback ('symbolic', 'signed', or 'binary')
-        
+
     Returns:
         sp.Matrix: Feedback cycles in complementary subsystem
+
+    References:
+        - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import complementary_feedback, load_digraph
+        complementary_feedback(load_digraph("snowshoe_io"), 'I', 'H', form='symbolic')
+        # Matrix([
+        # [      -a_P,P],
+        # [          -1],
+        # [-a_P,P*a_V,V],
+        # [      -a_V,V]])
+
+        complementary_feedback(load_digraph("snowshoe_io"), 'I', 'H', form='signed')
+        # Matrix([
+        # [-1],
+        # [-1],
+        # [-1],
+        # [-1]])
+
+        complementary_feedback(load_digraph("snowshoe_io"), 'I', 'H', form='binary')
+        # Matrix([
+        # [1],
+        # [1],
+        # [1],
+        # [1]])
+        ```
     """
     state_nodes = get_nodes(G, "state")
     all_nodes = get_nodes(G, "all")
@@ -162,7 +282,12 @@ def complementary_feedback(G: nx.DiGraph, source: str, target: str, form: str = 
     return sp.Matrix([sp.expand_mul(f) for f in feedback])
 
 @cache
-def system_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic") -> sp.Matrix:
+def system_paths(
+    G: nx.DiGraph,
+    source: str,
+    target: str,
+    form: Literal["symbolic", "signed", "binary"] = "symbolic",
+) -> sp.Matrix:
     """Calculate combined effect of paths and complementary feedback.
 
     Args:
@@ -170,9 +295,39 @@ def system_paths(G: nx.DiGraph, source: str, target: str, form: str = "symbolic"
         source: Source node
         target: Target node (can be same as source for self-effect)
         form: Type of computation ('symbolic', 'signed', or 'binary')
-        
+
     Returns:
         sp.Matrix: Total effects including paths and feedback
+
+    References:
+        - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import system_paths, load_digraph
+        system_paths(load_digraph("snowshoe_io"), 'I', 'H', form='symbolic')
+        # Matrix([
+        # [ a_H,V*a_P,P*b_V,I],
+        # [-a_H,P*a_P,V*b_V,I],
+        # [ a_P,P*a_V,V*b_H,I],
+        # [ a_H,P*a_V,V*b_P,I]])
+
+        system_paths(load_digraph("snowshoe_io"), 'I', 'H', form='signed')
+        # Matrix([
+        # [ 1],
+        # [-1],
+        # [ 1],
+        # [ 1]])
+
+        system_paths(load_digraph("snowshoe_io"), 'I', 'H', form='binary')
+        # Matrix([
+        # [1],
+        # [1],
+        # [1],
+        # [1]])
+        ```
     """
     _check_direct_io_edges(G)
     path = get_paths(G, source, target, form=form)
@@ -191,9 +346,20 @@ def weighted_paths(G: nx.DiGraph, source: str, target: str) -> sp.Matrix:
         G: NetworkX DiGraph representing signed digraph model
         source: Source node
         target: Target node
-        
+
     Returns:
         sp.Matrix: Net-to-total ratios for path predictions
+
+    Examples:
+        ```python
+        from qmm import weighted_paths, load_digraph
+        weighted_paths(load_digraph("snowshoe_io"), 'I', 'H')
+        # Matrix([
+        # [ 1],
+        # [-1],
+        # [ 1],
+        # [ 1]])
+        ```
     """
     _check_direct_io_edges(G)
     state_nodes = get_nodes(G, "state")
@@ -226,9 +392,20 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         G: NetworkX DiGraph representing signed digraph model
         source: Source node
         target: Target node
-        
+
     Returns:
         pd.DataFrame: Metrics including path length, sign, and feedback
+
+    Examples:
+        ```python
+        from qmm import path_metrics, load_digraph
+        path_metrics(load_digraph("snowshoe_io"), 'I', 'H')
+        #    Length        Path Path sign Complementary subsystem Net feedback Absolute feedback Positive feedback Negative feedback Weighted feedback Weighted path
+        # 0       2     I, V, H         +                       P           -1                 1                 0                 1                -1             1
+        # 1       3  I, V, P, H         −                    None           -1                 1                 0                 1                -1            -1
+        # 2       1        I, H         +                    V, P           -1                 1                 0                 1                -1             1
+        # 3       2     I, P, H         +                       V           -1                 1                 0                 1                -1             1
+        ```
     """
     _check_direct_io_edges(G)
     state_nodes = get_nodes(G, "state")

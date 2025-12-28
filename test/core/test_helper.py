@@ -7,6 +7,7 @@ import sympy as sp
 
 from qmm import (
     list_to_digraph,
+    load_digraph,
     digraph_to_list,
     get_nodes,
     get_weight,
@@ -78,6 +79,80 @@ def test_list_to_digraph_label_mismatch_no_fixture():
         list_to_digraph([[0, 1], [-1, 0]], ['A', 'B', 'C'])
         result = "No exception"
     assert result is None
+
+
+# =============================================================================
+# load_digraph()
+# =============================================================================
+
+def test_load_digraph_snowshoe_nodes():
+    """Test load_digraph loads snowshoe model with correct nodes."""
+    G = load_digraph("snowshoe")
+    result = list(G.nodes())
+    expected = ['V', 'H', 'P']
+    assert result == expected
+
+
+def test_load_digraph_snowshoe_edges():
+    """Test load_digraph loads snowshoe model with correct number of edges."""
+    G = load_digraph("snowshoe")
+    result = G.number_of_edges()
+    expected = 7
+    assert result == expected
+
+
+def test_load_digraph_snowshoe_i_nodes():
+    """Test load_digraph loads snowshoe_i model with correct nodes and categories."""
+    G = load_digraph("snowshoe_i")
+    result = (list(G.nodes()), G.nodes['I']['category'], G.nodes['V']['category'])
+    expected = (['V', 'H', 'P', 'I'], 'input', 'state')
+    assert result == expected
+
+
+def test_load_digraph_snowshoe_i_edges():
+    """Test load_digraph loads snowshoe_i model with correct edges."""
+    G = load_digraph("snowshoe_i")
+    result = G.number_of_edges()
+    expected = 10
+    assert result == expected
+
+
+def test_load_digraph_snowshoe_io_categories():
+    """Test load_digraph loads snowshoe_io model with correct input/state/output categories."""
+    G = load_digraph("snowshoe_io")
+    result = (G.nodes['I']['category'], G.nodes['V']['category'], G.nodes['O']['category'])
+    expected = ('input', 'state', 'output')
+    assert result == expected
+
+
+def test_load_digraph_chain_nodes():
+    """Test load_digraph loads chain model with correct nodes."""
+    G = load_digraph("chain")
+    result = (G.number_of_nodes(), list(G.nodes()))
+    expected = (5, ['1', '2', '3', '4', '5'])
+    assert result == expected
+
+
+def test_load_digraph_mesocosm_nodes():
+    """Test load_digraph loads mesocosm model with correct nodes."""
+    G = load_digraph("mesocosm")
+    result = G.number_of_nodes()
+    expected = 8
+    assert result == expected
+
+
+def test_load_digraph_class_ii_nodes():
+    """Test load_digraph loads class_ii model with correct nodes."""
+    G = load_digraph("class_ii")
+    result = (G.number_of_nodes(), sorted(G.nodes()))
+    expected = (3, ['A', 'B', 'C'])
+    assert result == expected
+
+
+def test_load_digraph_invalid_model():
+    """Test load_digraph raises ValueError for invalid model name."""
+    with pytest.raises(ValueError, match="Model 'invalid' not found"):
+        load_digraph("invalid")
 
 
 # =============================================================================
@@ -637,3 +712,21 @@ def test_get_dashed_alternatives_combinations_false_snowshoe_dashed(snowshoe_das
     assert ('R', 'C') in base_edges
     assert ('C', 'R') in base_edges
     assert ('R', 'P') not in base_edges
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_parse_perturbations_empty_string(snowshoe):
+    """Test _parse_perturbations raises ValueError for empty perturbation string."""
+    from qmm.extensions.validation import marginal_likelihood
+    with pytest.raises(ValueError, match="Perturbation string cannot be empty"):
+        marginal_likelihood(snowshoe, perturb='   ', observe='R:+')
+
+
+def test_parse_perturbations_invalid_node_multi(snowshoe):
+    """Test _parse_perturbations raises ValueError for unknown node in multi-perturbation."""
+    from qmm import simulations_table
+    with pytest.raises(ValueError, match="Unknown perturbation node"):
+        simulations_table(snowshoe, perturb='R:+, Invalid:+', observe='')

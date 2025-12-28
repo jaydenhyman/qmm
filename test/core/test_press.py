@@ -642,30 +642,6 @@ def test_numerical_simulations_signed_default_mesocosm(mesocosm):
     assert result == expected
 
 
-def test_numerical_simulations_match_adjoint_snowshoe(snowshoe):
-    """Test numerical_simulations match adjoint output for snowshoe."""
-    result = numerical_simulations(snowshoe, n_sim=100, seed=42, match_adjoint=True)
-    expected = sp.Matrix([
-        [1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0]
-    ])
-    assert result == expected
-
-
-def test_numerical_simulations_match_adjoint_chain(chain):
-    """Test numerical_simulations match adjoint output for chain."""
-    result = numerical_simulations(chain, n_sim=100, seed=42, match_adjoint=True)
-    expected = sp.Matrix([
-        [1.0, 1.0, 1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0],
-        [1.0, 1.0, 1.0, 1.0, 1.0]
-    ])
-    assert result == expected
-
-
 def test_numerical_simulations_positive_only_true_snowshoe(snowshoe):
     """Test numerical_simulations with positive_only flag on snowshoe."""
     numerical_simulations.cache_clear()
@@ -821,27 +797,9 @@ def test_numerical_simulations_positive_only_true_snowshoe_na(snowshoe_na):
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-def test_numerical_simulations_match_adjoint_snowshoe_na(snowshoe_na):
-    """Test numerical_simulations with match_adjoint=True on snowshoe_na."""
-    numerical_simulations.cache_clear()
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, match_adjoint=True)
-    expected = np.array([
-        [1.0, 1.0, 0.0],
-        [np.nan, 1.0, 1.0],
-        [np.nan, np.nan, 1.0]
-    ])
-    result_arr = np.array(result.tolist(), dtype=float)
-    nan_mask = np.isnan(expected)
-    assert np.all(np.isnan(result_arr[nan_mask]))
-    assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
-
-
 @pytest.mark.parametrize("kwargs", [
     {"positive_only": True, "as_nan": False},
     {"as_abs": True, "as_nan": False},
-    {"match_adjoint": True, "as_abs": True},
-    {"match_adjoint": True, "as_nan": False},
-    {"match_adjoint": True, "positive_only": True},
 ])
 def test_numerical_simulations_invalid_argument_combo_snowshoe_kwargs(snowshoe, kwargs):
     """Test numerical_simulations raises ValueError for invalid parameter combinations."""
@@ -872,3 +830,19 @@ def test_numerical_simulations_no_stable_matrices_snowshoe(snowshoe):
     for i in range(3):
         for j in range(3):
             assert result[i, j] is sp.nan
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_adjoint_matrix_invalid_perturb_node(snowshoe):
+    """Test adjoint_matrix raises ValueError for invalid perturbation node."""
+    with pytest.raises(ValueError, match="Perturbation node must be one of"):
+        adjoint_matrix(snowshoe, perturb="Invalid")
+
+
+def test_absolute_feedback_matrix_invalid_perturb_node(snowshoe):
+    """Test absolute_feedback_matrix raises ValueError for invalid perturbation node."""
+    with pytest.raises(ValueError, match="Perturbation node must be one of"):
+        absolute_feedback_matrix(snowshoe, perturb="Invalid")

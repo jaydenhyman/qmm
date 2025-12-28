@@ -7,8 +7,8 @@ import sympy as sp
 from itertools import combinations
 from functools import cache
 from .structure import create_matrix
-from .helper import get_positive, get_negative, get_weight, perm
-from typing import Optional
+from .helper import get_positive, get_negative, get_weight, perm, _random_sampler
+from typing import Optional, Literal, Union
 
 def _colour_test(G) -> str:
     A = create_matrix(G, form="signed")
@@ -35,12 +35,30 @@ def _colour_test(G) -> str:
 
 def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
     """Evaluate necessary and sufficient conditions for sign stability including color test.
-    
+
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        
+
     Returns:
         pd.DataFrame: Test results for sign stability conditions
+
+    References:
+        - May, R.M. (1973). Qualitative Stability in Model Ecosystems. Ecology 54, 638–641.
+        - Jeffries, C. (1974). Qualitative Stability and Digraphs in Model Ecosystems. Ecology 55, 1415–1419.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, sign_stability
+        sign_stability(load_digraph("snowshoe"))
+        #             Test                                                                     Definition  Result
+        # 0    Condition i                                                       No positive self-effects    True
+        # 1   Condition ii                                           At least one node is self-regulating    True
+        # 2  Condition iii                        The product of any pairwise interaction is non-positive    True
+        # 3   Condition iv                                              No cycles greater than length two   False
+        # 4    Condition v  Non-zero determinant (all nodes have at least one incoming and outgoing link)    True
+        # 5    Colour test                                                    Fails Jeffries' colour test    True
+        # 6    Sign stable               Satisfies necessary and sufficient conditions for sign stability   False
+        ```
     """
     A = sp.matrix2numpy(create_matrix(G, form="signed")).astype(int)
     n = A.shape[0]
@@ -78,7 +96,11 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
     )
 
 @cache
-def system_feedback(G: nx.DiGraph, level: Optional[int] = None, form: str = "symbolic") -> sp.Matrix:
+def system_feedback(
+    G: nx.DiGraph,
+    level: Optional[int] = None,
+    form: Literal["symbolic", "signed"] = "symbolic",
+) -> sp.Matrix:
     """Calculate the product of conjunct and disjunct feedback cycles for any level of the system (coefficients of the characteristic polynomial).
 
     Args:
@@ -88,11 +110,37 @@ def system_feedback(G: nx.DiGraph, level: Optional[int] = None, form: str = "sym
 
     Returns:
         sp.Matrix: Feedback cycle products at specified levels
+
+    References:
+        - Lyapunov, A.M. (1892). The general problem of the stability of motion. International Journal of Control 55, 531–534.
+        - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, system_feedback
+        system_feedback(load_digraph("snowshoe"), level=2, form='symbolic')
+        # Matrix([[-a_H,P*a_P,H - a_H,V*a_V,H - a_P,P*a_V,V]])
+
+        system_feedback(load_digraph("snowshoe"), level=3, form='symbolic')
+        # Matrix([[-a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H - a_H,V*a_P,P*a_V,H]])
+
+        system_feedback(load_digraph("snowshoe"), form='symbolic')
+        # Matrix([
+        # [                                                        -1],
+        # [                                            -a_P,P - a_V,V],
+        # [                  -a_H,P*a_P,H - a_H,V*a_V,H - a_P,P*a_V,V],
+        # [-a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H - a_H,V*a_P,P*a_V,H]])
+        ```
     """
     A = create_matrix(G, form=form)
     if level == 0:
         return sp.Matrix([-1])
     n = A.shape[0]
+    if form not in ("symbolic", "signed"):
+        raise ValueError("form must be either 'symbolic' or 'signed'")
+    if level is not None and (level < 0 or level > n):
+        raise ValueError(f"Level must be between 0 and {n}")
     lam = sp.symbols("lambda")
     p = A.charpoly(lam).as_expr()
     if level is None:
@@ -108,28 +156,68 @@ def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Level of feedback to compute (None for all levels)
-        
+
     Returns:
         sp.Matrix: Net feedback at specified levels
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, net_feedback
+        net_feedback(load_digraph("snowshoe"), level=2)
+        # Matrix([[-3]])
+
+        net_feedback(load_digraph("snowshoe"))
+        # Matrix([
+        # [-1],
+        # [-2],
+        # [-3],
+        # [-1]])
+        ```
     """
     return system_feedback(G, level=level, form="signed")
 
 @cache
-def absolute_feedback(G: nx.DiGraph, level: Optional[int] = None, method: str = "combinations") -> sp.Matrix:
+def absolute_feedback(
+    G: nx.DiGraph,
+    level: Optional[int] = None,
+    method: Literal["combinations", "polynomial"] = "combinations",
+) -> sp.Matrix:
     """Calculate absolute feedback at a specified level of the system.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        level: Level of feedback to compute (None for all levels) 
+        level: Level of feedback to compute (None for all levels)
         method: Method for computing feedback ('combinations' or 'polynomial')
-        
+
     Returns:
         sp.Matrix: Total number of feedback terms at specified levels
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, absolute_feedback
+        absolute_feedback(load_digraph("snowshoe"), level=2)
+        # Matrix([[3]])
+
+        absolute_feedback(load_digraph("snowshoe"))
+        # Matrix([
+        # [1],
+        # [2],
+        # [3],
+        # [3]])
+        ```
     """
     A = create_matrix(G, form="signed")
     if level == 0:
         return sp.Matrix([1])
     n = A.shape[0]
+    if level is not None and (level < 0 or level > n):
+        raise ValueError(f"Level must be between 0 and {n}")
     if method == "combinations":
         A = sp.matrix2numpy(A).astype(int)
         A = np.abs(A)
@@ -149,18 +237,37 @@ def absolute_feedback(G: nx.DiGraph, level: Optional[int] = None, method: str = 
             fb = [P.coeff(lam, n - k) for k in range(n + 1)]
         else:
             fb = [P.coeff(lam, n - level)]
+    else:
+        raise ValueError("method must be either 'combinations' or 'polynomial'")
     return sp.Matrix(fb)
 
 @cache
 def weighted_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate ratio of net to total feedback terms at each level of the system.
-    
+
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Level to compute weighted feedback (None for all levels)
-        
+
     Returns:
         sp.Matrix: Weighted feedback metrics for each level
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, weighted_feedback
+        weighted_feedback(load_digraph("snowshoe"), level=2)
+        # Matrix([[-1]])
+
+        weighted_feedback(load_digraph("snowshoe"))
+        # Matrix([
+        # [  -1],
+        # [  -1],
+        # [  -1],
+        # [-1/3]])
+        ```
     """
     net_fb = net_feedback(G, level=level)
     tot_fb = absolute_feedback(G, level=level)
@@ -184,9 +291,23 @@ def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        
+
     Returns:
         pd.DataFrame: Feedback metrics for each system level
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, feedback_metrics
+        feedback_metrics(load_digraph("snowshoe"))
+        #   Feedback level Net Absolute Positive Negative Weighted
+        # 0              0  -1        1        0        1       -1
+        # 1              1  -2        2        0        2       -1
+        # 2              2  -3        3        0        3       -1
+        # 3              3  -1        3        1        2     -1/3
+        ```
     """
     net = net_feedback(G)
     absolute = absolute_feedback(G)
@@ -208,16 +329,31 @@ def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
     return pd.DataFrame(df)
 
 @cache
-def hurwitz_determinants(G: nx.DiGraph, level: Optional[int] = None, form: str = "symbolic") -> sp.Matrix:
+def hurwitz_determinants(
+    G: nx.DiGraph,
+    level: Optional[int] = None,
+    form: Literal["symbolic", "signed"] = "symbolic",
+) -> sp.Matrix:
     """Calculate Hurwitz determinants for analysing system stability.
 
     Args:
-        G: NetworkX DiGraph representing signed digraph model  
+        G: NetworkX DiGraph representing signed digraph model
         level: Level to compute determinants (None for all Hurwitz determinants)
-        form: Type of computation ('symbolic', 'signed', or 'binary')
+        form: Type of computation ('symbolic' or 'signed')
 
     Returns:
         sp.Matrix: Hurwitz determinants at specified levels
+
+    References:
+        - Hurwitz, A. (1895). On the conditions under which an equation has only roots with negative real parts. Mathematische Annelen 65, 273–284.
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, hurwitz_determinants
+        hurwitz_determinants(load_digraph("snowshoe"), level=2, form='symbolic')
+        # Matrix([[a_H,P*a_P,H*a_P,P + a_H,P*a_P,V*a_V,H + a_H,V*a_V,H*a_V,V + a_P,P**2*a_V,V + a_P,P*a_V,V**2]])
+        ```
     """
     fb = system_feedback(G, level=None, form=form)
     n = len(fb) - 1
@@ -240,9 +376,26 @@ def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Level to compute determinants (None for all Hurwitz determinants)
-        
+
     Returns:
         sp.Matrix: Net terms in Hurwitz determinants
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, net_determinants
+        net_determinants(load_digraph("snowshoe"), level=2)
+        # Matrix([[5]])
+
+        net_determinants(load_digraph("snowshoe"))
+        # Matrix([
+        # [1],
+        # [2],
+        # [5],
+        # [5]])
+        ```
     """
     return hurwitz_determinants(G, level=level, form="signed")
 
@@ -253,9 +406,26 @@ def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Level to compute determinants (None for all Hurwitz determinants)
-        
+
     Returns:
         sp.Matrix: Absolute terms in Hurwitz determinants
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, absolute_determinants
+        absolute_determinants(load_digraph("snowshoe"), level=2)
+        # Matrix([[9]])
+
+        absolute_determinants(load_digraph("snowshoe"))
+        # Matrix([
+        # [ 1],
+        # [ 2],
+        # [ 9],
+        # [27]])
+        ```
     """
     tot_fb = absolute_feedback(G)
     n = tot_fb.shape[0] - 1
@@ -282,9 +452,26 @@ def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Level to compute determinants (None for all Hurwitz determinants)
-        
+
     Returns:
         sp.Matrix: Ratio of net to total terms for Hurwitz determinants
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, weighted_determinants
+        weighted_determinants(load_digraph("snowshoe"), level=2)
+        # Matrix([[5/9]])
+
+        weighted_determinants(load_digraph("snowshoe"))
+        # Matrix([
+        # [   1],
+        # [   1],
+        # [ 5/9],
+        # [5/27]])
+        ```
     """
     net_det = net_determinants(G, level=level)
     tot_det = absolute_determinants(G, level=level)
@@ -297,9 +484,23 @@ def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        
+
     Returns:
         pd.DataFrame: Hurwitz determinant metrics
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, determinants_metrics
+        determinants_metrics(load_digraph("snowshoe"))
+        #   Hurwitz determinant Net Absolute Weighted
+        # 0                   0   1        1        1
+        # 1                   1   2        2        1
+        # 2                   2   5        9      5/9
+        # 3                   3   5       27     5/27
+        ```
     """
     net = net_determinants(G)
     absolute = absolute_determinants(G)
@@ -336,6 +537,20 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: Conditional stability metrics and model class
+
+    References:
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, conditional_stability
+        conditional_stability(load_digraph("snowshoe"))
+        #                       Test                                                 Definition   Result
+        # 0        Weighted feedback                        Maximum weighted feedback (level 3)    -0.33
+        # 1     Weighted determinant                          n-1 weighted determinant at level     0.56
+        # 2  Ratio to model-c system                           Ratio to a 'model-c' type system      1.7
+        # 3              Model class  Class of the model based on conditional stability metrics  Class I
+        ```
     """
     A = create_matrix(G, form="signed")
     n = A.shape[0]
@@ -377,27 +592,64 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     )
     return stability_metrics
 
-@cache
-def simulation_stability(G: nx.DiGraph, n_sim: int = 10000) -> pd.DataFrame:
-    """Analyse stability using randomly sampled interaction strengths from a uniform distribution.
+def simulation_stability(
+    G: nx.DiGraph,
+    n_sim: int = 10000,
+    distribution: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    presample: Optional[np.ndarray] = None,
+) -> pd.DataFrame:
+    """Analyse stability using randomly sampled interaction strengths from a specified distribution.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
         n_sim: Number of simulations to perform (default 10000)
-        
+        distribution: Distribution to sample from (default 'uniform'):
+            - "uniform": Uniform(0, 1) - no assumption about interaction strength
+            - "weak": Beta(1, 3) - weak interactions predominate
+            - "moderate": Beta(2, 2) - moderate interactions predominate
+            - "strong": Beta(3, 1) - strong interactions predominate
+            - "uniform_two_oom": Uniform(0.01, 1)
+        presample: Optional pre-sampled values of shape (n_sim, n, n) to use instead of random sampling
+
     Returns:
         pd.DataFrame: Proportion of stable matrices and proportion that fail Hurwitz criteria
+
+    References:
+        - May, R.M. (1973). Qualitative Stability in Model Ecosystems. Ecology 54, 638–641.
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, simulation_stability
+        simulation_stability(load_digraph("snowshoe"), n_sim=1000)
+        #                         Test                                                             Definition  Result
+        # 0            Stable matrices              Proportion where all eigenvalues have negative real parts  79.10%
+        # 1          Unstable matrices      Proportion where one or more eigenvalues have positive real parts  20.90%
+        # 2        Hurwitz criterion i  Proportion where polynomial coefficients are not all of the same sign  20.90%
+        # 3       Hurwitz criterion ii             Proportion where Hurwitz determinants are not all positive   0.00%
+        # 4   Hurwitz criterion i only                        Proportion where only Hurwitz criterion i fails  20.90%
+        # 5  Hurwitz criterion ii only                       Proportion where only Hurwitz criterion ii fails   0.00%
+        ```
     """
     A = create_matrix(G, "signed")
     A = sp.matrix2numpy(A).astype(int)
+
+    if presample is not None:
+        if presample.shape != (n_sim, *A.shape):
+            raise ValueError(f"presample must have shape ({n_sim}, {A.shape[0]}, {A.shape[1]})")
+
     n_stable = 0
     n_unstable = 0
     n_hurwitz_i_fail = 0
     n_hurwitz_ii_fail = 0
     n_hurwitz_i_only_fail = 0
     n_hurwitz_ii_only_fail = 0
-    for _ in range(n_sim):
-        M = np.random.rand(*A.shape)
+
+    for i in range(n_sim):
+        if presample is not None:
+            M = presample[i]
+        else:
+            M = _random_sampler(distribution, A.size).reshape(A.shape)
         S = A * M
         if np.all(np.real(np.linalg.eigvals(S)) < 0):
             n_stable += 1
@@ -422,12 +674,14 @@ def simulation_stability(G: nx.DiGraph, n_sim: int = 10000) -> pd.DataFrame:
             n_hurwitz_ii_fail += 1
             if hurwitz_i:
                 n_hurwitz_ii_only_fail += 1
+
     prop_stable = n_stable / n_sim
     prop_unstable = n_unstable / n_sim
     prop_hurwitz_i_fail = n_hurwitz_i_fail / n_sim
     prop_hurwitz_ii_fail = n_hurwitz_ii_fail / n_sim
     prop_hurwitz_i_only_fail = n_hurwitz_i_only_fail / n_sim
     prop_hurwitz_ii_only_fail = n_hurwitz_ii_only_fail / n_sim
+
     sim_df = pd.DataFrame(
         {
             "Test": [

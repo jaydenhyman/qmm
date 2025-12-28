@@ -10,6 +10,7 @@ from qmm import (
     get_nodes,
     weighted_predictions_matrix,
     table_of_predictions,
+    matrix_to_predictions,
     qualitative_predictions,
     compare_predictions,
     numerical_simulations,
@@ -29,7 +30,7 @@ def test_table_of_predictions_default_thresholds_snowshoe(snowshoe):
         columns=["R", "C", "P"],
     )
     nodes = get_nodes(snowshoe, "state")
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         weighted_predictions_matrix(snowshoe),
         t1=0.5,
         t2=1.0,
@@ -53,7 +54,7 @@ def test_table_of_predictions_default_thresholds_chain(chain):
         columns=["1", "2", "3", "4", "5"],
     )
     nodes = get_nodes(chain, "state")
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         weighted_predictions_matrix(chain),
         t1=0.5,
         t2=1.0,
@@ -71,7 +72,7 @@ def test_table_of_predictions_default_thresholds_snowshoe_na(snowshoe_na):
         columns=["1", "2", "3"],
     )
     nodes = get_nodes(snowshoe_na, "state")
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         weighted_predictions_matrix(snowshoe_na),
         t1=0.5,
         t2=1.0,
@@ -97,7 +98,7 @@ def test_table_of_predictions_simulation_effects_snowshoe_io_na(snowshoe_io_na):
     )
     rows = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "output")
     cols = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "input")
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         simulation_effects(snowshoe_io_na, n_sim=500, seed=42),
         t1=0.8,
         t2=1.0,
@@ -124,7 +125,7 @@ def test_table_of_predictions_default_thresholds_mesocosm(mesocosm):
         columns=["P", "A1", "A2", "AP", "H1", "H2", "C1", "C2"],
     )
     nodes = get_nodes(mesocosm, "state")
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         numerical_simulations(mesocosm, n_sim=500, seed=42),
         t1=0.8,
         t2=1.0,
@@ -141,7 +142,7 @@ def test_table_of_predictions_threshold_boundaries(snowshoe):
         index=["row1"],
         columns=["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8"],
     )
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         values,
         t1=0.8,
         t2=0.95,
@@ -178,7 +179,7 @@ def test_table_of_predictions_symbolic_matrix(snowshoe):
     a, b, c, d = sp.Symbol("a"), sp.Symbol("b"), sp.Symbol("c"), sp.Symbol("d")
     matrix = sp.Matrix([[a, b], [c, d]])
     expected = pd.DataFrame([[a, b], [c, d]], index=["r1", "r2"], columns=["c1", "c2"])
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         matrix,
         t1=0.8,
         t2=1.0,
@@ -195,7 +196,7 @@ def test_table_of_predictions_typeerror_nan_check(snowshoe):
 
     matrix = np.array([[NanLike()]], dtype=object)
     expected = pd.DataFrame([["0"]], index=["r1"], columns=["c1"])
-    result = table_of_predictions(
+    result = matrix_to_predictions(
         matrix,
         t1=0.8,
         t2=1.0,
@@ -209,8 +210,8 @@ def test_table_of_predictions_threshold_consistency_snowshoe(snowshoe):
     """Test table_of_predictions keeps determinate results when thresholds repeat."""
     nodes = get_nodes(snowshoe, "state")
     wpm = weighted_predictions_matrix(snowshoe)
-    base = table_of_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
-    repeat = table_of_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+    base = matrix_to_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+    repeat = matrix_to_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
     pdt.assert_frame_equal(repeat, base)
 
 
@@ -221,7 +222,7 @@ def test_table_of_predictions_threshold_consistency_snowshoe(snowshoe):
 def test_compare_predictions_identical_tables_snowshoe(snowshoe):
     """Test compare_predictions returns identical table for snowshoe inputs."""
     nodes = get_nodes(snowshoe, "state")
-    preds = table_of_predictions(
+    preds = matrix_to_predictions(
         weighted_predictions_matrix(snowshoe),
         t1=0.5,
         t2=1.0,
@@ -235,7 +236,7 @@ def test_compare_predictions_identical_tables_snowshoe(snowshoe):
 def test_compare_predictions_identical_tables_chain(chain):
     """Test compare_predictions returns identical table for chain inputs."""
     nodes = get_nodes(chain, "state")
-    preds = table_of_predictions(
+    preds = matrix_to_predictions(
         weighted_predictions_matrix(chain),
         t1=0.5,
         t2=1.0,
@@ -249,7 +250,7 @@ def test_compare_predictions_identical_tables_chain(chain):
 def test_compare_predictions_identical_tables_mesocosm(mesocosm):
     """Test compare_predictions returns identical table for mesocosm inputs."""
     nodes = get_nodes(mesocosm, "state")
-    preds = table_of_predictions(
+    preds = matrix_to_predictions(
         numerical_simulations(mesocosm, n_sim=500, seed=42),
         t1=0.8,
         t2=1.0,
@@ -264,14 +265,14 @@ def test_compare_predictions_variant_mismatch_mesocosm_alt_models(mesocosm_alt_m
     """Test compare_predictions highlights differing entries across mesocosm variants."""
     base, alt = mesocosm_alt_models
     nodes = get_nodes(base, "state")
-    base_preds = table_of_predictions(
+    base_preds = matrix_to_predictions(
         numerical_simulations(base, n_sim=500, seed=42),
         t1=0.8,
         t2=1.0,
         index=nodes,
         columns=nodes,
     )
-    alt_preds = table_of_predictions(
+    alt_preds = matrix_to_predictions(
         numerical_simulations(alt, n_sim=500, seed=42),
         t1=0.8,
         t2=1.0,
@@ -288,7 +289,7 @@ def test_compare_predictions_variant_mismatch_mesocosm_alt_models(mesocosm_alt_m
 def test_compare_predictions_single_difference_snowshoe(snowshoe):
     """Test compare_predictions reports comma-separated differences for snowshoe."""
     nodes = get_nodes(snowshoe, "state")
-    preds = table_of_predictions(
+    preds = matrix_to_predictions(
         weighted_predictions_matrix(snowshoe),
         t1=0.5,
         t2=1.0,
@@ -305,14 +306,14 @@ def test_compare_predictions_single_difference_snowshoe(snowshoe):
 def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
     """Test compare_predictions raises ValueError when labels differ for snowshoe tables."""
     nodes = get_nodes(snowshoe, "state")
-    preds = table_of_predictions(
+    preds = matrix_to_predictions(
         weighted_predictions_matrix(snowshoe),
         t1=0.5,
         t2=1.0,
         index=nodes,
         columns=nodes,
     )
-    shuffled = table_of_predictions(
+    shuffled = matrix_to_predictions(
         weighted_predictions_matrix(snowshoe),
         t1=0.5,
         t2=1.0,
@@ -321,3 +322,72 @@ def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
     )
     with pytest.raises(ValueError):
         compare_predictions(preds, shuffled)
+
+
+# =============================================================================
+# Additional tests for error handling and coverage
+# =============================================================================
+
+def test_apply_thresholds_invalid_t1_too_low(snowshoe):
+    """Test _apply_thresholds raises ValueError for t1 < 0.5."""
+    with pytest.raises(ValueError, match="t1 must be between 0.5 and 1"):
+        matrix_to_predictions(
+            weighted_predictions_matrix(snowshoe),
+            t1=0.3,
+            t2=0.95
+        )
+
+def test_apply_thresholds_invalid_t1_too_high(snowshoe):
+    """Test _apply_thresholds raises ValueError for t1 > 1."""
+    with pytest.raises(ValueError, match="t1 must be between 0.5 and 1"):
+        matrix_to_predictions(
+            weighted_predictions_matrix(snowshoe),
+            t1=1.2,
+            t2=0.95
+        )
+
+def test_apply_thresholds_invalid_t2_too_low(snowshoe):
+    """Test _apply_thresholds raises ValueError for t2 < 0.5."""
+    with pytest.raises(ValueError, match="t2 must be between 0.5 and 1"):
+        matrix_to_predictions(
+            weighted_predictions_matrix(snowshoe),
+            t1=0.8,
+            t2=0.3
+        )
+
+def test_apply_thresholds_invalid_t2_too_high(snowshoe):
+    """Test _apply_thresholds raises ValueError for t2 > 1."""
+    with pytest.raises(ValueError, match="t2 must be between 0.5 and 1"):
+        matrix_to_predictions(
+            weighted_predictions_matrix(snowshoe),
+            t1=0.8,
+            t2=1.2
+        )
+
+def test_apply_thresholds_t1_greater_than_t2(snowshoe):
+    """Test _apply_thresholds raises ValueError when t1 > t2."""
+    with pytest.raises(ValueError, match="t1 must be less than or equal to t2"):
+        matrix_to_predictions(
+            weighted_predictions_matrix(snowshoe),
+            t1=0.95,
+            t2=0.8
+        )
+
+def test_qualitative_predictions_non_callable_generator(snowshoe):
+    """Test qualitative_predictions raises ValueError for non-callable generator."""
+    with pytest.raises(ValueError, match="Generator must be callable"):
+        qualitative_predictions(snowshoe, generator="invalid_string")
+
+def test_table_of_predictions_with_string_generator(snowshoe):
+    """Test table_of_predictions with string generator name."""
+    result = table_of_predictions(snowshoe, generator=weighted_predictions_matrix, t1=0.5, t2=1.0)
+    assert isinstance(result, pd.DataFrame)
+    assert result.shape == (3, 3)
+
+def test_table_of_predictions_with_effects_generator(snowshoe_io):
+    """Test table_of_predictions with effects generator producing MultiIndex."""
+    from qmm import weighted_effects
+    result = table_of_predictions(snowshoe_io, generator=weighted_effects, t1=0.8, t2=1.0)
+    assert isinstance(result, pd.DataFrame)
+    assert isinstance(result.columns, pd.MultiIndex)
+    assert isinstance(result.index, pd.MultiIndex)

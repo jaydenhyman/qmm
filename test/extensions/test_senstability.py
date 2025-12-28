@@ -1,5 +1,6 @@
 """Tests for qmm.extensions.senstability module."""
 
+import pytest
 import sympy as sp
 
 from qmm import get_nodes
@@ -150,3 +151,31 @@ def test_weighted_structural_sensitivity_form_symbolic_chain(chain):
         [sp.nan, sp.nan, sp.nan, -1, -1]
     ])
     assert result == expected
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_structural_sensitivity_invalid_level_low(snowshoe):
+    """Test structural_sensitivity raises ValueError for level too low."""
+    with pytest.raises(ValueError, match="Level must be between"):
+        structural_sensitivity(snowshoe, level=0)
+
+
+def test_net_structural_sensitivity_invalid_level_low(snowshoe):
+    """Test net_structural_sensitivity raises ValueError for level too low."""
+    with pytest.raises(ValueError, match="Level must be between"):
+        net_structural_sensitivity(snowshoe, level=0)
+
+
+def test_absolute_structural_sensitivity_invalid_level_low(snowshoe):
+    """Test absolute_structural_sensitivity raises ValueError for level too low."""
+    with pytest.raises(ValueError, match="Level must be between"):
+        absolute_structural_sensitivity(snowshoe, level=0)
+
+
+def test_weighted_structural_sensitivity_invalid_level_low(snowshoe):
+    """Test weighted_structural_sensitivity raises ValueError for level too low."""
+    with pytest.raises(ValueError, match="Level must be between"):
+        weighted_structural_sensitivity(snowshoe, level=0)

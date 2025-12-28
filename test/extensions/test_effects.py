@@ -8,6 +8,7 @@ from unittest.mock import patch
 from qmm import define_input_output, get_nodes
 from qmm.extensions.effects import (
     cumulative_effects,
+    net_effects,
     absolute_effects,
     weighted_effects,
     sign_determinacy_effects,
@@ -64,6 +65,55 @@ def test_define_input_output_invalid_input_type_no_fixture():
     result = str(exc_info.value)
     expected = "Input must be a networkx.DiGraph."
     assert result == expected
+
+
+def test_define_input_output_rejects_precategorized_cyclic_inputs():
+    """Test validation rejects graphs with pre-categorized cyclic input nodes."""
+    import networkx as nx
+    from qmm.core.helper import _check_acyclic_inputs
+
+    G = nx.DiGraph()
+    G.add_node('S', category='state')
+    G.add_edge('S', 'S', sign=-1)
+    G.add_node('I1', category='input')
+    G.add_node('I2', category='input')
+    G.add_edge('I1', 'I2', sign=1)
+    G.add_edge('I2', 'I1', sign=1)
+    G.add_edge('I1', 'S', sign=1)
+
+    with pytest.raises(ValueError) as exc_info:
+        _check_acyclic_inputs(G)
+    result = str(exc_info.value)
+    expected = "Input subgraph contains cycles - input nodes must be acyclic"
+    assert result == expected
+
+
+def test_define_input_output_rejects_precategorized_cyclic_outputs():
+    """Test validation rejects graphs with pre-categorized cyclic output nodes."""
+    import networkx as nx
+    from qmm.core.helper import _check_acyclic_outputs
+
+    G = nx.DiGraph()
+    G.add_node('S', category='state')
+    G.add_edge('S', 'S', sign=-1)
+    G.add_node('O1', category='output')
+    G.add_node('O2', category='output')
+    G.add_edge('O1', 'O2', sign=1)
+    G.add_edge('O2', 'O1', sign=1)
+    G.add_edge('S', 'O1', sign=1)
+
+    with pytest.raises(ValueError) as exc_info:
+        _check_acyclic_outputs(G)
+    result = str(exc_info.value)
+    expected = "Output subgraph contains cycles - output nodes must be acyclic"
+    assert result == expected
+
+
+def test_define_input_output_rejects_feedthrough(snowshoe_io_with_direct_edge):
+    """Test define_input_output raises ValueError for direct input-to-output edges."""
+    with pytest.raises(ValueError) as exc_info:
+        define_input_output(snowshoe_io_with_direct_edge)
+    assert "Direct input to output edge" in str(exc_info.value)
 
 # =============================================================================
 # cumulative_effects
@@ -403,6 +453,12 @@ def test_get_simulations_all_nodes_includes_all(snowshoe_io):
     expected = set(all_expected)
     assert result == expected
 
+def test_get_simulations_invalid_perturb_node(snowshoe_io):
+    """Test get_simulations raises KeyError for invalid perturbation node."""
+    with pytest.raises(KeyError, match="Perturbation node 'InvalidNode' not found."):
+        get_simulations(snowshoe_io, n_sim=100, perturb=('InvalidNode', 1))
+
+
 def test_get_simulations_no_state_variables(io_only_graph):
     """Test get_simulations rejects direct input to output edges."""
     with pytest.raises(ValueError) as exc_info:
@@ -518,6 +574,13 @@ def test_simulation_effects_distributions(snowshoe_io, dist):
     expected = expected_mats[dist]
     assert result == expected
 
+def test_net_effects_returns_signed_cumulative(snowshoe_io):
+    """Test net_effects returns cumulative_effects with form='signed'."""
+    result = net_effects(snowshoe_io)
+    expected = cumulative_effects(snowshoe_io, form='signed')
+    assert result == expected
+
+
 def test_net_effects_vs_adjoint_signed(snowshoe, snowshoe_io):
     """Compare cumulative_effects(signed) with adjoint_matrix(signed)."""
     result = cumulative_effects(snowshoe_io, form='signed')[:3, :3]
@@ -630,3 +693,29 @@ def test_simulations_table_importable():
     from qmm.extensions import simulations_table as from_extensions
 
     assert top_level is from_extensions
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_cumulative_effects_binary_form(snowshoe_io):
+    """Test cumulative_effects with binary form."""
+    result = cumulative_effects(snowshoe_io, form="binary")
+    # Binary form returns a sp.Matrix containing integers
+    assert result.shape[0] > 0  # Has rows
+    assert result.shape[1] > 0  # Has columns
+
+
+def test_simulations_table_with_observe(snowshoe):
+    """Test simulations_table with observe parameter to exercise get_simulations."""
+    result = simulations_table(snowshoe, perturb='R:+', observe='C:+', n_sim=100, seed=42)
+    # Should return a pandas DataFrame
+    assert result is not None
+
+
+def test_table_of_predictions_invalid_generator_string(snowshoe):
+    """Test table_of_predictions raises ValueError for invalid string generator."""
+    from qmm import table_of_predictions
+    with pytest.raises(ValueError, match="Generator must be callable"):
+        table_of_predictions(snowshoe, generator="invalid_generator")

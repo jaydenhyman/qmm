@@ -186,6 +186,12 @@ def test_life_expectancy_change_form_signed_birth_perturb_first_state_snowshoe(s
     assert result == expected
 
 
+def test_life_expectancy_change_invalid_perturb_node(snowshoe):
+    """Test life_expectancy_change raises ValueError for invalid perturbation node."""
+    with pytest.raises(ValueError, match="Perturbation node must be one of"):
+        life_expectancy_change(snowshoe, form='signed', type='birth', perturb='InvalidNode')
+
+
 def test_life_expectancy_change_form_signed_birth_chain(chain):
     """Test life_expectancy_change with signed form for birth on chain."""
     result = life_expectancy_change(chain, form='signed', type='birth')
@@ -526,4 +532,33 @@ def test_weighted_predictions_life_expectancy_invalid_type_snowshoe(snowshoe):
     result = str(exc_info.value)
     expected = "type must be either 'birth' or 'death'"
     assert result == expected
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_birth_matrix_invalid_perturb_node(snowshoe):
+    """Test birth_matrix raises ValueError for invalid perturbation node."""
+    with pytest.raises(ValueError, match="Perturbation node must be one of"):
+        birth_matrix(snowshoe, perturb="Invalid")
+
+
+def test_death_matrix_invalid_perturb_node(snowshoe):
+    """Test death_matrix raises ValueError for invalid perturbation node."""
+    with pytest.raises(ValueError, match="Perturbation node must be one of"):
+        death_matrix(snowshoe, perturb="Invalid")
+
+
+def test_life_expectancy_change_invalid_type(snowshoe):
+    """Test life_expectancy_change raises ValueError for invalid type."""
+    with pytest.raises(ValueError, match="type must be either 'birth' or 'death'"):
+        life_expectancy_change(snowshoe, type="invalid")
+
+
+def test_weighted_predictions_life_expectancy_invalid_type_coverage(snowshoe):
+    """Test weighted_predictions_life_expectancy raises ValueError for invalid type (regex match)."""
+    from qmm import weighted_predictions_life_expectancy
+    with pytest.raises(ValueError, match="type must be either 'birth' or 'death'"):
+        weighted_predictions_life_expectancy(snowshoe, type="invalid")
 

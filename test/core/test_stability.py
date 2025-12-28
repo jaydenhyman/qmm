@@ -604,7 +604,6 @@ def test_conditional_stability_class_i_mesocosm(mesocosm):
 
 def test_simulation_stability_metrics_snowshoe(snowshoe):
     """Test simulation_stability metrics for the snowshoe model."""
-    simulation_stability.cache_clear()
     np.random.seed(42)
     result = simulation_stability(snowshoe, n_sim=100)
     metrics = {
@@ -624,7 +623,6 @@ def test_simulation_stability_metrics_snowshoe(snowshoe):
 
 def test_simulation_stability_metrics_class_ii(class_ii):
     """Test simulation_stability metrics for the Class II model."""
-    simulation_stability.cache_clear()
     np.random.seed(42)
     result = simulation_stability(class_ii, n_sim=100)
     metrics = {
@@ -648,7 +646,6 @@ def test_simulation_stability_metrics_class_ii(class_ii):
 
 def test_simulation_stability_metrics_mesocosm(mesocosm):
     """Test simulation_stability metrics for the mesocosm Class I model."""
-    simulation_stability.cache_clear()
     np.random.seed(42)
     result = simulation_stability(mesocosm, n_sim=100)
     metrics = {
@@ -668,3 +665,37 @@ def test_simulation_stability_metrics_mesocosm(mesocosm):
         'Hurwitz criterion ii only': '22.00%',
     }
     assert metrics == expected
+
+
+# =============================================================================
+# Additional coverage tests
+# =============================================================================
+
+def test_system_feedback_invalid_form(snowshoe):
+    """Test system_feedback raises ValueError for invalid form."""
+    with pytest.raises(ValueError, match="form must be either 'symbolic' or 'signed'"):
+        system_feedback(snowshoe, form="invalid")
+
+
+def test_system_feedback_invalid_level_negative(snowshoe):
+    """Test system_feedback raises ValueError for negative level."""
+    with pytest.raises(ValueError, match="Level must be between"):
+        system_feedback(snowshoe, level=-1)
+
+
+def test_absolute_feedback_invalid_level_negative(snowshoe):
+    """Test absolute_feedback raises ValueError for negative level."""
+    with pytest.raises(ValueError, match="Level must be between"):
+        absolute_feedback(snowshoe, level=-1)
+
+
+def test_absolute_feedback_invalid_method(snowshoe):
+    """Test absolute_feedback raises ValueError for invalid method."""
+    with pytest.raises(ValueError, match="method must be either 'combinations' or 'polynomial'"):
+        absolute_feedback(snowshoe, method="invalid")
+
+
+def test_hurwitz_determinants_invalid_form(snowshoe):
+    """Test hurwitz_determinants raises ValueError for invalid form."""
+    with pytest.raises(ValueError, match="form must be either 'symbolic' or 'signed'"):
+        hurwitz_determinants(snowshoe, form="invalid")

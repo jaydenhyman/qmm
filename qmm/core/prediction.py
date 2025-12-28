@@ -5,13 +5,24 @@ import sympy as sp
 import pandas as pd
 import networkx as nx
 from typing import Union, List, Optional, Callable
-from .press import numerical_simulations
+from .helper import get_nodes
+from .press import (
+    numerical_simulations,
+    weighted_predictions_matrix,
+    sign_determinacy_matrix,
+)
 
 def _apply_thresholds(
     M: Union[sp.Matrix, np.ndarray],
     t1: float,
     t2: float,
 ) -> list[list[str]]:
+    if not (0.5 <= t1 <= 1):
+        raise ValueError("t1 must be between 0.5 and 1")
+    if not (0.5 <= t2 <= 1):
+        raise ValueError("t2 must be between 0.5 and 1")
+    if t1 > t2:
+        raise ValueError("t1 must be less than or equal to t2")
     if isinstance(M, sp.Matrix):
         M = sp.matrix2numpy(M, dtype=float)
 
@@ -41,32 +52,75 @@ def qualitative_predictions(
 
     Args:
         G (nx.DiGraph): Graph input for the matrix generator
-        generator (Callable): Matrix generator function
-        t1 (float): Lower threshold for likely predictions
-        t2 (float): Upper threshold for determined predictions
+        generator (Callable): Matrix generator function from core.press module
+        t1 (float): Lower threshold for predictions
+        t2 (float): Higher threshold for predictions
 
     Returns:
         sp.Matrix: Qualitative predictions
+
+    Raises:
+        ValueError: If generator is not callable or thresholds are invalid
+
+    References:
+        - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2002). Relevance of Community Structure in Assessing Indeterminacy of Ecological Predictions. Ecology 83, 1372–1385.
+        - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2003). Qualitative predictions in model ecosystems. Ecological Modelling 161, 79–93.
+        - Hosack, G.R., Hayes, K.R., Dambacher, J.M. (2008). Assessing Model Structure Uncertainty Through an Analysis of System Feedback and Bayesian Networks. Ecological Applications 18, 1070–1082.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, qualitative_predictions, weighted_predictions_matrix
+        qualitative_predictions(load_digraph("snowshoe"), generator=weighted_predictions_matrix, t1=0.5, t2=1.0)
+        # Matrix([
+        # [+, −, +],
+        # [?, +, −],
+        # [+, ?, +]])
+        ```
     """
+    if not callable(generator):
+        raise ValueError(f"Generator must be callable, got: {type(generator)}")
+
     matrix = generator(G)
     predictions = _apply_thresholds(matrix, t1, t2)
     rows = [[sp.Integer(0) if vals == "0" else sp.Symbol(vals) for vals in row] for row in predictions]
     return sp.Matrix(rows)
 
-def table_of_predictions(M: Union[sp.Matrix, np.ndarray], t1: float = 0.8, t2: float = 0.95,
-                        index: Optional[List[str]] = None,
-                        columns: Optional[List[str]] = None) -> pd.DataFrame:
+
+def matrix_to_predictions(
+    M: Union[sp.Matrix, np.ndarray],
+    t1: float = 0.8,
+    t2: float = 0.95,
+    index: Optional[List[str]] = None,
+    columns: Optional[List[str]] = None,
+) -> pd.DataFrame:
     """Create a table of qualitative predictions with thresholds for ambiguity.
 
     Args:
         M (Union[sp.Matrix, np.ndarray]): Matrix of predictions from press perturbation analysis
-        t1 (float): Lower threshold for likely predictions
-        t2 (float): Upper threshold for determined predictions
+        t1 (float): Lower threshold for predictions
+        t2 (float): Higher threshold for predictions
         index (Optional[List[str]]): Row labels
         columns (Optional[List[str]]): Column labels
 
     Returns:
         pd.DataFrame: Qualitative predictions
+
+    References:
+        - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2002). Relevance of Community Structure in Assessing Indeterminacy of Ecological Predictions. Ecology 83, 1372–1385.
+        - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2003). Qualitative predictions in model ecosystems. Ecological Modelling 161, 79–93.
+        - Hosack, G.R., Hayes, K.R., Dambacher, J.M. (2008). Assessing Model Structure Uncertainty Through an Analysis of System Feedback and Bayesian Networks. Ecological Applications 18, 1070–1082.
+
+    Examples:
+        ```python
+        from qmm import load_digraph, weighted_predictions_matrix, matrix_to_predictions
+        W = weighted_predictions_matrix(load_digraph("snowshoe"))
+        nodes = ['V', 'H', 'P']
+        matrix_to_predictions(W, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+        #    V  H  P
+        # V  +  −  +
+        # H  ?  +  −
+        # P  +  ?  +
+        ```
     """
     if isinstance(M, sp.Matrix) and any(isinstance(v, (sp.Symbol, str)) for v in M):
         return pd.DataFrame(M.tolist(), index=index, columns=columns)
@@ -82,6 +136,24 @@ def compare_predictions(M1: pd.DataFrame, M2: pd.DataFrame) -> pd.DataFrame:
 
     Returns:
         pd.DataFrame: Combined predictions showing differences and agreements
+
+    Examples:
+        ```python
+        from qmm import load_digraph, weighted_predictions_matrix, matrix_to_predictions, compare_predictions
+        G1 = load_digraph("snowshoe")
+        G2 = G1.copy()
+        G2.remove_edge('V', 'P')
+        nodes = ['V', 'H', 'P']
+        W1 = weighted_predictions_matrix(G1)
+        W2 = weighted_predictions_matrix(G2)
+        pred1 = matrix_to_predictions(W1, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+        pred2 = matrix_to_predictions(W2, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+        compare_predictions(pred1, pred2)
+        #       V     H  P
+        # V     +     −  +
+        # H  ?, +     +  −
+        # P     +  ?, +  +
+        ```
     """
     if not M1.index.equals(M2.index) or not M1.columns.equals(M2.columns):
         raise ValueError("M1 and M2 must have the same index and columns")

@@ -595,7 +595,7 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
 def simulation_stability(
     G: nx.DiGraph,
     n_sim: int = 10000,
-    distribution: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     presample: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
     """Analyse stability using randomly sampled interaction strengths from a specified distribution.
@@ -603,7 +603,7 @@ def simulation_stability(
     Args:
         G: NetworkX DiGraph representing signed digraph model
         n_sim: Number of simulations to perform (default 10000)
-        distribution: Distribution to sample from (default 'uniform'):
+        dist: Distribution to sample from (default 'uniform'):
             - "uniform": Uniform(0, 1) - no assumption about interaction strength
             - "weak": Beta(1, 3) - weak interactions predominate
             - "moderate": Beta(2, 2) - moderate interactions predominate
@@ -649,7 +649,7 @@ def simulation_stability(
         if presample is not None:
             M = presample[i]
         else:
-            M = _random_sampler(distribution, A.size).reshape(A.shape)
+            M = _random_sampler(dist, A.size).reshape(A.shape)
         S = A * M
         if np.all(np.real(np.linalg.eigvals(S)) < 0):
             n_stable += 1

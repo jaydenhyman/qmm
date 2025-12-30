@@ -24,7 +24,6 @@ def marginal_likelihood(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    distribution: Optional[Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"]] = None,
 ) -> float:
     """Calculate proportion of simulations matching qualitative observations.
 
@@ -33,7 +32,7 @@ def marginal_likelihood(
         perturb: Perturbation string (node:sign, comma-separated allowed)
         observe: Observation string (node:sign, comma-separated allowed)
         n_sim: Number of simulations
-        dist: Distribution for sampling
+        dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
         seed: Random seed
 
     Returns:
@@ -51,8 +50,7 @@ def marginal_likelihood(
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
-    use_dist = distribution if distribution is not None else dist
-    sims = get_simulations(graph, n_sim=n_sim, dist=use_dist, seed=seed,
+    sims = get_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
                           perturb=pert,
                           observe=_parse_observations(observe) if observe else None)
     return sum(sims["valid_sims"]) / n_sim
@@ -256,7 +254,6 @@ def bayes_factors(
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
     names: Optional[List[str]] = None,
-    distribution: Optional[Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"]] = None,
 ) -> pd.DataFrame:
     """Calculate Bayes factors from the ratio of marginal likelihoods of alternative models.
 
@@ -265,7 +262,7 @@ def bayes_factors(
         perturb: Perturbation string (node:sign, comma-separated allowed)
         observe: Observation string (node:sign, comma-separated allowed)
         n_sim: Number of simulations
-        dist: Distribution for sampling
+        dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
         seed: Random seed
         names: Optional list of model names
 
@@ -288,8 +285,7 @@ def bayes_factors(
         ```
     """
     graphs = list(G_list) if isinstance(G_list, tuple) else G_list
-    use_dist = distribution if distribution is not None else dist
-    likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, use_dist, seed) for g in graphs]
+    likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in graphs]
     model_names = names if names and len(names) == len(graphs) else [f"Model {chr(65+i)}" for i in range(len(graphs))]
 
     comparisons = [(i, j) for i in range(len(graphs)) for j in range(i + 1, len(graphs))]

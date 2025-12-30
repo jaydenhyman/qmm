@@ -324,6 +324,56 @@ def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
         compare_predictions(preds, shuffled)
 
 
+def test_compare_predictions_mismatched_columns():
+    """Test compare_predictions raises ValueError when columns differ."""
+    df1 = pd.DataFrame({'A': ['+', '-'], 'B': ['+', '+']}, index=['X', 'Y'])
+    df2 = pd.DataFrame({'A': ['+', '-'], 'C': ['+', '+']}, index=['X', 'Y'])
+    with pytest.raises(ValueError, match="same index and columns"):
+        compare_predictions(df1, df2)
+
+
+def test_compare_predictions_mismatched_index():
+    """Test compare_predictions raises ValueError when indices differ."""
+    df1 = pd.DataFrame({'A': ['+', '-'], 'B': ['+', '+']}, index=['X', 'Y'])
+    df2 = pd.DataFrame({'A': ['+', '-'], 'B': ['+', '+']}, index=['X', 'Z'])
+    with pytest.raises(ValueError, match="same index and columns"):
+        compare_predictions(df1, df2)
+
+
+def test_compare_predictions_different_sizes():
+    """Test compare_predictions raises ValueError for different sized DataFrames."""
+    df1 = pd.DataFrame({'A': ['+', '-', '?']}, index=['X', 'Y', 'Z'])
+    df2 = pd.DataFrame({'A': ['+', '-']}, index=['X', 'Y'])
+    with pytest.raises(ValueError, match="same index and columns"):
+        compare_predictions(df1, df2)
+
+
+def test_compare_predictions_single_element():
+    """Test compare_predictions with single element DataFrames."""
+    df1 = pd.DataFrame({'A': ['+']}, index=['X'])
+    df2 = pd.DataFrame({'A': ['-']}, index=['X'])
+    result = compare_predictions(df1, df2)
+    assert result.loc['X', 'A'] == '+, -'
+
+
+def test_compare_predictions_all_different():
+    """Test compare_predictions when all values differ."""
+    df1 = pd.DataFrame({'A': ['+', '+'], 'B': ['+', '+']}, index=['X', 'Y'])
+    df2 = pd.DataFrame({'A': ['-', '-'], 'B': ['-', '-']}, index=['X', 'Y'])
+    result = compare_predictions(df1, df2)
+    assert result.loc['X', 'A'] == '+, -'
+    assert result.loc['Y', 'B'] == '+, -'
+
+
+def test_compare_predictions_numeric_values():
+    """Test compare_predictions handles numeric values by converting to strings."""
+    df1 = pd.DataFrame({'A': [1, 2], 'B': [3, 4]}, index=['X', 'Y'])
+    df2 = pd.DataFrame({'A': [1, 5], 'B': [3, 6]}, index=['X', 'Y'])
+    result = compare_predictions(df1, df2)
+    assert result.loc['X', 'A'] == '1'  # Same value
+    assert result.loc['Y', 'A'] == '2, 5'  # Different values
+
+
 # =============================================================================
 # Additional tests for error handling and coverage
 # =============================================================================

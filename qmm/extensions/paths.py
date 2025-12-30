@@ -29,18 +29,21 @@ def get_cycles(G: nx.DiGraph) -> sp.Matrix:
         from qmm import get_cycles, load_digraph
         get_cycles(load_digraph("snowshoe"))
         # Matrix([
-        # [           -a_V,V],
         # [           -a_P,P],
-        # [     -a_H,V*a_V,H],
+        # [           -a_V,V],
         # [     -a_H,P*a_P,H],
+        # [     -a_H,V*a_V,H],
         # [a_H,P*a_P,V*a_V,H]])
         ```
     """
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
     node_id = {n: i for i, n in enumerate(nodes)}
-    cycle_list = nx.simple_cycles(G)
-    cycle_nodes = sorted([c for c in cycle_list], key=lambda x: len(x))
+    # Normalize cycles to start from smallest node for deterministic ordering
+    cycle_nodes = sorted(
+        [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
+        key=lambda x: (len(x), x)
+    )
     C = [c + [c[0]] for c in cycle_nodes]
     cycles = sp.Matrix([sp.prod([A[node_id[c[i + 1]], node_id[c[i]]] for i in range(len(c) - 1)]) for c in C])
     return cycles
@@ -72,7 +75,11 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
         # 4       3  H ⊸ V → P ⊸ H    +
         ```
     """
-    cycle_nodes = sorted([path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x))
+    # Normalize cycles to start from smallest node for deterministic ordering
+    cycle_nodes = sorted(
+        [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
+        key=lambda x: (len(x), x)
+    )
     all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
     cycle_signs = [_sign_string(G, path) for path in all_cycles]
     cycles_df = pd.DataFrame(

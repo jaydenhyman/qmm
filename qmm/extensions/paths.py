@@ -31,8 +31,8 @@ def get_cycles(G: nx.DiGraph) -> sp.Matrix:
         # Matrix([
         # [           -a_V,V],
         # [           -a_P,P],
-        # [     -a_H,P*a_P,H],
         # [     -a_H,V*a_V,H],
+        # [     -a_H,P*a_P,H],
         # [a_H,P*a_P,V*a_V,H]])
         ```
     """
@@ -67,9 +67,9 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
         #    Length          Cycle Sign
         # 0       1          P ⊸ P    −
         # 1       1          V ⊸ V    −
-        # 2       2      H ⊸ V → H    −
-        # 3       2      P ⊸ H → P    −
-        # 4       3  P ⊸ H ⊸ V → P    +
+        # 2       2      H → P ⊸ H    −
+        # 3       2      H ⊸ V → H    −
+        # 4       3  H ⊸ V → P ⊸ H    +
         ```
     """
     cycle_nodes = sorted([path for path in nx.simple_cycles(G)], key=lambda x: (len(x), x))

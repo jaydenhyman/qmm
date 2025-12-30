@@ -293,7 +293,7 @@ def numerical_simulations(
         ```
     """
     if positive_only and not as_nan:
-        raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=False")
+        raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=True")
     if as_abs and not as_nan:
         raise ValueError("Invalid parameter combination: as_abs=True requires as_nan=True")
 

@@ -797,14 +797,16 @@ def test_numerical_simulations_positive_only_true_snowshoe_na(snowshoe_na):
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-@pytest.mark.parametrize("kwargs", [
-    {"positive_only": True, "as_nan": False},
-    {"as_abs": True, "as_nan": False},
-])
-def test_numerical_simulations_invalid_argument_combo_snowshoe_kwargs(snowshoe, kwargs):
-    """Test numerical_simulations raises ValueError for invalid parameter combinations."""
-    with pytest.raises(ValueError):
-        numerical_simulations(snowshoe, n_sim=100, seed=42, **kwargs)
+def test_numerical_simulations_positive_only_requires_as_nan_true(snowshoe):
+    """Test numerical_simulations raises ValueError when positive_only=True and as_nan=False."""
+    with pytest.raises(ValueError, match="positive_only=True requires as_nan=True"):
+        numerical_simulations(snowshoe, n_sim=100, seed=42, positive_only=True, as_nan=False)
+
+
+def test_numerical_simulations_as_abs_requires_as_nan_true(snowshoe):
+    """Test numerical_simulations raises ValueError when as_abs=True and as_nan=False."""
+    with pytest.raises(ValueError, match="as_abs=True requires as_nan=True"):
+        numerical_simulations(snowshoe, n_sim=100, seed=42, as_abs=True, as_nan=False)
 
 
 def test_numerical_simulations_linalg_retries_snowshoe(snowshoe):

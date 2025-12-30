@@ -329,17 +329,17 @@ def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
 # =============================================================================
 
 def test_apply_thresholds_invalid_t1_too_low(snowshoe):
-    """Test _apply_thresholds raises ValueError for t1 < 0.5."""
-    with pytest.raises(ValueError, match="t1 must be between 0.5 and 1"):
+    """Test _apply_thresholds raises ValueError for t1 < 0."""
+    with pytest.raises(ValueError, match="t1 must be between 0 and 1"):
         matrix_to_predictions(
             weighted_predictions_matrix(snowshoe),
-            t1=0.3,
+            t1=-0.1,
             t2=0.95
         )
 
 def test_apply_thresholds_invalid_t1_too_high(snowshoe):
     """Test _apply_thresholds raises ValueError for t1 > 1."""
-    with pytest.raises(ValueError, match="t1 must be between 0.5 and 1"):
+    with pytest.raises(ValueError, match="t1 must be between 0 and 1"):
         matrix_to_predictions(
             weighted_predictions_matrix(snowshoe),
             t1=1.2,
@@ -347,17 +347,17 @@ def test_apply_thresholds_invalid_t1_too_high(snowshoe):
         )
 
 def test_apply_thresholds_invalid_t2_too_low(snowshoe):
-    """Test _apply_thresholds raises ValueError for t2 < 0.5."""
-    with pytest.raises(ValueError, match="t2 must be between 0.5 and 1"):
+    """Test _apply_thresholds raises ValueError for t2 < 0."""
+    with pytest.raises(ValueError, match="t2 must be between 0 and 1"):
         matrix_to_predictions(
             weighted_predictions_matrix(snowshoe),
             t1=0.8,
-            t2=0.3
+            t2=-0.1
         )
 
 def test_apply_thresholds_invalid_t2_too_high(snowshoe):
     """Test _apply_thresholds raises ValueError for t2 > 1."""
-    with pytest.raises(ValueError, match="t2 must be between 0.5 and 1"):
+    with pytest.raises(ValueError, match="t2 must be between 0 and 1"):
         matrix_to_predictions(
             weighted_predictions_matrix(snowshoe),
             t1=0.8,

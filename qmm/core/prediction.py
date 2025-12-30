@@ -14,10 +14,10 @@ def _apply_thresholds(
     t1: float,
     t2: float,
 ) -> list[list[str]]:
-    if not (0.5 <= t1 <= 1):
-        raise ValueError("t1 must be between 0.5 and 1")
-    if not (0.5 <= t2 <= 1):
-        raise ValueError("t2 must be between 0.5 and 1")
+    if not (0 <= t1 <= 1):
+        raise ValueError("t1 must be between 0 and 1")
+    if not (0 <= t2 <= 1):
+        raise ValueError("t2 must be between 0 and 1")
     if t1 > t2:
         raise ValueError("t1 must be less than or equal to t2")
     if isinstance(M, sp.Matrix):

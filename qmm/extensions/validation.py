@@ -90,8 +90,8 @@ def model_validation(
         G = nx.DiGraph(load_digraph("snowshoe_io"))
         G.add_edge('V', 'H', sign=1, dashes=True)
         model_validation(G, perturb='I:+', observe='H:+', n_sim=1000, combinations=False)
-        #   Marginal likelihood V → H
-        # 0               0.962     ✓
+        #   Marginal likelihood V $\longrightarrow$ H
+        # 0               0.962                     ✓
         # 1               0.876
         ```
     """

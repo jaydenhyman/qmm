@@ -67,12 +67,12 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
         ```python
         from qmm import cycles_table, load_digraph
         cycles_table(load_digraph("snowshoe"))
-        #    Length          Cycle Sign
-        # 0       1          P ⊸ P    −
-        # 1       1          V ⊸ V    −
-        # 2       2      H → P ⊸ H    −
-        # 3       2      H ⊸ V → H    −
-        # 4       3  H ⊸ V → P ⊸ H    +
+        #    Length                                              Cycle Sign
+        # 0       1                                    P $\multimap$ P    −
+        # 1       1                                    V $\multimap$ V    −
+        # 2       2                H $\longrightarrow$ P $\multimap$ H    −
+        # 3       2                H $\multimap$ V $\longrightarrow$ H    −
+        # 4       3  H $\multimap$ V $\longrightarrow$ P $\multimap$ H    +
         ```
     """
     # Normalize cycles to start from smallest node for deterministic ordering
@@ -193,11 +193,11 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
         ```python
         from qmm import paths_table, load_digraph
         paths_table(load_digraph("snowshoe_io"), 'I', 'H')
-        #    Length           Path Sign
-        # 0       2      I → V → H    +
-        # 1       3  I → V → P ⊸ H    −
-        # 2       1          I → H    +
-        # 3       2      I ⊸ P ⊸ H    +
+        #    Length                                                     Path Sign
+        # 0       2                I $\longrightarrow$ V $\longrightarrow$ H    +
+        # 1       3  I $\longrightarrow$ V $\longrightarrow$ P $\multimap$ H    −
+        # 2       1                                    I $\longrightarrow$ H    +
+        # 3       2                            I $\multimap$ P $\multimap$ H    +
         ```
     """
     nodes = get_nodes(G, "all")

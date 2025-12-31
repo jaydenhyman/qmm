@@ -9,9 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-import numpy as np
 import pandas as pd
-import sympy as sp
 
 
 def exec_code(code: str, ctx: dict) -> str:

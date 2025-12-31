@@ -444,21 +444,21 @@ def test_sign_determinacy_invalid_method_no_fixture():
 def test_arrows_positive_edge_simple_ab_positive(simple_ab_positive):
     """Test _arrows renders a positive edge string for simple_ab_positive."""
     result = _arrows(simple_ab_positive, ['A', 'B'])
-    expected = 'A → B'
+    expected = 'A $\\rightarrow$ B'
     assert result == expected
 
 
 def test_arrows_negative_edge_simple_xy_negative(simple_xy_negative):
     """Test _arrows renders a negative edge string for simple_xy_negative."""
     result = _arrows(simple_xy_negative, ['X', 'Y'])
-    expected = 'X ⊸ Y'
+    expected = 'X $\\multimap$ Y'
     assert result == expected
 
 
 def test_arrows_chain_path_chain(chain):
     """Test _arrows renders a chained path string for the chain graph."""
     result = _arrows(chain, ['1', '2', '3'])
-    expected = '1 → 2 → 3'
+    expected = '1 $\\rightarrow$ 2 $\\rightarrow$ 3'
     assert result == expected
 
 

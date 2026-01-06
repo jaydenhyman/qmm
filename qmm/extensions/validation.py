@@ -45,8 +45,8 @@ def marginal_likelihood(
     Examples:
         ```python
         from qmm import marginal_likelihood, load_digraph
-        marginal_likelihood(load_digraph("snowshoe_io"), perturb='I:+', observe='H:+', n_sim=1000)
-        # 0.962
+        marginal_likelihood(load_digraph("snowshoe_io"), perturb='Inp1:+', observe='Out1:+', n_sim=1000)
+        # 0.513
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
@@ -88,11 +88,11 @@ def model_validation(
         from qmm import model_validation, load_digraph
         import networkx as nx
         G = nx.DiGraph(load_digraph("snowshoe_io"))
-        G.add_edge('V', 'H', sign=1, dashes=True)
-        model_validation(G, perturb='I:+', observe='H:+', n_sim=1000, combinations=False)
-        #   Marginal likelihood V $\longrightarrow$ H
-        # 0               0.962                     ✓
-        # 1               0.876
+        G.add_edge('R', 'P', sign=1, dashes=True)
+        model_validation(G, perturb='Inp1:+', observe='Out1:+', n_sim=1000, combinations=False)
+        #   Marginal likelihood R $\\rightarrow$ P
+        # 0               0.829                 ✓
+        # 1               0.513
         ```
     """
     dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
@@ -157,12 +157,13 @@ def posterior_predictions(
     Examples:
         ```python
         from qmm import posterior_predictions, load_digraph
-        posterior_predictions(load_digraph("snowshoe_io"), perturb='I:+', observe='H:+', n_sim=1000)
+        posterior_predictions(load_digraph("snowshoe_io"), perturb='Inp1:+', observe='Out1:+', n_sim=1000)
         # Matrix([
-        # [-0.724532224532225],
         # [               1.0],
-        # [ 0.594594594594595],
-        # [ 0.708939708939709]])
+        # [-0.512670565302144],
+        # [-0.512670565302144],
+        # [               1.0],
+        # [-0.512670565302144]])
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
@@ -216,10 +217,12 @@ def diagnose_observations(
     Examples:
         ```python
         from qmm import diagnose_observations, load_digraph
-        diagnose_observations(load_digraph("snowshoe_io"), observe='H:+', perturb_nodes='input', n_sim=1000)
+        diagnose_observations(load_digraph("snowshoe_io"), observe='Out1:+', perturb_nodes='input', n_sim=1000)
         #   Input Sign  Marginal likelihood
-        # 0     I    +                0.962
-        # 1     I    -                0.038
+        # 0  Inp2    -                1.000
+        # 1  Inp1    +                0.513
+        # 2  Inp1    -                0.487
+        # 3  Inp2    +                0.000
         ```
     """
     if perturb_nodes is None:
@@ -278,10 +281,10 @@ def bayes_factors(
         from qmm import bayes_factors, load_digraph
         G1 = load_digraph("snowshoe_io")
         G2 = G1.copy()
-        G2.remove_edge('V', 'P')
-        bayes_factors([G1, G2], perturb='I:+', observe='H:+', n_sim=1000)
+        G2.remove_edge('C', 'P')
+        bayes_factors([G1, G2], perturb='Inp1:+', observe='Out1:+', n_sim=1000)
         #   Model comparison  Likelihood 1  Likelihood 2  Bayes factor
-        # 0  Model A/Model B         0.962           1.0         0.962
+        # 0  Model A/Model B         0.513         0.489       1.04908
         ```
     """
     graphs = list(G_list) if isinstance(G_list, tuple) else G_list

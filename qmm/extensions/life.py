@@ -29,13 +29,13 @@ def birth_matrix(
     Examples:
         ```python
         from qmm import birth_matrix, load_digraph
-        birth_matrix(load_digraph("snowshoe"), form='symbolic')
+        birth_matrix(load_digraph("snowshoe_rp"), form='symbolic')
         # Matrix([
         # [    0,     0, 0],
-        # [a_H,V,     0, 0],
-        # [a_P,V, a_P,H, 0]])
+        # [a_C,R,     0, 0],
+        # [a_P,R, a_P,C, 0]])
 
-        birth_matrix(load_digraph("snowshoe"), form='signed')
+        birth_matrix(load_digraph("snowshoe_rp"), form='signed')
         # Matrix([
         # [0, 0, 0],
         # [1, 0, 0],
@@ -51,7 +51,7 @@ def birth_matrix(
     def birth_element(i, j):
         if form == "symbolic":
             return A_sym[i, j] if A_sgn[i, j] > 0 else 0
-        else:  # form == 'signed'
+        else:
             return sp.Integer(1) if A_sgn[i, j] > 0 else 0
     if perturb is not None:
         src_id = nodes.index(perturb)
@@ -80,13 +80,13 @@ def death_matrix(
     Examples:
         ```python
         from qmm import death_matrix, load_digraph
-        death_matrix(load_digraph("snowshoe"), form='symbolic')
+        death_matrix(load_digraph("snowshoe_rp"), form='symbolic')
         # Matrix([
-        # [a_V,V, a_V,H,     0],
-        # [    0,     0, a_H,P],
+        # [a_R,R, a_R,C,     0],
+        # [    0,     0, a_C,P],
         # [    0,     0, a_P,P]])
 
-        death_matrix(load_digraph("snowshoe"), form='signed')
+        death_matrix(load_digraph("snowshoe_rp"), form='signed')
         # Matrix([
         # [1, 1, 0],
         # [0, 0, 1],
@@ -102,7 +102,7 @@ def death_matrix(
     def death_element(i, j):
         if form == "symbolic":
             return A_sym[i, j] * sp.Integer(-1) if A_sgn[i, j] < 0 else 0
-        else:  # form == 'signed'
+        else:
             return sp.Integer(1) if A_sgn[i, j] < 0 else 0
     if perturb is not None:
         src_id = nodes.index(perturb)
@@ -134,17 +134,17 @@ def life_expectancy_change(
     Examples:
         ```python
         from qmm import life_expectancy_change, load_digraph
-        life_expectancy_change(load_digraph("snowshoe"), form='symbolic', type='birth')
+        life_expectancy_change(load_digraph("snowshoe_rp"), form='symbolic', type='birth')
         # Matrix([
-        # [-a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H - a_H,V*a_P,P*a_V,H,                                      0,                  0],
-        # [                                        -a_H,P*a_H,V*a_P,H, -a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H, -a_H,P*a_H,V*a_V,H],
-        # [                                        -a_H,V*a_P,H*a_P,P, -a_P,H*a_P,P*a_V,V + a_P,P*a_P,V*a_V,H, -a_H,V*a_P,P*a_V,H]])
+        # [-a_C,P*a_P,C*a_R,R + a_C,P*a_P,R*a_R,C - a_C,R*a_P,P*a_R,C,                                      0,                  0],
+        # [                                        -a_C,P*a_C,R*a_P,C, -a_C,P*a_P,C*a_R,R + a_C,P*a_P,R*a_R,C, -a_C,P*a_C,R*a_R,C],
+        # [                                        -a_C,R*a_P,C*a_P,P, -a_P,C*a_P,P*a_R,R + a_P,P*a_P,R*a_R,C, -a_C,R*a_P,P*a_R,C]])
 
-        life_expectancy_change(load_digraph("snowshoe"), form='symbolic', type='death')
+        life_expectancy_change(load_digraph("snowshoe_rp"), form='symbolic', type='death')
         # Matrix([
         # [                 0,                                      0,                                     0],
-        # [-a_H,P*a_H,V*a_P,H,                      a_H,V*a_P,P*a_V,H,                    -a_H,P*a_H,V*a_V,H],
-        # [-a_H,V*a_P,H*a_P,P, -a_P,H*a_P,P*a_V,V + a_P,P*a_P,V*a_V,H, a_H,P*a_P,H*a_V,V - a_H,P*a_P,V*a_V,H]])
+        # [-a_C,P*a_C,R*a_P,C,                      a_C,R*a_P,P*a_R,C,                    -a_C,P*a_C,R*a_R,C],
+        # [-a_C,R*a_P,C*a_P,P, -a_P,C*a_P,P*a_R,R + a_P,P*a_P,R*a_R,C, a_C,P*a_P,C*a_R,R - a_C,P*a_P,R*a_R,C]])
         ```
     """
     amat = adjoint_matrix(G, form=form)
@@ -183,13 +183,13 @@ def net_life_expectancy_change(
     Examples:
         ```python
         from qmm import net_life_expectancy_change, load_digraph
-        net_life_expectancy_change(load_digraph("snowshoe"), type='birth')
+        net_life_expectancy_change(load_digraph("snowshoe_rp"), type='birth')
         # Matrix([
         # [-1, 0,  0],
         # [-1, 0, -1],
         # [-1, 0, -1]])
 
-        net_life_expectancy_change(load_digraph("snowshoe"), type='death')
+        net_life_expectancy_change(load_digraph("snowshoe_rp"), type='death')
         # Matrix([
         # [ 0, 0,  0],
         # [-1, 1, -1],
@@ -226,13 +226,13 @@ def absolute_life_expectancy_change(
     Examples:
         ```python
         from qmm import absolute_life_expectancy_change, load_digraph
-        absolute_life_expectancy_change(load_digraph("snowshoe"), type='birth')
+        absolute_life_expectancy_change(load_digraph("snowshoe_rp"), type='birth')
         # Matrix([
         # [3, 0, 0],
         # [1, 2, 1],
         # [1, 2, 1]])
 
-        absolute_life_expectancy_change(load_digraph("snowshoe"), type='death')
+        absolute_life_expectancy_change(load_digraph("snowshoe_rp"), type='death')
         # Matrix([
         # [0, 0, 0],
         # [1, 1, 1],
@@ -283,25 +283,25 @@ def weighted_predictions_life_expectancy(
     Examples:
         ```python
         from qmm import weighted_predictions_life_expectancy, load_digraph
-        weighted_predictions_life_expectancy(load_digraph("snowshoe"), type='birth', as_abs=False, as_nan=True)
+        weighted_predictions_life_expectancy(load_digraph("snowshoe_rp"), type='birth', as_abs=False, as_nan=True)
         # Matrix([
         # [-1/3, nan, nan],
         # [  -1,   0,  -1],
         # [  -1,   0,  -1]])
 
-        weighted_predictions_life_expectancy(load_digraph("snowshoe"), type='birth', as_abs=True, as_nan=False)
+        weighted_predictions_life_expectancy(load_digraph("snowshoe_rp"), type='birth', as_abs=True, as_nan=False)
         # Matrix([
         # [1/3, 1, 1],
         # [  1, 0, 1],
         # [  1, 0, 1]])
 
-        weighted_predictions_life_expectancy(load_digraph("snowshoe"), type='death', as_abs=False, as_nan=True)
+        weighted_predictions_life_expectancy(load_digraph("snowshoe_rp"), type='death', as_abs=False, as_nan=True)
         # Matrix([
         # [nan, nan, nan],
         # [ -1,   1,  -1],
         # [ -1,   0,   0]])
 
-        weighted_predictions_life_expectancy(load_digraph("snowshoe"), type='death', as_abs=True, as_nan=False)
+        weighted_predictions_life_expectancy(load_digraph("snowshoe_rp"), type='death', as_abs=True, as_nan=False)
         # Matrix([
         # [1, 1, 1],
         # [1, 1, 1],

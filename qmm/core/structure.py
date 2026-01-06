@@ -84,19 +84,19 @@ def create_matrix(
     Examples:
         ```python
         from qmm import load_digraph, create_matrix
-        create_matrix(load_digraph("snowshoe"), form='symbolic')
+        create_matrix(load_digraph("snowshoe_rp"), form='symbolic')
         # Matrix([
-        # [-a_V,V, -a_V,H,      0],
-        # [ a_H,V,      0, -a_H,P],
-        # [ a_P,V,  a_P,H, -a_P,P]])
+        # [-a_R,R, -a_R,C,      0],
+        # [ a_C,R,      0, -a_C,P],
+        # [ a_P,R,  a_P,C, -a_P,P]])
 
-        create_matrix(load_digraph("snowshoe"), form='signed')
+        create_matrix(load_digraph("snowshoe_rp"), form='signed')
         # Matrix([
         # [-1, -1,  0],
         # [ 1,  0, -1],
         # [ 1,  1, -1]])
 
-        create_matrix(load_digraph("snowshoe"), form='binary')
+        create_matrix(load_digraph("snowshoe_rp"), form='binary')
         # Matrix([
         # [1, 1, 0],
         # [1, 0, 1],
@@ -112,7 +112,7 @@ def create_matrix(
             return sym(source, target, prefix) * G[source][target].get("sign", 1)
         elif form == "signed":
             return G[source][target].get("sign", 1)
-        else:  # form == 'binary'
+        else:
             return int(G.has_edge(source, target))
 
     def product(path: List[str]) -> Union[sp.Symbol, int]:
@@ -168,11 +168,11 @@ def create_equations(G: nx.DiGraph, form: Literal["state", "output"] = "state") 
     Examples:
         ```python
         from qmm import load_digraph, create_equations
-        create_equations(load_digraph("snowshoe"), form='state')
+        create_equations(load_digraph("snowshoe_rp"), form='state')
         # Matrix([
-        # [           -a_V,H*x_H - a_V,V*x_V],
-        # [           -a_H,P*x_P + a_H,V*x_V],
-        # [a_P,H*x_H - a_P,P*x_P + a_P,V*x_V]])
+        # [           -a_R,C*x_C - a_R,R*x_R],
+        # [           -a_C,P*x_P + a_C,R*x_R],
+        # [a_P,C*x_C - a_P,P*x_P + a_P,R*x_R]])
         ```
     """
     A = create_matrix(G, form="symbolic", matrix_type="A")
@@ -211,10 +211,10 @@ def nodes_table(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, nodes_table
-        nodes_table(load_digraph("snowshoe"))
+        nodes_table(load_digraph("snowshoe_rp"))
         #       Node Label Category Description
-        # 0  $x_{V}$     V    State        None
-        # 1  $x_{H}$     H    State        None
+        # 0  $x_{R}$     R    State        None
+        # 1  $x_{C}$     C    State        None
         # 2  $x_{P}$     P    State        None
         ```
     """
@@ -256,14 +256,14 @@ def edges_table(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, edges_table
-        edges_table(load_digraph("snowshoe"))
+        edges_table(load_digraph("snowshoe_rp"))
         #         Edge From Sign To  Dashes Description
-        # 0  $a_{V,V}$    V    -  V   False        None
-        # 1  $a_{H,V}$    V    +  H   False        None
-        # 2  $a_{P,V}$    V    +  P   False        None
-        # 3  $a_{V,H}$    H    -  V   False        None
-        # 4  $a_{P,H}$    H    +  P   False        None
-        # 5  $a_{H,P}$    P    -  H   False        None
+        # 0  $a_{R,R}$    R    -  R   False        None
+        # 1  $a_{C,R}$    R    +  C   False        None
+        # 2  $a_{P,R}$    R    +  P   False        None
+        # 3  $a_{R,C}$    C    -  R   False        None
+        # 4  $a_{P,C}$    C    +  P   False        None
+        # 5  $a_{C,P}$    P    -  C   False        None
         # 6  $a_{P,P}$    P    -  P   False        None
         ```
     """

@@ -25,11 +25,11 @@ def structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Mat
     Examples:
         ```python
         from qmm import structural_sensitivity, load_digraph
-        structural_sensitivity(load_digraph("snowshoe"))
+        structural_sensitivity(load_digraph("snowshoe_rp"))
         # Matrix([
-        # [-a_H,P*a_P,H*a_V,V, a_H,P*a_P,V*a_V,H - a_H,V*a_P,P*a_V,H,                                      0],
-        # [-a_H,V*a_P,P*a_V,H,                                     0, -a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H],
-        # [ a_H,P*a_P,V*a_V,H,                    -a_H,P*a_P,H*a_V,V,                     -a_H,V*a_P,P*a_V,H]])
+        # [-a_C,P*a_P,C*a_R,R, a_C,P*a_P,R*a_R,C - a_C,R*a_P,P*a_R,C,                                      0],
+        # [-a_C,R*a_P,P*a_R,C,                                     0, -a_C,P*a_P,C*a_R,R + a_C,P*a_P,R*a_R,C],
+        # [ a_C,P*a_P,R*a_R,C,                    -a_C,P*a_P,C*a_R,R,                     -a_C,R*a_P,P*a_R,C]])
         ```
     """
     A = create_matrix(G, "signed")
@@ -69,7 +69,7 @@ def net_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp
     Examples:
         ```python
         from qmm import net_structural_sensitivity, load_digraph
-        net_structural_sensitivity(load_digraph("snowshoe"))
+        net_structural_sensitivity(load_digraph("snowshoe_rp"))
         # Matrix([
         # [-1,  0,  0],
         # [-1,  0,  0],
@@ -113,7 +113,7 @@ def absolute_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) 
     Examples:
         ```python
         from qmm import absolute_structural_sensitivity, load_digraph
-        absolute_structural_sensitivity(load_digraph("snowshoe"))
+        absolute_structural_sensitivity(load_digraph("snowshoe_rp"))
         # Matrix([
         # [1, 2, 0],
         # [1, 0, 2],
@@ -157,7 +157,7 @@ def weighted_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) 
     Examples:
         ```python
         from qmm import weighted_structural_sensitivity, load_digraph
-        weighted_structural_sensitivity(load_digraph("snowshoe"))
+        weighted_structural_sensitivity(load_digraph("snowshoe_rp"))
         # Matrix([
         # [-1,   0, nan],
         # [-1, nan,   0],

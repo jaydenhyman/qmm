@@ -49,7 +49,7 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, sign_stability
-        sign_stability(load_digraph("snowshoe"))
+        sign_stability(load_digraph("snowshoe_rp"))
         #             Test                                                                     Definition  Result
         # 0    Condition i                                                       No positive self-effects    True
         # 1   Condition ii                                           At least one node is self-regulating    True
@@ -119,18 +119,18 @@ def system_feedback(
     Examples:
         ```python
         from qmm import load_digraph, system_feedback
-        system_feedback(load_digraph("snowshoe"), level=2, form='symbolic')
-        # Matrix([[-a_H,P*a_P,H - a_H,V*a_V,H - a_P,P*a_V,V]])
+        system_feedback(load_digraph("snowshoe_rp"), level=2, form='symbolic')
+        # Matrix([[-a_C,P*a_P,C - a_C,R*a_R,C - a_P,P*a_R,R]])
 
-        system_feedback(load_digraph("snowshoe"), level=3, form='symbolic')
-        # Matrix([[-a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H - a_H,V*a_P,P*a_V,H]])
+        system_feedback(load_digraph("snowshoe_rp"), level=3, form='symbolic')
+        # Matrix([[-a_C,P*a_P,C*a_R,R + a_C,P*a_P,R*a_R,C - a_C,R*a_P,P*a_R,C]])
 
-        system_feedback(load_digraph("snowshoe"), form='symbolic')
+        system_feedback(load_digraph("snowshoe_rp"), form='symbolic')
         # Matrix([
         # [                                                        -1],
-        # [                                            -a_P,P - a_V,V],
-        # [                  -a_H,P*a_P,H - a_H,V*a_V,H - a_P,P*a_V,V],
-        # [-a_H,P*a_P,H*a_V,V + a_H,P*a_P,V*a_V,H - a_H,V*a_P,P*a_V,H]])
+        # [                                            -a_P,P - a_R,R],
+        # [                  -a_C,P*a_P,C - a_C,R*a_R,C - a_P,P*a_R,R],
+        # [-a_C,P*a_P,C*a_R,R + a_C,P*a_P,R*a_R,C - a_C,R*a_P,P*a_R,C]])
         ```
     """
     A = create_matrix(G, form=form)
@@ -166,10 +166,10 @@ def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     Examples:
         ```python
         from qmm import load_digraph, net_feedback
-        net_feedback(load_digraph("snowshoe"), level=2)
+        net_feedback(load_digraph("snowshoe_rp"), level=2)
         # Matrix([[-3]])
 
-        net_feedback(load_digraph("snowshoe"))
+        net_feedback(load_digraph("snowshoe_rp"))
         # Matrix([
         # [-1],
         # [-2],
@@ -201,10 +201,10 @@ def absolute_feedback(
     Examples:
         ```python
         from qmm import load_digraph, absolute_feedback
-        absolute_feedback(load_digraph("snowshoe"), level=2)
+        absolute_feedback(load_digraph("snowshoe_rp"), level=2)
         # Matrix([[3]])
 
-        absolute_feedback(load_digraph("snowshoe"))
+        absolute_feedback(load_digraph("snowshoe_rp"))
         # Matrix([
         # [1],
         # [2],
@@ -258,10 +258,10 @@ def weighted_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     Examples:
         ```python
         from qmm import load_digraph, weighted_feedback
-        weighted_feedback(load_digraph("snowshoe"), level=2)
+        weighted_feedback(load_digraph("snowshoe_rp"), level=2)
         # Matrix([[-1]])
 
-        weighted_feedback(load_digraph("snowshoe"))
+        weighted_feedback(load_digraph("snowshoe_rp"))
         # Matrix([
         # [  -1],
         # [  -1],
@@ -301,7 +301,7 @@ def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, feedback_metrics
-        feedback_metrics(load_digraph("snowshoe"))
+        feedback_metrics(load_digraph("snowshoe_rp"))
         #   Feedback level Net Absolute Positive Negative Weighted
         # 0              0  -1        1        0        1       -1
         # 1              1  -2        2        0        2       -1
@@ -351,8 +351,8 @@ def hurwitz_determinants(
     Examples:
         ```python
         from qmm import load_digraph, hurwitz_determinants
-        hurwitz_determinants(load_digraph("snowshoe"), level=2, form='symbolic')
-        # Matrix([[a_H,P*a_P,H*a_P,P + a_H,P*a_P,V*a_V,H + a_H,V*a_V,H*a_V,V + a_P,P**2*a_V,V + a_P,P*a_V,V**2]])
+        hurwitz_determinants(load_digraph("snowshoe_rp"), level=2, form='symbolic')
+        # Matrix([[a_C,P*a_P,C*a_P,P + a_C,P*a_P,R*a_R,C + a_C,R*a_R,C*a_R,R + a_P,P**2*a_R,R + a_P,P*a_R,R**2]])
         ```
     """
     fb = system_feedback(G, level=None, form=form)
@@ -386,10 +386,10 @@ def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     Examples:
         ```python
         from qmm import load_digraph, net_determinants
-        net_determinants(load_digraph("snowshoe"), level=2)
+        net_determinants(load_digraph("snowshoe_rp"), level=2)
         # Matrix([[5]])
 
-        net_determinants(load_digraph("snowshoe"))
+        net_determinants(load_digraph("snowshoe_rp"))
         # Matrix([
         # [1],
         # [2],
@@ -416,10 +416,10 @@ def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
     Examples:
         ```python
         from qmm import load_digraph, absolute_determinants
-        absolute_determinants(load_digraph("snowshoe"), level=2)
+        absolute_determinants(load_digraph("snowshoe_rp"), level=2)
         # Matrix([[9]])
 
-        absolute_determinants(load_digraph("snowshoe"))
+        absolute_determinants(load_digraph("snowshoe_rp"))
         # Matrix([
         # [ 1],
         # [ 2],
@@ -462,10 +462,10 @@ def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
     Examples:
         ```python
         from qmm import load_digraph, weighted_determinants
-        weighted_determinants(load_digraph("snowshoe"), level=2)
+        weighted_determinants(load_digraph("snowshoe_rp"), level=2)
         # Matrix([[5/9]])
 
-        weighted_determinants(load_digraph("snowshoe"))
+        weighted_determinants(load_digraph("snowshoe_rp"))
         # Matrix([
         # [   1],
         # [   1],
@@ -494,7 +494,7 @@ def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, determinants_metrics
-        determinants_metrics(load_digraph("snowshoe"))
+        determinants_metrics(load_digraph("snowshoe_rp"))
         #   Hurwitz determinant Net Absolute Weighted
         # 0                   0   1        1        1
         # 1                   1   2        2        1
@@ -544,7 +544,7 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, conditional_stability
-        conditional_stability(load_digraph("snowshoe"))
+        conditional_stability(load_digraph("snowshoe_rp"))
         #                       Test                                                 Definition   Result
         # 0        Weighted feedback                        Maximum weighted feedback (level 3)    -0.33
         # 1     Weighted determinant                          n-1 weighted determinant at level     0.56
@@ -621,7 +621,7 @@ def simulation_stability(
     Examples:
         ```python
         from qmm import load_digraph, simulation_stability
-        simulation_stability(load_digraph("snowshoe"), n_sim=1000)
+        simulation_stability(load_digraph("snowshoe_rp"), n_sim=1000)
         #                         Test                                                             Definition  Result
         # 0            Stable matrices              Proportion where all eigenvalues have negative real parts  79.10%
         # 1          Unstable matrices      Proportion where one or more eigenvalues have positive real parts  20.90%

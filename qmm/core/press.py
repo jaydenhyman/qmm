@@ -37,25 +37,25 @@ def adjoint_matrix(
     Examples:
         ```python
         from qmm import load_digraph, adjoint_matrix
-        adjoint_matrix(load_digraph("snowshoe"), form='symbolic')
+        adjoint_matrix(load_digraph("snowshoe_rp"), form='symbolic')
         # Matrix([
-        # [               a_H,P*a_P,H,              -a_P,P*a_V,H,  a_H,P*a_V,H],
-        # [-a_H,P*a_P,V + a_H,V*a_P,P,               a_P,P*a_V,V, -a_H,P*a_V,V],
-        # [               a_H,V*a_P,H, a_P,H*a_V,V - a_P,V*a_V,H,  a_H,V*a_V,H]])
+        # [               a_C,P*a_P,C,              -a_P,P*a_R,C,  a_C,P*a_R,C],
+        # [-a_C,P*a_P,R + a_C,R*a_P,P,               a_P,P*a_R,R, -a_C,P*a_R,R],
+        # [               a_C,R*a_P,C, a_P,C*a_R,R - a_P,R*a_R,C,  a_C,R*a_R,C]])
 
-        adjoint_matrix(load_digraph("snowshoe"), form='symbolic', perturb='V')
+        adjoint_matrix(load_digraph("snowshoe_rp"), form='symbolic', perturb='R')
         # Matrix([
-        # [               a_H,P*a_P,H],
-        # [-a_H,P*a_P,V + a_H,V*a_P,P],
-        # [               a_H,V*a_P,H]])
+        # [               a_C,P*a_P,C],
+        # [-a_C,P*a_P,R + a_C,R*a_P,P],
+        # [               a_C,R*a_P,C]])
 
-        adjoint_matrix(load_digraph("snowshoe"), form='signed')
+        adjoint_matrix(load_digraph("snowshoe_rp"), form='signed')
         # Matrix([
         # [1, -1,  1],
         # [0,  1, -1],
         # [1,  0,  1]])
 
-        adjoint_matrix(load_digraph("snowshoe"), form='signed', perturb='V')
+        adjoint_matrix(load_digraph("snowshoe_rp"), form='signed', perturb='R')
         # Matrix([
         # [1],
         # [0],
@@ -74,6 +74,7 @@ def adjoint_matrix(
     adjoint_matrix = sp.expand(A.adjugate())
     return sp.Matrix(adjoint_matrix)
 
+
 @cache
 def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp.Matrix:
     """Calculate total number of both positive and negative terms for press perturbation response.
@@ -91,13 +92,13 @@ def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp
     Examples:
         ```python
         from qmm import load_digraph, absolute_feedback_matrix
-        absolute_feedback_matrix(load_digraph("snowshoe"))
+        absolute_feedback_matrix(load_digraph("snowshoe_rp"))
         # Matrix([
         # [1, 1, 1],
         # [2, 1, 1],
         # [1, 2, 1]])
 
-        absolute_feedback_matrix(load_digraph("snowshoe"), perturb='V')
+        absolute_feedback_matrix(load_digraph("snowshoe_rp"), perturb='R')
         # Matrix([
         # [1],
         # [2],
@@ -143,25 +144,25 @@ def weighted_predictions_matrix(G: nx.DiGraph, as_nan: bool = True, as_abs: bool
     Examples:
         ```python
         from qmm import load_digraph, weighted_predictions_matrix
-        weighted_predictions_matrix(load_digraph("snowshoe"))
+        weighted_predictions_matrix(load_digraph("snowshoe_rp"))
         # Matrix([
         # [1, -1,  1],
         # [0,  1, -1],
         # [1,  0,  1]])
 
-        weighted_predictions_matrix(load_digraph("snowshoe"), perturb='V')
+        weighted_predictions_matrix(load_digraph("snowshoe_rp"), perturb='R')
         # Matrix([
         # [1],
         # [0],
         # [1]])
 
-        weighted_predictions_matrix(load_digraph("snowshoe"), as_abs=True)
+        weighted_predictions_matrix(load_digraph("snowshoe_rp"), as_abs=True)
         # Matrix([
         # [1, 1, 1],
         # [0, 1, 1],
         # [1, 0, 1]])
 
-        weighted_predictions_matrix(load_digraph("snowshoe"), as_abs=False)
+        weighted_predictions_matrix(load_digraph("snowshoe_rp"), as_abs=False)
         # Matrix([
         # [1, -1,  1],
         # [0,  1, -1],
@@ -204,25 +205,25 @@ def sign_determinacy_matrix(
     Examples:
         ```python
         from qmm import load_digraph, sign_determinacy_matrix
-        sign_determinacy_matrix(load_digraph("snowshoe"), method='average')
+        sign_determinacy_matrix(load_digraph("snowshoe_rp"), method='average')
         # Matrix([
         # [  1,  -1,  1],
         # [1/2,   1, -1],
         # [  1, 1/2,  1]])
 
-        sign_determinacy_matrix(load_digraph("snowshoe"), method='average', perturb='V')
+        sign_determinacy_matrix(load_digraph("snowshoe_rp"), method='average', perturb='R')
         # Matrix([
         # [  1],
         # [1/2],
         # [  1]])
 
-        sign_determinacy_matrix(load_digraph("snowshoe"), method='average', as_abs=True)
+        sign_determinacy_matrix(load_digraph("snowshoe_rp"), method='average', as_abs=True)
         # Matrix([
         # [  1,   1, 1],
         # [1/2,   1, 1],
         # [  1, 1/2, 1]])
 
-        sign_determinacy_matrix(load_digraph("snowshoe"), method='average', as_abs=False)
+        sign_determinacy_matrix(load_digraph("snowshoe_rp"), method='average', as_abs=False)
         # Matrix([
         # [  1,  -1,  1],
         # [1/2,   1, -1],
@@ -267,25 +268,25 @@ def numerical_simulations(
     Examples:
         ```python
         from qmm import load_digraph, numerical_simulations
-        numerical_simulations(load_digraph("snowshoe"), n_sim=1000, seed=42)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42)
         # Matrix([
         # [  1.0,  -1.0,  1.0],
         # [0.621,   1.0, -1.0],
         # [  1.0, 0.639,  1.0]])
 
-        numerical_simulations(load_digraph("snowshoe"), n_sim=1000, seed=42, as_abs=True)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, as_abs=True)
         # Matrix([
         # [  1.0,   1.0, 1.0],
         # [0.621,   1.0, 1.0],
         # [  1.0, 0.639, 1.0]])
 
-        numerical_simulations(load_digraph("snowshoe"), n_sim=1000, seed=42, as_abs=False)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, as_abs=False)
         # Matrix([
         # [  1.0,  -1.0,  1.0],
         # [0.621,   1.0, -1.0],
         # [  1.0, 0.639,  1.0]])
 
-        numerical_simulations(load_digraph("snowshoe"), n_sim=1000, seed=42, positive_only=True)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, positive_only=True)
         # Matrix([
         # [  1.0,   0.0, 1.0],
         # [0.621,   1.0, 0.0],

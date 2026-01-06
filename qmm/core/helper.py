@@ -58,10 +58,11 @@ def load_digraph(model: str) -> nx.DiGraph:
 
     Args:
         model: Name of the built-in model to load. Available models:
-            - "snowshoe": Simple 3-node predator-prey model
+            - "snowshoe": Simple 3-node predator-prey model (R, C, P)
+            - "snowshoe_rp": Snowshoe model with an added positive R->P link
+            - "snowshoe_io": Snowshoe_rp model with input/output nodes
             - "chain": 5-node linear chain with self-effects
             - "mesocosm": 8-node complex ecosystem model
-            - "class_ii": 3-node Class II stable model
 
     Returns:
         nx.DiGraph: A NetworkX directed graph with signed edges.
@@ -72,26 +73,22 @@ def load_digraph(model: str) -> nx.DiGraph:
     Examples:
         ```python
         from qmm import load_digraph
-        G = load_digraph("snowshoe")
+        G = load_digraph("snowshoe_rp")
         list(G.nodes())
-        # ['V', 'H', 'P']
+        # ['R', 'C', 'P']
 
         list(G.edges(data='sign'))
-        # [('V', 'V', -1), ('V', 'H', 1), ('V', 'P', 1), ('H', 'V', -1), ('H', 'P', 1), ('P', 'H', -1), ('P', 'P', -1)]
+        # [('R', 'R', -1), ('R', 'C', 1), ('R', 'P', 1), ('C', 'R', -1), ('C', 'P', 1), ('P', 'C', -1), ('P', 'P', -1)]
         ```
     """
     models = {
         "snowshoe": {
+            "matrix": [[-1, -1, 0], [1, 0, -1], [0, 1, -1]],
+            "labels": ['R', 'C', 'P']
+        },
+        "snowshoe_rp": {
             "matrix": [[-1, -1, 0], [1, 0, -1], [1, 1, -1]],
-            "labels": ['V', 'H', 'P']
-        },
-        "snowshoe_i": {
-            "matrix": [[-1, -1, 0, 1], [1, 0, -1, 1], [1, 1, -1, -1], [0, 0, 0, 0]],
-            "labels": ['V', 'H', 'P', 'I']
-        },
-        "snowshoe_io": {
-            "matrix": [[-1, -1, 0, 1, 0], [1, 0, -1, 1, 0], [1, 1, -1, -1, 0], [0, 0, 0, 0, 0], [1, 1, 1, 0, 0]],
-            "labels": ['V', 'H', 'P', 'I', 'O']
+            "labels": ['R', 'C', 'P']
         },
         "chain": {
             "matrix": [[-1, -1, 0, 0, 0], [1, -1, -1, 0, 0], [0, 1, -1, -1, 0], [0, 0, 1, -1, -1], [0, 0, 0, 1, -1]],
@@ -109,38 +106,43 @@ def load_digraph(model: str) -> nx.DiGraph:
                 [0, 0, 0, 0, 1, 1, 1, -1],
             ],
             "labels": ['P', 'A1', 'A2', 'AP', 'H1', 'H2', 'C1', 'C2']
-        },
-        "class_ii": {
-            "matrix": [[-1, 1, 1], [1, -1, 1], [1, 1, -1]],
-            "labels": ['A', 'B', 'C']
         }
     }
 
+    if model == "snowshoe_io":
+        G = nx.DiGraph()
+        for node in ['R', 'C', 'P']:
+            G.add_node(node, category='state')
+        for node in ['Inp1', 'Inp2']:
+            G.add_node(node, category='input')
+        for node in ['Out1', 'Out2']:
+            G.add_node(node, category='output')
+        edges = [
+            ('R', 'R', -1),
+            ('R', 'C', 1),
+            ('C', 'R', -1),
+            ('C', 'P', 1),
+            ('P', 'C', -1),
+            ('P', 'P', -1),
+            ('Inp1', 'R', 1),
+            ('Inp1', 'C', -1),
+            ('Inp2', 'P', -1),
+            ('C', 'Out1', -1),
+            ('C', 'Out2', 1),
+            ('P', 'Out1', 1),
+        ]
+        for source, target, sign in edges:
+            G.add_edge(source, target, sign=sign)
+        nx.freeze(G)
+        return G
+
     if model not in models:
-        available = ', '.join(f'"{m}"' for m in models.keys())
+        available_models = list(models.keys()) + ["snowshoe_io"]
+        available = ', '.join(f'"{m}"' for m in sorted(available_models))
         raise ValueError(f"Model '{model}' not found. Available models: {available}")
 
     m = models[model]
     G = list_to_digraph(m["matrix"], m["labels"])
-
-    if model in ("snowshoe_i", "snowshoe_io"):
-        G_def = G.copy()
-        nx.set_node_attributes(G_def, "state", "category")
-        while True:
-            reclassified = False
-            for node in list(G_def.nodes()):
-                if G_def.nodes[node]["category"] == "state":
-                    if all(G_def.nodes[pred]["category"] == "input" for pred in G_def.predecessors(node)):
-                        G_def.nodes[node]["category"] = "input"
-                        reclassified = True
-                    elif all(G_def.nodes[succ]["category"] == "output" for succ in G_def.successors(node)):
-                        G_def.nodes[node]["category"] = "output"
-                        reclassified = True
-            if not reclassified:
-                break
-        nx.freeze(G_def)
-        return G_def
-
     return G
 
 
@@ -156,7 +158,7 @@ def digraph_to_list(G: nx.DiGraph) -> str:
     Examples:
         ```python
         from qmm import load_digraph, digraph_to_list
-        digraph_to_list(load_digraph("snowshoe"))
+        digraph_to_list(load_digraph("snowshoe_rp"))
         # '[[0, -1, 1], [1, -1, 1], [-1, 0, -1]]'
         ```
     """
@@ -190,8 +192,8 @@ def get_nodes(
     Examples:
         ```python
         from qmm import load_digraph, get_nodes
-        get_nodes(load_digraph("snowshoe"), "state")
-        # ['V', 'H', 'P']
+        get_nodes(load_digraph("snowshoe_rp"), "state")
+        # ['R', 'C', 'P']
         ```
     """
     if not isinstance(G, nx.DiGraph):
@@ -317,7 +319,7 @@ def sign_determinacy(
     Examples:
         ```python
         from qmm import load_digraph, weighted_predictions_matrix, absolute_feedback_matrix, sign_determinacy
-        G = load_digraph("snowshoe")
+        G = load_digraph("snowshoe_rp")
         wmat = weighted_predictions_matrix(G)
         tmat = absolute_feedback_matrix(G)
         sign_determinacy(wmat, tmat, method='average')
@@ -342,7 +344,7 @@ def sign_determinacy(
         t_float = float(t)
         exponent = bw * w_float + bwt * w_float * t_float
         
-        if exponent > 700:  # exp(700) is near the float64 limit
+        if exponent > 700:
             return MAX_PROB
             
         prob_float = np.exp(exponent) / (1 + np.exp(exponent))
@@ -392,9 +394,9 @@ def _arrows(G: nx.DiGraph, path: List[str]) -> str:
     arrows = []
     for i in range(len(path) - 1):
         if G[path[i]][path[i + 1]]["sign"] > 0:
-            arrows.append(f"{path[i]} $\\rightarrow$")  # Positive
+            arrows.append(f"{path[i]} $\\rightarrow$")
         else:
-            arrows.append(f"{path[i]} $\\multimap$")  # Negative
+            arrows.append(f"{path[i]} $\\multimap$")
     arrows.append(str(path[-1]))
     return " ".join(arrows)
 
@@ -418,7 +420,6 @@ class _NodeSign:
     @classmethod
     def from_str(cls, s: str) -> '_NodeSign':
         """Create from string like 'B:+' or 'B: +' or 'B:0'"""
-        # Strip whitespace
         s = s.strip()
         node, sign = s.split(":")
         node = node.strip()
@@ -550,7 +551,6 @@ def perm(A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg") -> float:
     if np.isnan(A).any():
         raise ValueError("Input matrix must not contain NaNs.")
 
-    # Handle small matrices directly for efficiency
     if matshape[0] == 0:
         return A.dtype.type(1.0)
     if matshape[0] == 1:
@@ -600,7 +600,6 @@ def _perm_ryser(M: np.ndarray) -> float:
         total += sign * reduced
         new_grey = bin_index ^ (bin_index // 2)
         grey_diff = old_grey ^ new_grey
-        # Find index of grey_diff in binary_power_dict
         grey_diff_index = 0
         for idx in range(n):
             if binary_power_dict[idx] == grey_diff:
@@ -646,7 +645,6 @@ def _perm_bbfg(M: np.ndarray) -> float:
         total += sign * reduced
         new_gray = bin_index ^ (bin_index // 2)
         gray_diff = old_gray ^ new_gray
-        # Find index of gray_diff in binary_power_dict
         gray_diff_index = 0
         for idx in range(n):
             if binary_power_dict[idx] == gray_diff:
@@ -721,9 +719,9 @@ def get_dashed_alternatives(G: nx.DiGraph, combinations: bool = True) -> List[nx
         ```python
         from qmm import load_digraph
         from qmm.core.helper import get_dashed_alternatives
-        G_mod = load_digraph("snowshoe").copy()
-        G_mod.remove_edge('V', 'P')
-        G_mod.add_edge('V', 'P', sign=1, dashes=True)
+        G_mod = load_digraph("snowshoe_rp").copy()
+        G_mod.remove_edge('C', 'P')
+        G_mod.add_edge('C', 'P', sign=1, dashes=True)
         variants = get_dashed_alternatives(G_mod, combinations=True)
 
         len(variants)

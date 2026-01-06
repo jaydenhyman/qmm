@@ -8,6 +8,8 @@ from functools import cache
 from ..core.helper import (
     get_nodes,
     get_weight,
+    get_positive,
+    get_negative,
     sign_determinacy,
     _random_sampler,
     _parse_perturbations,
@@ -21,6 +23,9 @@ from ..core.structure import create_matrix
 from ..core.press import (
     adjoint_matrix,
     absolute_feedback_matrix,
+    weighted_predictions_matrix,
+    sign_determinacy_matrix,
+    numerical_simulations,
 )
 from ..core.prediction import qualitative_predictions, matrix_to_predictions
 from typing import Callable, Dict, Optional, Any, Tuple, Literal, Union
@@ -41,7 +46,7 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.D
         from qmm import define_input_output, load_digraph
         G = load_digraph("snowshoe_io")
         G_io = define_input_output(G)
-        (G_io.nodes['I']['category'], G_io.nodes['O']['category'])
+        (G_io.nodes['Inp1']['category'], G_io.nodes['Out1']['category'])
         # ('input', 'output')
         ```
     """
@@ -78,6 +83,43 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.D
 
 
 @cache
+def direct_effects(
+    G: nx.DiGraph,
+    form: Literal["net", "absolute", "positive", "negative"] = "net",
+) -> sp.Matrix:
+    """Calculate direct effects from the signed digraph structure.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        form: Type of direct effects ('net', 'absolute', 'positive', 'negative')
+
+    Returns:
+        sp.Matrix: Direct effects for state/input columns and state/output rows
+    """
+    A_signed = create_matrix(G, form="signed", matrix_type="A")
+    B_signed = create_matrix(G, form="signed", matrix_type="B")
+    C_signed = create_matrix(G, form="signed", matrix_type="C")
+    D_signed = create_matrix(G, form="signed", matrix_type="D")
+    signed = sp.BlockMatrix([[A_signed, B_signed], [C_signed, D_signed]]).as_explicit()
+
+    A_binary = create_matrix(G, form="binary", matrix_type="A")
+    B_binary = create_matrix(G, form="binary", matrix_type="B")
+    C_binary = create_matrix(G, form="binary", matrix_type="C")
+    D_binary = create_matrix(G, form="binary", matrix_type="D")
+    binary = sp.BlockMatrix([[A_binary, B_binary], [C_binary, D_binary]]).as_explicit()
+
+    if form == "net":
+        return signed
+    if form == "absolute":
+        return binary
+    if form == "positive":
+        return get_positive(signed, binary)
+    if form == "negative":
+        return get_negative(signed, binary)
+    raise ValueError("Invalid form. Choose 'net', 'absolute', 'positive', 'negative'.")
+
+
+@cache
 def cumulative_effects(
     G: nx.DiGraph,
     form: Literal["symbolic", "signed", "binary"] = "symbolic",
@@ -95,21 +137,23 @@ def cumulative_effects(
         ```python
         from qmm import load_digraph, cumulative_effects
         cumulative_effects(load_digraph("snowshoe_io"), form='symbolic')[3, 3]
-        # a_H,P*a_P,H*b_V,I*c_O,V - a_H,P*a_P,V*b_V,I*c_O,H - a_H,P*a_V,H*b_P,I*c_O,V + a_H,P*a_V,V*b_P,I*c_O,H + a_H,V*a_P,H*b_V,I*c_O,P + a_H,V*a_P,P*b_V,I*c_O,H - a_H,V*a_V,H*b_P,I*c_O,P + a_P,H*a_V,V*b_H,I*c_O,P - a_P,P*a_V,H*b_H,I*c_O,V + a_P,P*a_V,V*b_H,I*c_O,H - a_P,V*a_V,H*b_H,I*c_O,P
+        # a_C,R*a_P,C*b_R,Inp1*c_Out1,P - a_C,R*a_P,P*b_R,Inp1*c_Out1,C - a_P,C*a_R,R*b_C,Inp1*c_Out1,P + a_P,P*a_R,R*b_C,Inp1*c_Out1,C
 
         cumulative_effects(load_digraph("snowshoe_io"), form='signed')
         # Matrix([
-        # [1, -1,  1, -1],
-        # [0,  1, -1,  2],
-        # [1,  0,  1,  0],
-        # [2,  0,  1,  1]])
+        # [1, -1,  1, 2, -1],
+        # [1,  1, -1, 0,  1],
+        # [1,  1,  1, 0, -1],
+        # [0,  0,  2, 0, -2],
+        # [1,  1, -1, 0,  1]])
 
         cumulative_effects(load_digraph("snowshoe_io"), form='binary')
         # Matrix([
-        # [1, 1, 1,  3],
-        # [2, 1, 1,  4],
-        # [1, 2, 1,  4],
-        # [4, 4, 3, 11]])
+        # [1, 1, 1, 2, 1],
+        # [1, 1, 1, 2, 1],
+        # [1, 1, 1, 2, 1],
+        # [2, 2, 2, 4, 2],
+        # [1, 1, 1, 2, 1]])
         ```
     """
     B = create_matrix(G, form=form, matrix_type="B")
@@ -129,6 +173,32 @@ def cumulative_effects(
     return sp.expand(cemat)
 
 
+def _tabulate_effects(
+    G: nx.DiGraph,
+    effects: Union[sp.Matrix, np.ndarray, pd.DataFrame],
+) -> pd.DataFrame:
+    """Format effects as a table with state/input columns and state/output rows."""
+    state = get_nodes(G, "state")
+    inputs = get_nodes(G, "input")
+    outputs = get_nodes(G, "output")
+    columns = state + inputs
+    index = state + outputs
+
+    if isinstance(effects, pd.DataFrame):
+        values = effects.to_numpy()
+    elif isinstance(effects, sp.Matrix):
+        values = np.array(effects.tolist(), dtype=object)
+    else:
+        values = np.array(effects, dtype=object)
+
+    df = pd.DataFrame(values, index=index, columns=columns)
+    col_groups = ["State"] * len(state) + ["Input"] * len(inputs)
+    row_groups = ["State"] * len(state) + ["Output"] * len(outputs)
+    df.columns = pd.MultiIndex.from_arrays([col_groups, columns])
+    df.index = pd.MultiIndex.from_arrays([row_groups, index])
+    return df
+
+
 @cache
 def net_effects(G: nx.DiGraph) -> sp.Matrix:
     """Calculate net cumulative effects from multiple inputs.
@@ -144,10 +214,11 @@ def net_effects(G: nx.DiGraph) -> sp.Matrix:
         from qmm import load_digraph, net_effects
         net_effects(load_digraph("snowshoe_io"))
         # Matrix([
-        # [1, -1,  1, -1],
-        # [0,  1, -1,  2],
-        # [1,  0,  1,  0],
-        # [2,  0,  1,  1]])
+        # [1, -1,  1, 2, -1],
+        # [1,  1, -1, 0,  1],
+        # [1,  1,  1, 0, -1],
+        # [0,  0,  2, 0, -2],
+        # [1,  1, -1, 0,  1]])
         ```
     """
     return cumulative_effects(G, form="signed")
@@ -168,10 +239,11 @@ def absolute_effects(G: nx.DiGraph) -> sp.Matrix:
         from qmm import load_digraph, absolute_effects
         absolute_effects(load_digraph("snowshoe_io"))
         # Matrix([
-        # [1, 1, 1,  3],
-        # [2, 1, 1,  4],
-        # [1, 2, 1,  4],
-        # [4, 4, 3, 11]])
+        # [1, 1, 1, 2, 1],
+        # [1, 1, 1, 2, 1],
+        # [1, 1, 1, 2, 1],
+        # [2, 2, 2, 4, 2],
+        # [1, 1, 1, 2, 1]])
         ```
     """
     return cumulative_effects(G, form="binary")
@@ -192,10 +264,11 @@ def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
         from qmm import load_digraph, weighted_effects
         weighted_effects(load_digraph("snowshoe_io"))
         # Matrix([
-        # [  1, -1,   1, -1/3],
-        # [  0,  1,  -1,  1/2],
-        # [  1,  0,   1,    0],
-        # [1/2,  0, 1/3, 1/11]])
+        # [1, -1,  1, 1, -1],
+        # [1,  1, -1, 0,  1],
+        # [1,  1,  1, 0, -1],
+        # [0,  0,  1, 0, -1],
+        # [1,  1, -1, 0,  1]])
         ```
     """
     net = cumulative_effects(G, form="signed")
@@ -222,21 +295,24 @@ def sign_determinacy_effects(
         from qmm import load_digraph, sign_determinacy_effects
         sign_determinacy_effects(load_digraph("snowshoe_io"), method='average')
         # Matrix([
-        # [                1,  -1,                 1, -0.766271554878084],
-        # [              1/2,   1,                -1,  0.857923586573834],
-        # [                1, 1/2,                 1,                1/2],
-        # [0.857923586573834, 1/2, 0.766271554878084,  0.586297666302382]])
+        # [  1,  -1,  1,   1, -1],
+        # [  1,   1, -1, 1/2,  1],
+        # [  1,   1,  1, 1/2, -1],
+        # [1/2, 1/2,  1, 1/2, -1],
+        # [  1,   1, -1, 1/2,  1]])
 
         sign_determinacy_effects(load_digraph("snowshoe_io"), method='95_bound')
         # Matrix([
-        # [  1,  -1,   1, -1/2],
-        # [1/2,   1,  -1,  1/2],
-        # [  1, 1/2,   1,  1/2],
-        # [1/2, 1/2, 1/2,  1/2]])
+        # [  1,  -1,  1,   1, -1],
+        # [  1,   1, -1, 1/2,  1],
+        # [  1,   1,  1, 1/2, -1],
+        # [1/2, 1/2,  1, 1/2, -1],
+        # [  1,   1, -1, 1/2,  1]])
         ```
     """
-    weighted = weighted_effects(G)
+    net = cumulative_effects(G, form="signed")
     absolute = cumulative_effects(G, form="binary")
+    weighted = get_weight(net, absolute)
     return sign_determinacy(weighted, absolute, method=method)
 
 
@@ -270,9 +346,9 @@ def get_simulations(
     Examples:
         ```python
         from qmm import get_simulations, load_digraph
-        result = get_simulations(load_digraph("snowshoe_io"), n_sim=1000, perturb=('V', 1))
+        result = get_simulations(load_digraph("snowshoe_io"), n_sim=1000, perturb=('Inp1', 1))
         result['effects'][0]
-        # array([  7.97294786, -33.66459468,   6.1386996 , -12.69217711])
+        # array([ 0.20429708, -0.79306194, -0.97014254, -0.14970721, -0.41616435])
         ```
     """
 
@@ -399,17 +475,19 @@ def simulation_effects(
         from qmm import load_digraph, simulation_effects
         simulation_effects(load_digraph("snowshoe_io"), n_sim=1000)
         # Matrix([
-        # [  1.0,  -1.0,   1.0, -0.697],
-        # [0.651,   1.0,  -1.0,  0.962],
-        # [  1.0, 0.638,   1.0,   0.61],
-        # [0.952,  0.62, 0.694,  0.716]])
+        # [   1.0,   -1.0,  1.0,   1.0, -1.0],
+        # [   1.0,    1.0, -1.0, 0.511,  1.0],
+        # [   1.0,    1.0,  1.0, 0.511, -1.0],
+        # [-0.524, -0.524,  1.0, 0.513, -1.0],
+        # [   1.0,    1.0, -1.0, 0.511,  1.0]])
 
         simulation_effects(load_digraph("snowshoe_io"), n_sim=1000, positive_only=True)
         # Matrix([
-        # [  1.0,   0.0,   1.0, 0.303],
-        # [0.651,   1.0,   0.0, 0.962],
-        # [  1.0, 0.638,   1.0,  0.61],
-        # [0.952,  0.62, 0.694, 0.716]])
+        # [  1.0,   0.0, 1.0,   1.0, 0.0],
+        # [  1.0,   1.0, 0.0, 0.511, 1.0],
+        # [  1.0,   1.0, 1.0, 0.511, 0.0],
+        # [0.476, 0.476, 1.0, 0.513, 0.0],
+        # [  1.0,   1.0, 0.0, 0.511, 1.0]])
         ```
     """
     sims = get_simulations(G, n_sim, dist, seed, presample=presample)
@@ -455,12 +533,13 @@ def simulations_table(
     Examples:
         ```python
         from qmm import load_digraph, simulations_table
-        simulations_table(load_digraph("snowshoe_io"), perturb='I:+', n_sim=1000)
+        simulations_table(load_digraph("snowshoe_io"), perturb='Inp1:+', n_sim=1000)
         #    model effect_on  negative  no_effect  positive  valid_sims  stable_sims  attempts
-        # 0      1         V       697          0       303        1000         1000      1230
-        # 1      1         H        38          0       962        1000         1000      1230
-        # 2      1         P       390          0       610        1000         1000      1230
-        # 3      1         O       284          0       716        1000         1000      1230
+        # 0      1         R         0          0      1000        1000         1000      1000
+        # 1      1         C       489          0       511        1000         1000      1000
+        # 2      1         P       489          0       511        1000         1000      1000
+        # 3      1      Out1       487          0       513        1000         1000      1000
+        # 4      1      Out2       489          0       511        1000         1000      1000
         ```
     """
     variants = get_dashed_alternatives(G, combinations=combinations)
@@ -517,9 +596,63 @@ def simulations_table(
     return pd.DataFrame(rows, columns=cols)
 
 
+def table_of_direct_effects(
+    G: nx.DiGraph,
+    form: Literal["net", "absolute", "positive", "negative"] = "net",
+) -> pd.DataFrame:
+    """Create a table of direct effects with state/input columns and state/output rows."""
+    return _tabulate_effects(G, direct_effects(G, form=form))
+
+
+def table_of_effects(
+    G: nx.DiGraph,
+    generator: Union[
+        Callable[..., Union[sp.Matrix, np.ndarray, pd.DataFrame]],
+        Literal[
+            "net_effects",
+            "absolute_effects",
+            "weighted_effects",
+            "sign_determinacy_effects",
+            "simulation_effects",
+        ],
+    ] = net_effects,
+) -> pd.DataFrame:
+    """Create a table of effects with state/input columns and state/output rows."""
+    generator_name = None
+    if isinstance(generator, str):
+        generator_name = generator
+        generator = {
+            "net_effects": net_effects,
+            "absolute_effects": absolute_effects,
+            "weighted_effects": weighted_effects,
+            "sign_determinacy_effects": sign_determinacy_effects,
+            "simulation_effects": simulation_effects,
+        }.get(generator)
+    if not callable(generator):
+        raise ValueError(f"Generator must be callable, got: {type(generator)}")
+    if generator_name is None:
+        generator_name = getattr(generator, "__name__", None)
+
+    effects = generator(G)
+    if generator_name in {"weighted_effects", "sign_determinacy_effects", "numerical_simulations"}:
+        if isinstance(effects, sp.MatrixBase):
+            effects = effects.evalf(2)
+    return _tabulate_effects(G, effects)
+
+
 def table_of_predictions(
     G: nx.DiGraph,
-    generator: Callable[..., Union[sp.Matrix, np.ndarray]] = simulation_effects,
+    generator: Union[
+        Callable[..., Union[sp.Matrix, np.ndarray, pd.DataFrame]],
+        Literal[
+            "weighted_predictions_matrix",
+            "sign_determinacy_matrix",
+            "numerical_simulations",
+            "weighted_effects",
+            "sign_determinacy_effects",
+            "simulation_effects",
+        ],
+    ] = simulation_effects,
     t1: float = 0.8,
     t2: float = 0.95,
 ) -> pd.DataFrame:
@@ -552,14 +685,24 @@ def table_of_predictions(
         ```python
         from qmm import load_digraph, weighted_effects, table_of_predictions
         table_of_predictions(load_digraph("snowshoe_io"), generator=weighted_effects, t1=0.5, t2=1.0)
-        #          State       Input
-        #              V  H  P     I
-        # State  V     +  −  +     ?
-        #        H     ?  +  −   (+)
-        #        P     +  ?  +     ?
-        # Output O   (+)  ?  ?     ?
+        #             State       Input     
+        #                 R  C  P  Inp1 Inp2
+        # State  R        +  −  +     +    −
+        #        C        +  +  −     ?    +
+        #        P        +  +  +     ?    −
+        # Output Out1     ?  ?  +     ?    −
+        #        Out2     +  +  −     ?    +
         ```
     """
+    if isinstance(generator, str):
+        generator = {
+            "weighted_predictions_matrix": weighted_predictions_matrix,
+            "sign_determinacy_matrix": sign_determinacy_matrix,
+            "numerical_simulations": numerical_simulations,
+            "weighted_effects": weighted_effects,
+            "sign_determinacy_effects": sign_determinacy_effects,
+            "simulation_effects": simulation_effects,
+        }.get(generator)
     if not callable(generator):
         raise ValueError(f"Generator must be callable, got: {type(generator)}")
 
@@ -567,7 +710,6 @@ def table_of_predictions(
     pred_matrix = qualitative_predictions(G, generator=generator, t1=t1, t2=t2)
     state = get_nodes(G, "state")
 
-    # Check if this is an effects generator that produces extended matrices
     if generator_name in (
         "sign_determinacy_effects",
         "simulation_effects",
@@ -578,10 +720,6 @@ def table_of_predictions(
         columns = state + inputs
         index = state + outputs
         df = matrix_to_predictions(pred_matrix, t1=t1, t2=t2, index=index, columns=columns)
-        col_groups = ["State"] * len(state) + ["Input"] * len(inputs)
-        row_groups = ["State"] * len(state) + ["Output"] * len(outputs)
-        df.columns = pd.MultiIndex.from_arrays([col_groups, columns])
-        df.index = pd.MultiIndex.from_arrays([row_groups, index])
-        return df
+        return _tabulate_effects(G, df)
 
     return matrix_to_predictions(pred_matrix, t1=t1, t2=t2, index=state, columns=state)

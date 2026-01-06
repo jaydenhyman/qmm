@@ -27,19 +27,18 @@ def get_cycles(G: nx.DiGraph) -> sp.Matrix:
     Examples:
         ```python
         from qmm import get_cycles, load_digraph
-        get_cycles(load_digraph("snowshoe"))
+        get_cycles(load_digraph("snowshoe_rp"))
         # Matrix([
         # [           -a_P,P],
-        # [           -a_V,V],
-        # [     -a_H,P*a_P,H],
-        # [     -a_H,V*a_V,H],
-        # [a_H,P*a_P,V*a_V,H]])
+        # [           -a_R,R],
+        # [     -a_C,P*a_P,C],
+        # [     -a_C,R*a_R,C],
+        # [a_C,P*a_P,R*a_R,C]])
         ```
     """
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
     node_id = {n: i for i, n in enumerate(nodes)}
-    # Normalize cycles to start from smallest node for deterministic ordering
     cycle_nodes = sorted(
         [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
         key=lambda x: (len(x), x)
@@ -66,16 +65,15 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import cycles_table, load_digraph
-        cycles_table(load_digraph("snowshoe"))
-        #    Length                                              Cycle Sign
-        # 0       1                                    P $\multimap$ P    −
-        # 1       1                                    V $\multimap$ V    −
-        # 2       2                H $\longrightarrow$ P $\multimap$ H    −
-        # 3       2                H $\multimap$ V $\longrightarrow$ H    −
-        # 4       3  H $\multimap$ V $\longrightarrow$ P $\multimap$ H    +
+        cycles_table(load_digraph("snowshoe_rp"))
+        #    Length                                          Cycle Sign
+        # 0       1                                P $\\multimap$ P    −
+        # 1       1                                R $\\multimap$ R    −
+        # 2       2                C $\\rightarrow$ P $\\multimap$ C    −
+        # 3       2                C $\\multimap$ R $\\rightarrow$ C    −
+        # 4       3  C $\\multimap$ R $\\rightarrow$ P $\\multimap$ C    +
         ```
     """
-    # Normalize cycles to start from smallest node for deterministic ordering
     cycle_nodes = sorted(
         [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
         key=lambda x: (len(x), x)
@@ -117,21 +115,21 @@ def get_paths(
     Examples:
         ```python
         from qmm import get_paths, load_digraph
-        get_paths(load_digraph("snowshoe_io"), 'I', 'H', form='symbolic')
+        get_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='symbolic')
         # Matrix([
-        # [       a_H,V*b_V,I],
-        # [-a_H,P*a_P,V*b_V,I],
-        # [             b_H,I],
-        # [       a_H,P*b_P,I]])
+        # [a_C,R*a_P,C*b_R,Inp1*c_Out1,P],
+        # [     -a_C,R*b_R,Inp1*c_Out1,C],
+        # [     -a_P,C*b_C,Inp1*c_Out1,P],
+        # [            b_C,Inp1*c_Out1,C]])
 
-        get_paths(load_digraph("snowshoe_io"), 'I', 'H', form='signed')
+        get_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='signed')
         # Matrix([
         # [ 1],
         # [-1],
-        # [ 1],
+        # [-1],
         # [ 1]])
 
-        get_paths(load_digraph("snowshoe_io"), 'I', 'H', form='binary')
+        get_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='binary')
         # Matrix([
         # [1],
         # [1],
@@ -192,12 +190,12 @@ def paths_table(G: nx.DiGraph, source: str, target: str) -> Optional[pd.DataFram
     Examples:
         ```python
         from qmm import paths_table, load_digraph
-        paths_table(load_digraph("snowshoe_io"), 'I', 'H')
-        #    Length                                                     Path Sign
-        # 0       2                I $\longrightarrow$ V $\longrightarrow$ H    +
-        # 1       3  I $\longrightarrow$ V $\longrightarrow$ P $\multimap$ H    −
-        # 2       1                                    I $\longrightarrow$ H    +
-        # 3       2                            I $\multimap$ P $\multimap$ H    +
+        paths_table(load_digraph("snowshoe_io"), 'Inp1', 'Out1')
+        #    Length                                                                     Path Sign
+        # 0       4  Inp1 $\\rightarrow$ R $\\rightarrow$ C $\\rightarrow$ P $\\rightarrow$ Out1    +
+        # 1       3                    Inp1 $\\rightarrow$ R $\\rightarrow$ C $\\multimap$ Out1    −
+        # 2       3                    Inp1 $\\multimap$ C $\\rightarrow$ P $\\rightarrow$ Out1    −
+        # 3       2                                      Inp1 $\\multimap$ C $\\multimap$ Out1    +
         ```
     """
     nodes = get_nodes(G, "all")
@@ -241,21 +239,21 @@ def complementary_feedback(
     Examples:
         ```python
         from qmm import complementary_feedback, load_digraph
-        complementary_feedback(load_digraph("snowshoe_io"), 'I', 'H', form='symbolic')
+        complementary_feedback(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='symbolic')
         # Matrix([
-        # [      -a_P,P],
         # [          -1],
-        # [-a_P,P*a_V,V],
-        # [      -a_V,V]])
+        # [      -a_P,P],
+        # [      -a_R,R],
+        # [-a_P,P*a_R,R]])
 
-        complementary_feedback(load_digraph("snowshoe_io"), 'I', 'H', form='signed')
+        complementary_feedback(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='signed')
         # Matrix([
         # [-1],
         # [-1],
         # [-1],
         # [-1]])
 
-        complementary_feedback(load_digraph("snowshoe_io"), 'I', 'H', form='binary')
+        complementary_feedback(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='binary')
         # Matrix([
         # [1],
         # [1],
@@ -314,21 +312,21 @@ def system_paths(
     Examples:
         ```python
         from qmm import system_paths, load_digraph
-        system_paths(load_digraph("snowshoe_io"), 'I', 'H', form='symbolic')
+        system_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='symbolic')
         # Matrix([
-        # [ a_H,V*a_P,P*b_V,I],
-        # [-a_H,P*a_P,V*b_V,I],
-        # [ a_P,P*a_V,V*b_H,I],
-        # [ a_H,P*a_V,V*b_P,I]])
+        # [ a_C,R*a_P,C*b_R,Inp1*c_Out1,P],
+        # [-a_C,R*a_P,P*b_R,Inp1*c_Out1,C],
+        # [-a_P,C*a_R,R*b_C,Inp1*c_Out1,P],
+        # [ a_P,P*a_R,R*b_C,Inp1*c_Out1,C]])
 
-        system_paths(load_digraph("snowshoe_io"), 'I', 'H', form='signed')
+        system_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='signed')
         # Matrix([
         # [ 1],
         # [-1],
-        # [ 1],
+        # [-1],
         # [ 1]])
 
-        system_paths(load_digraph("snowshoe_io"), 'I', 'H', form='binary')
+        system_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1', form='binary')
         # Matrix([
         # [1],
         # [1],
@@ -360,11 +358,11 @@ def weighted_paths(G: nx.DiGraph, source: str, target: str) -> sp.Matrix:
     Examples:
         ```python
         from qmm import weighted_paths, load_digraph
-        weighted_paths(load_digraph("snowshoe_io"), 'I', 'H')
+        weighted_paths(load_digraph("snowshoe_io"), 'Inp1', 'Out1')
         # Matrix([
         # [ 1],
         # [-1],
-        # [ 1],
+        # [-1],
         # [ 1]])
         ```
     """
@@ -406,12 +404,12 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import path_metrics, load_digraph
-        path_metrics(load_digraph("snowshoe_io"), 'I', 'H')
-        #    Length        Path Path sign Complementary subsystem Net feedback Absolute feedback Positive feedback Negative feedback Weighted feedback Weighted path
-        # 0       2     I, V, H         +                       P           -1                 1                 0                 1                -1             1
-        # 1       3  I, V, P, H         −                    None           -1                 1                 0                 1                -1            -1
-        # 2       1        I, H         +                    V, P           -1                 1                 0                 1                -1             1
-        # 3       2     I, P, H         +                       V           -1                 1                 0                 1                -1             1
+        path_metrics(load_digraph("snowshoe_io"), 'Inp1', 'Out1')
+        #    Length                 Path Path sign Complementary subsystem Net feedback Absolute feedback Positive feedback Negative feedback Weighted feedback Weighted path
+        # 0       4  Inp1, R, C, P, Out1         +                    None           -1                 1                 0                 1                -1             1
+        # 1       3     Inp1, R, C, Out1         −                       P           -1                 1                 0                 1                -1            -1
+        # 2       3     Inp1, C, P, Out1         −                       R           -1                 1                 0                 1                -1            -1
+        # 3       2        Inp1, C, Out1         +                    R, P           -1                 1                 0                 1                -1             1
         ```
     """
     _check_direct_io_edges(G)

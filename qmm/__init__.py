@@ -77,6 +77,7 @@ from .extensions.paths import (
 from .extensions.effects import (
     define_input_output,
     cumulative_effects,
+    direct_effects,
     net_effects,
     absolute_effects,
     weighted_effects,
@@ -84,6 +85,8 @@ from .extensions.effects import (
     get_simulations,
     simulation_effects,
     simulations_table,
+    table_of_direct_effects,
+    table_of_effects,
     table_of_predictions,
 )
 
@@ -174,6 +177,7 @@ __all__ = [
     # effects.py
     "define_input_output",
     "cumulative_effects",
+    "direct_effects",
     "net_effects",
     "absolute_effects",
     "weighted_effects",
@@ -181,6 +185,8 @@ __all__ = [
     "get_simulations",
     "simulation_effects",
     "simulations_table",
+    "table_of_direct_effects",
+    "table_of_effects",
     "table_of_predictions",
     # indicators.py
     "mutual_information",

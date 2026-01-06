@@ -30,14 +30,14 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
     Examples:
         ```python
         from qmm import mutual_information, load_digraph
-        G1 = load_digraph("snowshoe")
+        G1 = load_digraph("snowshoe_rp")
         G2 = G1.copy()
-        G2.remove_edge('V', 'P')
-        mutual_information((G1, G2), perturb='V:+', n_sim=1000)
+        G2.remove_edge('C', 'P')
+        mutual_information((G1, G2), perturb='R:+', n_sim=1000)
         #   Node  Mutual Information
-        # 0    H            0.147516
-        # 1    P            0.000000
-        # 2    V            0.000000
+        # 0    R            0.522021
+        # 1    P            0.463441
+        # 2    C            0.147516
         ```
     """
     models = [models] if not isinstance(models, (list, tuple)) else list(models)

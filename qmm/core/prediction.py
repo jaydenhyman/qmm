@@ -4,13 +4,15 @@ import numpy as np
 import sympy as sp
 import pandas as pd
 import networkx as nx
-from typing import Union, List, Optional, Callable
+from typing import Union, List, Optional, Callable, Literal
 from .press import (
     numerical_simulations,
+    weighted_predictions_matrix,
+    sign_determinacy_matrix,
 )
 
 def _apply_thresholds(
-    M: Union[sp.Matrix, np.ndarray],
+    M: Union[sp.Matrix, np.ndarray, pd.DataFrame],
     t1: float,
     t2: float,
 ) -> list[list[str]]:
@@ -20,6 +22,8 @@ def _apply_thresholds(
         raise ValueError("t2 must be between 0 and 1")
     if t1 > t2:
         raise ValueError("t1 must be less than or equal to t2")
+    if isinstance(M, pd.DataFrame):
+        M = M.to_numpy()
     if isinstance(M, sp.Matrix):
         M = sp.matrix2numpy(M, dtype=float)
 
@@ -41,7 +45,14 @@ def _apply_thresholds(
 
 def qualitative_predictions(
     G: nx.DiGraph,
-    generator: Callable[..., Union[sp.Matrix, np.ndarray]] = numerical_simulations,
+    generator: Union[
+        Callable[..., Union[sp.Matrix, np.ndarray, pd.DataFrame]],
+        Literal[
+            "weighted_predictions_matrix",
+            "sign_determinacy_matrix",
+            "numerical_simulations",
+        ],
+    ] = numerical_simulations,
     t1: float = 0.8,
     t2: float = 0.95,
 ) -> sp.Matrix:
@@ -67,13 +78,19 @@ def qualitative_predictions(
     Examples:
         ```python
         from qmm import load_digraph, qualitative_predictions, weighted_predictions_matrix
-        qualitative_predictions(load_digraph("snowshoe"), generator=weighted_predictions_matrix, t1=0.5, t2=1.0)
+        qualitative_predictions(load_digraph("snowshoe_rp"), generator=weighted_predictions_matrix, t1=0.5, t2=1.0)
         # Matrix([
         # [+, −, +],
         # [?, +, −],
         # [+, ?, +]])
         ```
     """
+    if isinstance(generator, str):
+        generator = {
+            "weighted_predictions_matrix": weighted_predictions_matrix,
+            "sign_determinacy_matrix": sign_determinacy_matrix,
+            "numerical_simulations": numerical_simulations,
+        }.get(generator)
     if not callable(generator):
         raise ValueError(f"Generator must be callable, got: {type(generator)}")
 
@@ -110,12 +127,12 @@ def matrix_to_predictions(
     Examples:
         ```python
         from qmm import load_digraph, weighted_predictions_matrix, matrix_to_predictions
-        W = weighted_predictions_matrix(load_digraph("snowshoe"))
-        nodes = ['V', 'H', 'P']
+        W = weighted_predictions_matrix(load_digraph("snowshoe_rp"))
+        nodes = ['R', 'C', 'P']
         matrix_to_predictions(W, t1=0.5, t2=1.0, index=nodes, columns=nodes)
-        #    V  H  P
-        # V  +  −  +
-        # H  ?  +  −
+        #    R  C  P
+        # R  +  −  +
+        # C  ?  +  −
         # P  +  ?  +
         ```
     """
@@ -137,19 +154,19 @@ def compare_predictions(M1: pd.DataFrame, M2: pd.DataFrame) -> pd.DataFrame:
     Examples:
         ```python
         from qmm import load_digraph, weighted_predictions_matrix, matrix_to_predictions, compare_predictions
-        G1 = load_digraph("snowshoe")
+        G1 = load_digraph("snowshoe_rp")
         G2 = G1.copy()
-        G2.remove_edge('V', 'P')
-        nodes = ['V', 'H', 'P']
+        G2.remove_edge('C', 'P')
+        nodes = ['R', 'C', 'P']
         W1 = weighted_predictions_matrix(G1)
         W2 = weighted_predictions_matrix(G2)
         pred1 = matrix_to_predictions(W1, t1=0.5, t2=1.0, index=nodes, columns=nodes)
         pred2 = matrix_to_predictions(W2, t1=0.5, t2=1.0, index=nodes, columns=nodes)
         compare_predictions(pred1, pred2)
-        #       V     H  P
-        # V     +     −  +
-        # H  ?, +     +  −
-        # P     +  ?, +  +
+        #       R     C  P
+        # R  +, 0     −  +
+        # C     ?     +  −
+        # P  +, 0  ?, −  +
         ```
     """
     if not M1.index.equals(M2.index) or not M1.columns.equals(M2.columns):

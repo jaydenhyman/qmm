@@ -100,7 +100,7 @@ def qualitative_predictions(
     return sp.Matrix(rows)
 
 
-def matrix_to_predictions(
+def table_of_predictions(
     M: Union[sp.Matrix, np.ndarray],
     t1: float = 0.8,
     t2: float = 0.95,
@@ -126,10 +126,10 @@ def matrix_to_predictions(
 
     Examples:
         ```python
-        from qmm import load_digraph, weighted_predictions_matrix, matrix_to_predictions
+        from qmm import load_digraph, weighted_predictions_matrix, table_of_predictions
         W = weighted_predictions_matrix(load_digraph("snowshoe_rp"))
         nodes = ['R', 'C', 'P']
-        matrix_to_predictions(W, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+        table_of_predictions(W, t1=0.5, t2=1.0, index=nodes, columns=nodes)
         #    R  C  P
         # R  +  −  +
         # C  ?  +  −
@@ -140,6 +140,7 @@ def matrix_to_predictions(
         return pd.DataFrame(M.tolist(), index=index, columns=columns)
     predictions = _apply_thresholds(M, t1, t2)
     return pd.DataFrame(predictions, index=index, columns=columns)
+
 
 def compare_predictions(M1: pd.DataFrame, M2: pd.DataFrame) -> pd.DataFrame:
     """Compare predictions between alternative models or prediction methods.
@@ -153,15 +154,15 @@ def compare_predictions(M1: pd.DataFrame, M2: pd.DataFrame) -> pd.DataFrame:
 
     Examples:
         ```python
-        from qmm import load_digraph, weighted_predictions_matrix, matrix_to_predictions, compare_predictions
+        from qmm import load_digraph, weighted_predictions_matrix, table_of_predictions, compare_predictions
         G1 = load_digraph("snowshoe_rp")
         G2 = G1.copy()
         G2.remove_edge('C', 'P')
         nodes = ['R', 'C', 'P']
         W1 = weighted_predictions_matrix(G1)
         W2 = weighted_predictions_matrix(G2)
-        pred1 = matrix_to_predictions(W1, t1=0.5, t2=1.0, index=nodes, columns=nodes)
-        pred2 = matrix_to_predictions(W2, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+        pred1 = table_of_predictions(W1, t1=0.5, t2=1.0, index=nodes, columns=nodes)
+        pred2 = table_of_predictions(W2, t1=0.5, t2=1.0, index=nodes, columns=nodes)
         compare_predictions(pred1, pred2)
         #       R     C  P
         # R  +, 0     −  +

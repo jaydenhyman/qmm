@@ -32,7 +32,7 @@ from .core.press import (
 
 from .core.prediction import (
     qualitative_predictions,
-    matrix_to_predictions,
+    table_of_predictions,
     compare_predictions,
 )
 
@@ -87,7 +87,6 @@ from .extensions.effects import (
     simulations_table,
     table_of_direct_effects,
     table_of_effects,
-    table_of_predictions,
 )
 
 from .extensions.indicators import (
@@ -142,7 +141,7 @@ __all__ = [
     "numerical_simulations",
     # prediction.py
     "qualitative_predictions",
-    "matrix_to_predictions",
+    "table_of_predictions",
     "compare_predictions",
     # helper.py
     "list_to_digraph",
@@ -187,7 +186,6 @@ __all__ = [
     "simulations_table",
     "table_of_direct_effects",
     "table_of_effects",
-    "table_of_predictions",
     # indicators.py
     "mutual_information",
     # validation.py

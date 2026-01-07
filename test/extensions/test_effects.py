@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from qmm.core.helper import get_nodes, _check_acyclic_inputs, _check_acyclic_outputs
-from qmm.extensions.effects import define_input_output, table_of_predictions
+from qmm.extensions.effects import define_input_output
 from qmm.extensions.effects import (
     cumulative_effects,
     net_effects,
@@ -587,25 +587,6 @@ def test_cumulative_effects_binary_form(snowshoe_io):
 def test_simulations_table_with_observe(snowshoe):
     result = simulations_table(snowshoe, perturb='R:+', observe='C:+', n_sim=100, seed=42)
     assert result is not None
-
-
-def test_table_of_predictions_invalid_generator_string(snowshoe):
-    with pytest.raises(ValueError, match="Generator must be callable"):
-        table_of_predictions(snowshoe, generator="invalid_generator")
-
-
-def test_table_of_predictions_with_effects_generator(snowshoe_io):
-    result = table_of_predictions(snowshoe_io, generator=weighted_effects, t1=0.8, t2=1.0)
-    assert isinstance(result, pd.DataFrame)
-    assert isinstance(result.columns, pd.MultiIndex)
-    assert isinstance(result.index, pd.MultiIndex)
-
-
-def test_table_of_predictions_with_press_generator(snowshoe):
-    from qmm.core.press import weighted_predictions_matrix
-    result = table_of_predictions(snowshoe, generator=weighted_predictions_matrix, t1=0.5, t2=1.0)
-    assert isinstance(result, pd.DataFrame)
-    assert result.shape == (3, 3)
 
 
 # =============================================================================

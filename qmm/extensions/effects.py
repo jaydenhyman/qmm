@@ -27,7 +27,7 @@ from ..core.press import (
     sign_determinacy_matrix,
     numerical_simulations,
 )
-from ..core.prediction import qualitative_predictions, matrix_to_predictions
+from ..core.prediction import qualitative_predictions, table_of_predictions
 from typing import Callable, Dict, Optional, Any, Tuple, Literal, Union
 
 
@@ -638,88 +638,3 @@ def table_of_effects(
         if isinstance(effects, sp.MatrixBase):
             effects = effects.evalf(2)
     return _tabulate_effects(G, effects)
-
-
-def table_of_predictions(
-    G: nx.DiGraph,
-    generator: Union[
-        Callable[..., Union[sp.Matrix, np.ndarray, pd.DataFrame]],
-        Literal[
-            "weighted_predictions_matrix",
-            "sign_determinacy_matrix",
-            "numerical_simulations",
-            "weighted_effects",
-            "sign_determinacy_effects",
-            "simulation_effects",
-        ],
-    ] = simulation_effects,
-    t1: float = 0.8,
-    t2: float = 0.95,
-) -> pd.DataFrame:
-    """Create a table of qualitative predictions with thresholds for ambiguity.
-
-    This function works with all prediction generators including effects-based ones
-    (weighted_effects, sign_determinacy_effects, simulation_effects) and core press
-    generators (numerical_simulations, weighted_predictions_matrix, sign_determinacy_matrix).
-
-    Args:
-        G (nx.DiGraph): Graph input for the matrix generator
-        generator (Callable): Matrix generator function. Can be from core.press or
-            extensions.effects modules
-        t1 (float): Lower threshold for predictions
-        t2 (float): Higher threshold for predictions
-
-    Returns:
-        pd.DataFrame: Qualitative predictions table. For effects generators,
-            returns a MultiIndex DataFrame with State/Input columns and State/Output rows.
-            For press generators, returns a simple DataFrame with state variables only.
-
-    Raises:
-        ValueError: If generator is not callable or thresholds are invalid
-
-    References:
-        - Puccia, C.J., Levins, R. (1985). Qualitative modeling of complex systems: an introduction to loop analysis and time averaging. Harvard University Press, Cambridge, MA.
-        - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2002). Relevance of Community Structure in Assessing Indeterminacy of Ecological Predictions. Ecology 83, 1372–1385.
-
-    Examples:
-        ```python
-        from qmm import load_digraph, weighted_effects, table_of_predictions
-        table_of_predictions(load_digraph("snowshoe_io"), generator=weighted_effects, t1=0.5, t2=1.0)
-        #             State       Input     
-        #                 R  C  P  Inp1 Inp2
-        # State  R        +  −  +     +    −
-        #        C        +  +  −     ?    +
-        #        P        +  +  +     ?    −
-        # Output Out1     ?  ?  +     ?    −
-        #        Out2     +  +  −     ?    +
-        ```
-    """
-    if isinstance(generator, str):
-        generator = {
-            "weighted_predictions_matrix": weighted_predictions_matrix,
-            "sign_determinacy_matrix": sign_determinacy_matrix,
-            "numerical_simulations": numerical_simulations,
-            "weighted_effects": weighted_effects,
-            "sign_determinacy_effects": sign_determinacy_effects,
-            "simulation_effects": simulation_effects,
-        }.get(generator)
-    if not callable(generator):
-        raise ValueError(f"Generator must be callable, got: {type(generator)}")
-
-    generator_name = getattr(generator, "__name__", None)
-    pred_matrix = qualitative_predictions(G, generator=generator, t1=t1, t2=t2)
-    state = get_nodes(G, "state")
-
-    if generator_name in (
-        "sign_determinacy_effects",
-        "simulation_effects",
-        "weighted_effects",
-    ):
-        inputs = get_nodes(G, "input")
-        outputs = get_nodes(G, "output")
-        columns = state + inputs
-        index = state + outputs
-        df = matrix_to_predictions(pred_matrix, t1=t1, t2=t2, index=index, columns=columns)
-        return _tabulate_effects(G, df)
-
-    return matrix_to_predictions(pred_matrix, t1=t1, t2=t2, index=state, columns=state)

@@ -23,11 +23,7 @@ from ..core.structure import create_matrix
 from ..core.press import (
     adjoint_matrix,
     absolute_feedback_matrix,
-    weighted_predictions_matrix,
-    sign_determinacy_matrix,
-    numerical_simulations,
 )
-from ..core.prediction import qualitative_predictions, table_of_predictions
 from typing import Callable, Dict, Optional, Any, Tuple, Literal, Union
 
 

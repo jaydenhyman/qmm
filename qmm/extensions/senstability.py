@@ -15,15 +15,30 @@ def structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Mat
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Feedback level (None for highest level)
-        
+
     Returns:
         sp.Matrix: Ratio of net to total feedback terms for each direct effect
+
+    References:
+        - Hosack, G.R., Li, H.W., Rossignol, P.A. (2009). Sensitivity of system stability to model structure. Ecological Modelling 220, 1054–1062.
+
+    Examples:
+        ```python
+        from qmm import structural_sensitivity, load_digraph
+        structural_sensitivity(load_digraph("snowshoe_rp"))
+        # Matrix([
+        # [-a_C,P*a_P,C*a_R,R, a_C,P*a_P,R*a_R,C - a_C,R*a_P,P*a_R,C,                                      0],
+        # [-a_C,R*a_P,P*a_R,C,                                     0, -a_C,P*a_P,C*a_R,R + a_C,P*a_P,R*a_R,C],
+        # [ a_C,P*a_P,R*a_R,C,                    -a_C,P*a_P,C*a_R,R,                     -a_C,R*a_P,P*a_R,C]])
+        ```
     """
     A = create_matrix(G, "signed")
     n = A.shape[0]
     fcp = system_feedback(G)[1:]
     if level is None:
         level = n
+    if level < 1 or level > n:
+        raise ValueError(f"Level must be between 1 and {n}")
     S = sp.zeros(n, n)
     nodes = get_nodes(G, "state")
     for i in range(n):
@@ -44,15 +59,30 @@ def net_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Feedback level (None for highest level)
-        
+
     Returns:
         sp.Matrix: Net feedback terms containing each direct effect
+
+    References:
+        - Hosack, G.R., Li, H.W., Rossignol, P.A. (2009). Sensitivity of system stability to model structure. Ecological Modelling 220, 1054–1062.
+
+    Examples:
+        ```python
+        from qmm import net_structural_sensitivity, load_digraph
+        net_structural_sensitivity(load_digraph("snowshoe_rp"))
+        # Matrix([
+        # [-1,  0,  0],
+        # [-1,  0,  0],
+        # [ 1, -1, -1]])
+        ```
     """
     A = create_matrix(G, "signed")
     n = A.shape[0]
     fcp = net_feedback(G)[1:]
     if level is None:
         level = n
+    if level < 1 or level > n:
+        raise ValueError(f"Level must be between 1 and {n}")
     S = sp.zeros(n, n)
     nodes = get_nodes(G, "state")
     for i in range(n):
@@ -73,15 +103,30 @@ def absolute_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) 
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Feedback level (None for highest level)
-        
+
     Returns:
         sp.Matrix: Total feedback terms containing each direct effect
+
+    References:
+        - Hosack, G.R., Li, H.W., Rossignol, P.A. (2009). Sensitivity of system stability to model structure. Ecological Modelling 220, 1054–1062.
+
+    Examples:
+        ```python
+        from qmm import absolute_structural_sensitivity, load_digraph
+        absolute_structural_sensitivity(load_digraph("snowshoe_rp"))
+        # Matrix([
+        # [1, 2, 0],
+        # [1, 0, 2],
+        # [1, 1, 1]])
+        ```
     """
     A = create_matrix(G, "signed")
     n = A.shape[0]
     fcp = absolute_feedback(G)[1:]
     if level is None:
         level = n
+    if level < 1 or level > n:
+        raise ValueError(f"Level must be between 1 and {n}")
     S = sp.zeros(n, n)
     nodes = get_nodes(G, "state")
     for i in range(n):
@@ -102,14 +147,29 @@ def weighted_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) 
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Feedback level (None for highest level)
-        
+
     Returns:
         sp.Matrix: Weighted structural sensitivity of each direct effect
+
+    References:
+        - Hosack, G.R., Li, H.W., Rossignol, P.A. (2009). Sensitivity of system stability to model structure. Ecological Modelling 220, 1054–1062.
+
+    Examples:
+        ```python
+        from qmm import weighted_structural_sensitivity, load_digraph
+        weighted_structural_sensitivity(load_digraph("snowshoe_rp"))
+        # Matrix([
+        # [-1,   0, nan],
+        # [-1, nan,   0],
+        # [ 1,  -1,  -1]])
+        ```
     """
     A = create_matrix(G, "signed")
     n = A.shape[0]
     if level is None:
         level = n
+    if level < 1 or level > n:
+        raise ValueError(f"Level must be between 1 and {n}")
     net = sp.Matrix(net_structural_sensitivity(G, level))
     absolute = sp.Matrix(absolute_structural_sensitivity(G, level))
     return get_weight(net, absolute)

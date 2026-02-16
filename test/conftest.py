@@ -2,8 +2,11 @@
 
 import pytest
 import networkx as nx
+import subprocess
+from pathlib import Path
 
-from qmm import list_to_digraph, define_input_output
+from qmm.core.helper import list_to_digraph
+from qmm.extensions.effects import define_input_output
 
 
 # =============================================================================
@@ -12,11 +15,23 @@ from qmm import list_to_digraph, define_input_output
 
 @pytest.fixture
 def snowshoe():
-    """Simple 3-node predator-prey model (snowshoe hare system)."""
+    """Simple 3-node predator-prey model (snowshoe_rp hare system)."""
     A = [
         [-1, -1, 0],
         [1, 0, -1],
         [0, 1, -1]
+    ]
+    labels = ['R', 'C', 'P']
+    return list_to_digraph(A, labels)
+
+
+@pytest.fixture
+def snowshoe_rp():
+    """Snowshoe model with an added positive R->P link."""
+    A = [
+        [-1, -1, 0],
+        [1, 0, -1],
+        [1, 1, -1],
     ]
     labels = ['R', 'C', 'P']
     return list_to_digraph(A, labels)
@@ -67,7 +82,7 @@ def chain():
 
 @pytest.fixture
 def snowshoe_io():
-    """System with input and output nodes (snowshoe hare system)."""
+    """System with input and output nodes (snowshoe_rp hare system)."""
     G = nx.DiGraph()
     G.add_node('R')
     G.add_node('C')
@@ -110,7 +125,7 @@ def sign_stable_chain(chain):
 
 @pytest.fixture
 def sign_stable_snowshoe(snowshoe):
-    """Snowshoe model for sign stable true test."""
+    """Snowshoe_rp model for sign stable true test."""
     return snowshoe
 
 
@@ -170,7 +185,7 @@ def positive_loop_graph():
 
 @pytest.fixture
 def snowshoe_dashed():
-    """Snowshoe graph with dashed edges for model validation tests."""
+    """Snowshoe_rp graph with dashed edges for model validation tests."""
     G = nx.DiGraph()
     G.add_node('R', category='state')
     G.add_node('C', category='state')
@@ -313,4 +328,55 @@ def snowshoe_io_with_direct_edge(snowshoe_io):
     """Snowshoe IO graph with direct input to output edge."""
     G = snowshoe_io.copy()
     G.add_edge('Inp1', 'Out1', sign=1)
+    return G
+
+
+@pytest.fixture
+def direct_input_output_graph():
+    """Graph with direct input to output edge for D matrix testing."""
+    G = nx.DiGraph()
+    G.add_node('X', category='state')
+    G.add_node('U', category='input')
+    G.add_node('Y', category='output')
+    G.add_edge('U', 'X', sign=1)
+    G.add_edge('U', 'Y', sign=1)
+    G.add_edge('X', 'Y', sign=1)
+    return G
+
+
+@pytest.fixture
+def non_standard_sign_graph():
+    """Graph with non-standard sign value."""
+    G = nx.DiGraph()
+    G.add_node('A')
+    G.add_node('B')
+    G.add_edge('A', 'B', sign=0.5)
+    return G
+
+
+@pytest.fixture
+def cyclic_inputs_graph():
+    """Graph with cyclic input nodes for error testing."""
+    G = nx.DiGraph()
+    G.add_node('S', category='state')
+    G.add_edge('S', 'S', sign=-1)
+    G.add_node('I1', category='input')
+    G.add_node('I2', category='input')
+    G.add_edge('I1', 'I2', sign=1)
+    G.add_edge('I2', 'I1', sign=1)
+    G.add_edge('I1', 'S', sign=1)
+    return G
+
+
+@pytest.fixture
+def cyclic_outputs_graph():
+    """Graph with cyclic output nodes for error testing."""
+    G = nx.DiGraph()
+    G.add_node('S', category='state')
+    G.add_edge('S', 'S', sign=-1)
+    G.add_node('O1', category='output')
+    G.add_node('O2', category='output')
+    G.add_edge('O1', 'O2', sign=1)
+    G.add_edge('O2', 'O1', sign=1)
+    G.add_edge('S', 'O1', sign=1)
     return G

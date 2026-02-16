@@ -1,5 +1,7 @@
 from .core.structure import (
     import_digraph,
+    nodes_table,
+    edges_table,
     create_matrix,
     create_equations,
 )
@@ -29,12 +31,14 @@ from .core.press import (
 )
 
 from .core.prediction import (
+    qualitative_predictions,
     table_of_predictions,
     compare_predictions,
 )
 
 from .core.helper import (
     list_to_digraph,
+    load_digraph,
     digraph_to_list,
     get_nodes,
     get_positive,
@@ -73,11 +77,16 @@ from .extensions.paths import (
 from .extensions.effects import (
     define_input_output,
     cumulative_effects,
+    direct_effects,
+    net_effects,
     absolute_effects,
     weighted_effects,
     sign_determinacy_effects,
     get_simulations,
     simulation_effects,
+    simulations_table,
+    table_of_direct_effects,
+    table_of_effects,
 )
 
 from .extensions.indicators import (
@@ -106,6 +115,8 @@ configure_pandas_display()
 __all__ = [
     # structure.py
     "import_digraph",
+    "nodes_table",
+    "edges_table",
     "create_matrix",
     "create_equations",
     # stability.py
@@ -129,10 +140,12 @@ __all__ = [
     "sign_determinacy_matrix",
     "numerical_simulations",
     # prediction.py
+    "qualitative_predictions",
     "table_of_predictions",
     "compare_predictions",
     # helper.py
     "list_to_digraph",
+    "load_digraph",
     "digraph_to_list",
     "get_nodes",
     "get_positive",
@@ -163,11 +176,16 @@ __all__ = [
     # effects.py
     "define_input_output",
     "cumulative_effects",
+    "direct_effects",
+    "net_effects",
     "absolute_effects",
     "weighted_effects",
     "sign_determinacy_effects",
     "get_simulations",
     "simulation_effects",
+    "simulations_table",
+    "table_of_direct_effects",
+    "table_of_effects",
     # indicators.py
     "mutual_information",
     # validation.py

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "qmm-core"
-version = "0.4.7"
+version = "0.4.13"
 authors = [
   { name="Jayden Hyman", email="j.hyman@uq.edu.au" },
 ]
@@ -51,5 +51,6 @@ qmm = ["py.typed"]
 
 [dependency-groups]
 dev = [
+    "pytest>=8.3.5",
     "pytest-cov>=7.0.0",
 ]

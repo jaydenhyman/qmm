@@ -5,7 +5,7 @@
 
 ![QMM Logo](logo.png)
 
-Qualitative Mathematical Modelling (QMM) is a method for analysing the structure of complex systems where general causal relationships are known but precise quantitative data are lacking. By utilising signed directed digraphs to visualise system structure, QMM enables users to build models of real-world systems and generate testable predictions of system response to perturbations.
+Qualitative Mathematical Modelling (QMM) is a method for analysing the structure of complex systems where general causal relationships are known but precise quantitative data are lacking. By utilising signed digraphs to visualise system structure, QMM enables users to build models of real-world systems and generate testable predictions of system response to perturbations.
 
 ## Features
 
@@ -20,7 +20,10 @@ Qualitative Mathematical Modelling (QMM) is a method for analysing the structure
 
 ## Documentation
 
-Detailed documentation for the `qmm` package and its modules is not currently available.
+Full documentation is available at **[jaydenhyman.github.io/qmm](https://jaydenhyman.github.io/qmm)**, including:
+
+- [Getting Started](https://jaydenhyman.github.io/qmm/getting-started/) - Installation and basic usage
+- [API Reference](https://jaydenhyman.github.io/qmm/reference/) - Complete function reference
 
 ## Licensing
 

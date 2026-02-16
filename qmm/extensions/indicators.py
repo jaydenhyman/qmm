@@ -19,9 +19,26 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         seed: Random seed
         include_null: If True, include a null model with equal probability (1/3)
             of positive, negative, or NaN response across simulations
-        
+
     Returns:
         pd.DataFrame: Mutual information for indicator selection
+
+    References:
+        - Hosack, G.R., Hayes, K.R., Dambacher, J.M. (2008). Assessing Model Structure Uncertainty Through an Analysis of System Feedback and Bayesian Networks. Ecological Applications 18, 1070–1082.
+        - Melbourne-Thomas, J., Wotherspoon, S., Raymond, B., Constable, A. (2012). Comprehensive evaluation of model uncertainty in qualitative network analyses. Ecological Monographs 82, 505–519.
+
+    Examples:
+        ```python
+        from qmm import mutual_information, load_digraph
+        G1 = load_digraph("snowshoe_rp")
+        G2 = G1.copy()
+        G2.remove_edge('C', 'P')
+        mutual_information((G1, G2), perturb='R:+', n_sim=1000)
+        #   Node  Mutual Information
+        # 0    R            0.522021
+        # 1    P            0.463441
+        # 2    C            0.147516
+        ```
     """
     models = [models] if not isinstance(models, (list, tuple)) else list(models)
     models = [nx.DiGraph(G) if not isinstance(G, nx.DiGraph) else G for G in models]

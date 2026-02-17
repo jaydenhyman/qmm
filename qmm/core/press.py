@@ -244,6 +244,7 @@ def numerical_simulations(
     as_nan: bool = True,
     as_abs: bool = False,
     positive_only: bool = False,
+    match_adjoint: bool = False,
 ) -> sp.Matrix:
     """Calculate proportion of positive and negative responses from stable simulations.
 
@@ -255,6 +256,9 @@ def numerical_simulations(
         as_nan: Return NaN for undefined ratios
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions.
         as_abs: Return absolute values
+        match_adjoint: Return proportion of simulations matching the sign of the adjoint.
+            Values are always between 0 and 1. Entries where the adjoint sign is
+            ambiguous (0) return 0.5. Incompatible with positive_only and as_abs.
 
     References:
         - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2003). Qualitative predictions in model ecosystems. Ecological Modelling 161, 79–93.
@@ -297,6 +301,10 @@ def numerical_simulations(
         raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=True")
     if as_abs and not as_nan:
         raise ValueError("Invalid parameter combination: as_abs=True requires as_nan=True")
+    if match_adjoint and positive_only:
+        raise ValueError("Invalid parameter combination: match_adjoint=True is incompatible with positive_only=True")
+    if match_adjoint and as_abs:
+        raise ValueError("Invalid parameter combination: match_adjoint=True is incompatible with as_abs=True")
 
     np.random.seed(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
@@ -307,6 +315,10 @@ def numerical_simulations(
     positive = np.zeros((n, n), dtype=int)
     negative = np.zeros((n, n), dtype=int)
     total_simulations = 0
+    if match_adjoint:
+        adjoint_signs_np = np.array(
+            adjoint_matrix(G, form="signed").tolist(), dtype=float
+        )
     while total_simulations < n_sim:
         values = _random_sampler(dist, len(symbols))
         sim_A = A_sp(*values)
@@ -322,6 +334,11 @@ def numerical_simulations(
         smat = np.full((n, n), np.nan)
     elif positive_only:
         smat = positive / total_simulations
+    elif match_adjoint:
+        matches = np.where(adjoint_signs_np > 0, positive,
+                  np.where(adjoint_signs_np < 0, negative, 0))
+        smat = np.where(adjoint_signs_np == 0, 0.5,
+                        matches / total_simulations)
     else:
         smat = np.where(negative > positive, -negative / total_simulations, positive / total_simulations)
     smat = sp.Matrix(smat.tolist())
@@ -333,5 +350,6 @@ def numerical_simulations(
             smat = sp.Matrix([[sp.Abs(x) if x != sp.nan else sp.nan for x in row] for row in smat.tolist()])
 
     if not as_nan:
-        smat = sp.Matrix([[0 if sp.nan == x else x for x in row] for row in smat.tolist()])
+        fill = sp.Rational(1, 2) if match_adjoint else 0
+        smat = sp.Matrix([[fill if sp.nan == x else x for x in row] for row in smat.tolist()])
     return sp.Matrix(smat)

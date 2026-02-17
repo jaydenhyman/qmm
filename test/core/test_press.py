@@ -722,6 +722,46 @@ def test_numerical_simulations_no_stable_matrices_snowshoe(snowshoe):
             assert result[i, j] is sp.nan
 
 
+def test_numerical_simulations_match_adjoint_mesocosm(mesocosm):
+    numerical_simulations.cache_clear()
+    result = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True)
+    expected = sp.Matrix([
+        [1.0, 0.73, 0.64, 1.0, 0.5, 1.0, 0.68, 0.5],
+        [0.71, 0.88, 0.95, 0.71, 0.87, 0.71, 0.95, 0.87],
+        [0.83, 0.56, 0.79, 0.83, 0.92, 0.8, 0.77, 0.92],
+        [1.0, 0.73, 0.64, 0.88, 0.5, 1.0, 0.68, 0.5],
+        [0.5, 0.95, 0.86, 0.5, 0.5, 0.5, 0.5, 0.5],
+        [1.0, 0.73, 0.89, 1.0, 0.5, 1.0, 0.68, 0.5],
+        [0.8, 0.65, 0.83, 0.8, 0.5, 0.8, 0.93, 0.93],
+        [0.5, 0.95, 0.86, 0.5, 0.5, 0.5, 0.82, 0.5]])
+    assert result == expected
+
+
+def test_numerical_simulations_match_adjoint_as_nan_false_mesocosm(mesocosm):
+    numerical_simulations.cache_clear()
+    result = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, as_nan=False)
+    result_arr = np.array(result.tolist(), dtype=float)
+    assert not np.any(np.isnan(result_arr))
+
+
+def test_numerical_simulations_match_adjoint_does_not_change_default_mesocosm(mesocosm):
+    numerical_simulations.cache_clear()
+    result_default = numerical_simulations(mesocosm, n_sim=100, seed=42)
+    numerical_simulations.cache_clear()
+    result_explicit = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=False)
+    assert result_default == result_explicit
+
+
+def test_numerical_simulations_match_adjoint_incompatible_with_positive_only(mesocosm):
+    with pytest.raises(ValueError, match="match_adjoint=True is incompatible with positive_only=True"):
+        numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, positive_only=True)
+
+
+def test_numerical_simulations_match_adjoint_incompatible_with_as_abs(mesocosm):
+    with pytest.raises(ValueError, match="match_adjoint=True is incompatible with as_abs=True"):
+        numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, as_abs=True)
+
+
 # =============================================================================
 # Additional coverage tests
 # =============================================================================

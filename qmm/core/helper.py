@@ -567,10 +567,9 @@ def perm(A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg") -> float:
             + A[0, 0] * A[1, 1] * A[2, 2]
         )
 
-    if method == "bbfg":
-        return _perm_bbfg(A)
-    else:
-        return _perm_ryser(A)
+    if np.prod(np.abs(A).sum(axis=0, dtype=float)) > 2.0**53:
+        raise OverflowError("perm exceeds float precision (2**53)")
+    return _perm_bbfg(A) if method == "bbfg" else _perm_ryser(A)
 
 
 @jit(nopython=True)

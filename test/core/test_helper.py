@@ -656,6 +656,17 @@ def test_perm_bbfg_py_func_2x2_no_fixture():
     assert result == expected
 
 
+def test_perm_overflow_raises_no_fixture():
+    with pytest.raises(OverflowError):
+        perm(np.ones((17, 17)))
+
+
+def test_absolute_feedback_overflow_raises_no_fixture():
+    M = [[(-1 if i == j else 1) for j in range(17)] for i in range(17)]
+    with pytest.raises(OverflowError):
+        absolute_feedback(list_to_digraph(M))
+
+
 # =============================================================================
 # get_dashed_alternatives()
 # =============================================================================

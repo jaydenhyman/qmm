@@ -229,6 +229,8 @@ def absolute_feedback(
         else:
             fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), level))
             fb = [int(fb_k)]
+        if any(v > 2**53 for v in fb):
+            raise OverflowError("absolute_feedback exceeds float precision (2**53)")
     elif method == "polynomial":
         lam = sp.Symbol("lambda")
         A_abs = sp.Matrix(sp.Abs(A) + lam * sp.eye(n))

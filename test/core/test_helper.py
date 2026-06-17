@@ -667,6 +667,14 @@ def test_absolute_feedback_overflow_raises_no_fixture():
         absolute_feedback(list_to_digraph(M))
 
 
+@pytest.mark.parametrize("seed", range(8))
+def test_perm_decompose_equals_plain_random(seed):
+    rng = np.random.default_rng(seed)
+    n = int(rng.integers(4, 10))
+    A = (rng.random((n, n)) < rng.uniform(0.25, 0.6)).astype(float)
+    assert round(perm(A, decompose=True)) == round(perm(A, decompose=False))
+
+
 # =============================================================================
 # get_dashed_alternatives()
 # =============================================================================

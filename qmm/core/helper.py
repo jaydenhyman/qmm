@@ -50,6 +50,7 @@ def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[Li
         for j in range(n):
             if matrix[i][j] != 0:
                 G.add_edge(node_ids[j], node_ids[i], sign=int(matrix[i][j]))
+    _check_signs(G)
     nx.set_node_attributes(G, "state", "category")
     nx.freeze(G)
     return G
@@ -462,55 +463,28 @@ def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
                 for obs in s.split(","))
 
 
+def _check_signs(G: nx.DiGraph) -> None:
+    """Raise unless every edge sign is +1 or -1."""
+    bad = [(u, v, d.get("sign")) for u, v, d in G.edges(data=True) if d.get("sign", 1) not in (-1, 1)]
+    if bad:
+        raise ValueError(f"Edge signs must be +1 or -1: {bad}")
+
+
+def _edge_prefix(G: nx.DiGraph, source: str, target: str) -> str:
+    """Edge symbol prefix d/b/c/a by endpoint category; shared so create_matrix,
+    edges_table and get_paths always agree."""
+    src_in = G.nodes[source].get("category", "state") == "input"
+    tgt_out = G.nodes[target].get("category", "state") == "output"
+    return "d" if src_in and tgt_out else "b" if src_in else "c" if tgt_out else "a"
+
+
 def _check_direct_io_edges(G: nx.DiGraph) -> None:
-    """Check for unsupported direct input-to-output edges.
-
-    Args:
-        G: NetworkX DiGraph representing signed digraph model
-
-    Raises:
-        ValueError: If direct input-to-output edge exists
-    """
-    input_nodes = get_nodes(G, "input")
-    output_nodes = get_nodes(G, "output")
-    for inp in input_nodes:
-        for out in output_nodes:
+    """Raise on any direct input->output edge."""
+    inputs, outputs = get_nodes(G, "input"), get_nodes(G, "output")
+    for inp in inputs:
+        for out in outputs:
             if G.has_edge(inp, out):
-                raise ValueError(
-                    f"Direct input to output edge ({inp} to {out}) not supported."
-                )
-
-
-def _check_acyclic_inputs(G: nx.DiGraph) -> None:
-    """Check that input subgraph is acyclic.
-
-    Args:
-        G: NetworkX DiGraph representing signed digraph model
-
-    Raises:
-        ValueError: If input subgraph contains cycles
-    """
-    input_nodes = get_nodes(G, "input")
-    if input_nodes:
-        input_subgraph = G.subgraph(input_nodes)
-        if not nx.is_directed_acyclic_graph(input_subgraph):
-            raise ValueError("Input subgraph contains cycles - input nodes must be acyclic")
-
-
-def _check_acyclic_outputs(G: nx.DiGraph) -> None:
-    """Check that output subgraph is acyclic.
-
-    Args:
-        G: NetworkX DiGraph representing signed digraph model
-
-    Raises:
-        ValueError: If output subgraph contains cycles
-    """
-    output_nodes = get_nodes(G, "output")
-    if output_nodes:
-        output_subgraph = G.subgraph(output_nodes)
-        if not nx.is_directed_acyclic_graph(output_subgraph):
-            raise ValueError("Output subgraph contains cycles - output nodes must be acyclic")
+                raise ValueError(f"Direct input to output edge ({inp} to {out}) not supported.")
 
 
 def perm(

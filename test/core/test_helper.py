@@ -19,9 +19,8 @@ from qmm.core.helper import (
     _NodeSign,
     _parse_perturbations,
     _parse_observations,
+    _check_signs,
     _check_direct_io_edges,
-    _check_acyclic_inputs,
-    _check_acyclic_outputs,
     _random_sampler,
     perm,
     _perm_ryser,
@@ -478,33 +477,27 @@ def test_parse_perturbations_invalid_node_snowshoe(snowshoe):
         _parse_perturbations(snowshoe, "Invalid:+")
 
 
-def test_check_direct_io_edges_invalid_edge_no_fixture():
+def test_check_signs_rejects_non_unit_no_fixture():
     G = nx.DiGraph()
-    G.add_node("Inp1", category="input")
-    G.add_node("Out1", category="output")
-    G.add_edge("Inp1", "Out1", sign=1)
+    G.add_edge("A", "B", sign=2)
+    with pytest.raises(ValueError, match="Edge signs must be"):
+        _check_signs(G)
+
+
+def test_check_signs_accepts_unit_no_fixture():
+    G = nx.DiGraph()
+    G.add_edge("A", "B", sign=1)
+    G.add_edge("B", "A", sign=-1)
+    assert _check_signs(G) is None
+
+
+def test_check_direct_io_edges_rejects_feedthrough_no_fixture():
+    G = nx.DiGraph()
+    G.add_node("Inp", category="input")
+    G.add_node("Out", category="output")
+    G.add_edge("Inp", "Out", sign=1)
     with pytest.raises(ValueError, match="Direct input to output edge"):
         _check_direct_io_edges(G)
-
-
-def test_check_acyclic_inputs_cycle_no_fixture():
-    G = nx.DiGraph()
-    G.add_node("Inp1", category="input")
-    G.add_node("Inp2", category="input")
-    G.add_edge("Inp1", "Inp2", sign=1)
-    G.add_edge("Inp2", "Inp1", sign=1)
-    with pytest.raises(ValueError, match="Input subgraph contains cycles"):
-        _check_acyclic_inputs(G)
-
-
-def test_check_acyclic_outputs_cycle_no_fixture():
-    G = nx.DiGraph()
-    G.add_node("Out1", category="output")
-    G.add_node("Out2", category="output")
-    G.add_edge("Out1", "Out2", sign=1)
-    G.add_edge("Out2", "Out1", sign=1)
-    with pytest.raises(ValueError, match="Output subgraph contains cycles"):
-        _check_acyclic_outputs(G)
 
 
 # =============================================================================

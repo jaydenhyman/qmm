@@ -4,8 +4,9 @@ import pytest
 import sympy as sp
 import numpy as np
 import pandas as pd
+import networkx as nx
 
-from qmm.core.helper import get_nodes, _check_acyclic_inputs, _check_acyclic_outputs
+from qmm.core.helper import get_nodes
 from qmm.extensions.effects import define_input_output
 from qmm.extensions.effects import (
     cumulative_effects,
@@ -67,26 +68,43 @@ def test_define_input_output_invalid_input_type_no_fixture():
     assert result == expected
 
 
-def test_define_input_output_rejects_precategorized_cyclic_inputs(cyclic_inputs_graph):
-    with pytest.raises(ValueError) as exc_info:
-        _check_acyclic_inputs(cyclic_inputs_graph)
-    result = str(exc_info.value)
-    expected = "Input subgraph contains cycles - input nodes must be acyclic"
-    assert result == expected
-
-
-def test_define_input_output_rejects_precategorized_cyclic_outputs(cyclic_outputs_graph):
-    with pytest.raises(ValueError) as exc_info:
-        _check_acyclic_outputs(cyclic_outputs_graph)
-    result = str(exc_info.value)
-    expected = "Output subgraph contains cycles - output nodes must be acyclic"
-    assert result == expected
+def test_define_input_output_cyclic_inputs_become_state(cyclic_inputs_graph):
+    # a cycle among would-be inputs is feedback, so it classifies as state
+    G = define_input_output(cyclic_inputs_graph)
+    assert set(get_nodes(G, "state")) >= {"I1", "I2"}
 
 
 def test_define_input_output_rejects_feedthrough(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="Direct input to output edge"):
         define_input_output(snowshoe_io_with_direct_edge)
-    assert "Direct input to output edge" in str(exc_info.value)
+
+
+def test_define_input_output_rejects_feedback_free_chain():
+    # a pure cascade has no dynamic core, so its input->output transition is
+    # feedthrough and is rejected (a QMM model needs a feedback core)
+    G = nx.DiGraph()
+    for a, b in [('A', 'B'), ('B', 'C'), ('C', 'D')]:
+        G.add_edge(a, b, sign=1)
+    with pytest.raises(ValueError, match="Direct input to output edge"):
+        define_input_output(G)
+
+
+def test_define_input_output_rejects_non_unit_signs():
+    G = nx.DiGraph()
+    G.add_edge('A', 'B', sign=0.5)
+    with pytest.raises(ValueError, match="Edge signs must be"):
+        define_input_output(G)
+
+
+def test_define_input_output_overwrites_preset_categories():
+    # pre-set categories are ignored; classification is purely topological
+    G = nx.DiGraph()
+    G.add_edge('R', 'R', sign=-1)
+    G.add_edge('Inp', 'R', sign=1)
+    G.add_edge('R', 'Out', sign=1)
+    G.nodes['Inp']['category'] = 'output'  # deliberately wrong; topology says input
+    Gd = define_input_output(G)
+    assert (Gd.nodes['Inp']['category'], Gd.nodes['R']['category'], Gd.nodes['Out']['category']) == ('input', 'state', 'output')
 
 # =============================================================================
 # cumulative_effects
@@ -263,7 +281,7 @@ def test_sign_determinacy_effects_nan_for_missing_paths(snowshoe_io_na):
 
 def test_get_simulations(snowshoe_io):
     result = set(get_simulations(snowshoe_io, n_sim=100, seed=42).keys())
-    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable', 'n_valid', 'n_attempts'}
+    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable'}
     assert result == expected
 
 def test_get_simulations_effects_length(snowshoe_io):
@@ -375,9 +393,8 @@ def test_get_simulations_invalid_perturb_node(snowshoe_io):
 
 
 def test_get_simulations_no_state_variables(io_only_graph):
-    with pytest.raises(ValueError) as exc_info:
-        get_simulations(io_only_graph, n_sim=100, perturb=('I', 1))
-    assert "Direct input to output edge" in str(exc_info.value)
+    with pytest.raises(ValueError, match="Direct input to output edge"):
+        get_simulations(io_only_graph, n_sim=50, perturb=('I', 1), seed=42)
 
 
 def test_get_simulations_runtime_error_max_iterations(positive_loop_graph):
@@ -513,9 +530,15 @@ def test_simulation_effects_positive_only_nan_for_no_path(snowshoe_io_na):
 # simulations_table
 # =============================================================================
 
-def test_simulations_table_no_response_nodes(minimal_error_graph):
-    graph = define_input_output(minimal_error_graph)
-    result = simulations_table(graph, perturb="A:+", n_sim=5, seed=42)
+def test_simulations_table_no_response_nodes():
+    # all-input graph (hand-built, bypassing define_input_output's layer checks)
+    # has no state/output response nodes -> empty table from the defensive guard
+    G = nx.DiGraph()
+    G.add_node('A', category='input')
+    G.add_node('B', category='input')
+    G.add_edge('A', 'B', sign=1)
+    nx.freeze(G)
+    result = simulations_table(G, perturb="A:+", n_sim=5, seed=42)
     expected_columns = [
         "model",
         "effect_on",

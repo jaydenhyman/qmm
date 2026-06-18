@@ -105,21 +105,18 @@ def test_get_paths_direct_input_output_symbolic_snowshoe_io_with_direct_edge(sno
 
 
 def test_system_paths_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="Direct input to output edge"):
         system_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1")
-    assert "Direct input to output edge" in str(exc_info.value)
 
 
 def test_weighted_paths_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="Direct input to output edge"):
         weighted_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1")
-    assert "Direct input to output edge" in str(exc_info.value)
 
 
 def test_path_metrics_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ValueError, match="Direct input to output edge"):
         path_metrics(snowshoe_io_with_direct_edge, "Inp1", "Out1")
-    assert "Direct input to output edge" in str(exc_info.value)
 
 
 def test_get_paths_symbolic_output_to_output_edge_output_to_output_graph(output_to_output_graph):
@@ -193,6 +190,11 @@ def test_complementary_feedback_source_eq_target_snowshoe_io(snowshoe_io):
 def test_complementary_feedback_invalid_form_feedback_test_graph(feedback_test_graph):
     with pytest.raises(ValueError):
         complementary_feedback(feedback_test_graph, 'A', 'B', form='invalid')
+
+
+def test_complementary_feedback_invalid_form_no_path(snowshoe_io):
+    with pytest.raises(ValueError, match="Invalid form"):
+        complementary_feedback(snowshoe_io, 'Out1', 'R', form='invalid')
 
 
 # =============================================================================

@@ -5,7 +5,7 @@ from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
 import sympy as sp
-from .helper import get_nodes
+from .helper import get_nodes, _edge_prefix, _check_direct_io_edges
 
 
 def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph:
@@ -133,12 +133,7 @@ def create_matrix(
     rows, cols, prefix, category = matrix_configs[matrix_type]
     matrix = sp.zeros(len(rows), len(cols))
     if matrix_type == "D":
-        for inp in input_n:
-            for out in output_n:
-                if G.has_edge(inp, out):
-                    raise ValueError(
-                        f"Direct input to output edge ({inp} to {out}) not supported."
-                    )
+        _check_direct_io_edges(G)
         return matrix
     for i, target in enumerate(rows):
         for j, source in enumerate(cols):
@@ -269,16 +264,7 @@ def edges_table(G: nx.DiGraph) -> pd.DataFrame:
     """
     rows = []
     for source, target, data in G.edges(data=True):
-        source_cat = G.nodes[source].get("category", "state")
-        target_cat = G.nodes[target].get("category", "state")
-        if source_cat == "input" and target_cat == "output":
-            prefix = "d"
-        elif source_cat == "input":
-            prefix = "b"
-        elif target_cat == "output":
-            prefix = "c"
-        else:
-            prefix = "a"
+        prefix = _edge_prefix(G, source, target)
         sign_val = data.get("sign", 1)
         if sign_val == 1:
             sign_label = "+"

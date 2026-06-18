@@ -1,5 +1,6 @@
 """Analyse cumulative effects from perturbation scenarios with multiple-inputs and multiple-outputs."""
 
+import warnings
 import numpy as np
 import pandas as pd
 import sympy as sp
@@ -15,9 +16,8 @@ from ..core.helper import (
     _parse_perturbations,
     _parse_observations,
     get_dashed_alternatives,
+    _check_signs,
     _check_direct_io_edges,
-    _check_acyclic_inputs,
-    _check_acyclic_outputs,
 )
 from ..core.structure import create_matrix
 from ..core.press import (
@@ -28,11 +28,15 @@ from typing import Callable, Dict, Optional, Any, Tuple, Literal, Union
 
 
 def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.DiGraph:
-    """Define model components as state variables, inputs and outputs.
+    """Classify nodes as state, input or output from topology (any pre-set category is overwritten).
+
+    Sources (and source-chains) become inputs, sinks (and sink-chains) outputs; a
+    self-loop or feedback cycle keeps a node as state.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        remove_disconnected: Remove disconnected components
+        remove_disconnected: Remove all but the largest weakly-connected
+            component (warns about dropped nodes)
 
     Returns:
         nx.DiGraph: Model with input, state and output classification
@@ -48,32 +52,37 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.D
     """
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
+    _check_signs(G)
     G_def = G.copy()
     if remove_disconnected:
-        G_undirected = G_def.to_undirected()
-        connected = list(nx.connected_components(G_undirected))
-        if len(connected) > 1:
-            largest = max(connected, key=len)
-            nodes_to_remove = [node for system in connected if system != largest for node in system]
-            G_def.remove_nodes_from(nodes_to_remove)
+        components = list(nx.connected_components(G_def.to_undirected()))
+        if len(components) > 1:
+            largest = max(components, key=lambda c: (len(c), sorted(c)))
+            dropped = sorted(n for c in components if c != largest for n in c)
+            warnings.warn(
+                f"define_input_output: dropping {len(dropped)} node(s) in "
+                f"{len(components) - 1} smaller disconnected component(s): {dropped}"
+            )
+            G_def.remove_nodes_from(dropped)
     nx.set_node_attributes(G_def, "state", "category")
-    while True:
-        reclassified = False
-        for node in list(G_def.nodes()):
-            if G_def.nodes[node]["category"] == "state":
-                if all(G_def.nodes[pred]["category"] == "input" for pred in G_def.predecessors(node)):
-                    G_def.nodes[node]["category"] = "input"
-                    reclassified = True
-                elif all(G_def.nodes[succ]["category"] == "output" for succ in G_def.successors(node)):
-                    G_def.nodes[node]["category"] = "output"
-                    reclassified = True
-        if not reclassified:
-            break
 
-    _check_acyclic_inputs(G_def)
-    _check_acyclic_outputs(G_def)
+    # Inputs then outputs, each a fixpoint (order-independent); self-loop/feedback nodes stay state.
+    def classify(role, here, there):
+        changed = True
+        while changed:
+            changed = False
+            for node in G_def.nodes():
+                if G_def.nodes[node]["category"] != "state" or G_def.has_edge(node, node) or not list(there(node)):
+                    continue
+                anchor = list(here(node))
+                if not anchor or all(G_def.nodes[n]["category"] == role for n in anchor):
+                    G_def.nodes[node]["category"] = role
+                    changed = True
+
+    classify("input", G_def.predecessors, G_def.successors)
+    classify("output", G_def.successors, G_def.predecessors)
+
     _check_direct_io_edges(G_def)
-
     nx.freeze(G_def)
     return G_def
 
@@ -92,27 +101,19 @@ def direct_effects(
     Returns:
         sp.Matrix: Direct effects for state/input columns and state/output rows
     """
-    A_signed = create_matrix(G, form="signed", matrix_type="A")
-    B_signed = create_matrix(G, form="signed", matrix_type="B")
-    C_signed = create_matrix(G, form="signed", matrix_type="C")
-    D_signed = create_matrix(G, form="signed", matrix_type="D")
-    signed = sp.BlockMatrix([[A_signed, B_signed], [C_signed, D_signed]]).as_explicit()
+    if form not in ("net", "absolute", "positive", "negative"):
+        raise ValueError("Invalid form. Choose 'net', 'absolute', 'positive', 'negative'.")
 
-    A_binary = create_matrix(G, form="binary", matrix_type="A")
-    B_binary = create_matrix(G, form="binary", matrix_type="B")
-    C_binary = create_matrix(G, form="binary", matrix_type="C")
-    D_binary = create_matrix(G, form="binary", matrix_type="D")
-    binary = sp.BlockMatrix([[A_binary, B_binary], [C_binary, D_binary]]).as_explicit()
+    def block(f):
+        m = {t: create_matrix(G, form=f, matrix_type=t) for t in "ABCD"}
+        return sp.BlockMatrix([[m["A"], m["B"]], [m["C"], m["D"]]]).as_explicit()
 
     if form == "net":
-        return signed
+        return block("signed")
     if form == "absolute":
-        return binary
-    if form == "positive":
-        return get_positive(signed, binary)
-    if form == "negative":
-        return get_negative(signed, binary)
-    raise ValueError("Invalid form. Choose 'net', 'absolute', 'positive', 'negative'.")
+        return block("binary")
+    signed, binary = block("signed"), block("binary")
+    return get_positive(signed, binary) if form == "positive" else get_negative(signed, binary)
 
 
 @cache
@@ -152,17 +153,12 @@ def cumulative_effects(
         # [1, 1, 1, 2, 1]])
         ```
     """
+    if form not in ("symbolic", "signed", "binary"):
+        raise ValueError("Invalid form. Choose 'symbolic', 'signed', 'binary'.")
     B = create_matrix(G, form=form, matrix_type="B")
     C = create_matrix(G, form=form, matrix_type="C")
     D = create_matrix(G, form=form, matrix_type="D")
-    if form == "symbolic":
-        effects = adjoint_matrix(G, form="symbolic")
-    elif form == "signed":
-        effects = adjoint_matrix(G, form="signed")
-    elif form == "binary":
-        effects = absolute_feedback_matrix(G)
-    else:
-        raise ValueError("Invalid form. Choose 'symbolic', 'signed', 'binary'.")
+    effects = absolute_feedback_matrix(G) if form == "binary" else adjoint_matrix(G, form=form)
     cemat = sp.BlockMatrix([[effects, effects * B], [C * effects, C * effects * B + D]]).as_explicit()
     if form != "symbolic":
         cemat = cemat.subs({sym: 1 for sym in cemat.free_symbols})
@@ -171,7 +167,7 @@ def cumulative_effects(
 
 def _tabulate_effects(
     G: nx.DiGraph,
-    effects: Union[sp.Matrix, np.ndarray, pd.DataFrame],
+    effects: Union[sp.MatrixBase, np.ndarray],
 ) -> pd.DataFrame:
     """Format effects as a table with state/input columns and state/output rows."""
     state = get_nodes(G, "state")
@@ -180,12 +176,7 @@ def _tabulate_effects(
     columns = state + inputs
     index = state + outputs
 
-    if isinstance(effects, pd.DataFrame):
-        values = effects.to_numpy()
-    elif isinstance(effects, sp.Matrix):
-        values = np.array(effects.tolist(), dtype=object)
-    else:
-        values = np.array(effects, dtype=object)
+    values = np.array(effects.tolist() if isinstance(effects, sp.MatrixBase) else effects, dtype=object)
 
     df = pd.DataFrame(values, index=index, columns=columns)
     col_groups = ["State"] * len(state) + ["Input"] * len(inputs)
@@ -428,8 +419,6 @@ def get_simulations(
         "prop_stable": len(effects) / attempts,
         "attempts": attempts,
         "n_stable": len(effects),
-        "n_valid": int(sum(valid_sims)),
-        "n_attempts": attempts,
     }
     if return_samples:
         n_samples = len(samples)
@@ -630,7 +619,7 @@ def table_of_effects(
         generator_name = getattr(generator, "__name__", None)
 
     effects = generator(G)
-    if generator_name in {"weighted_effects", "sign_determinacy_effects", "numerical_simulations"}:
+    if generator_name in {"weighted_effects", "sign_determinacy_effects", "simulation_effects"}:
         if isinstance(effects, sp.MatrixBase):
             effects = effects.evalf(2)
     return _tabulate_effects(G, effects)

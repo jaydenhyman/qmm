@@ -7,7 +7,16 @@ from functools import cache
 from typing import Optional, Literal
 from ..core.structure import create_matrix
 from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback
-from ..core.helper import get_nodes, get_positive, get_negative, get_weight, _check_direct_io_edges, _sign_string, _arrows
+from ..core.helper import get_nodes, get_positive, get_negative, get_weight, _sign_string, _arrows, _edge_prefix, _check_direct_io_edges
+
+
+def _sorted_cycles(G: nx.DiGraph) -> list:
+    """Simple cycles as node lists, each rotated to start at its minimum, sorted by (length, nodes)."""
+    return sorted(
+        [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
+        key=lambda x: (len(x), x),
+    )
+
 
 @cache
 def get_cycles(G: nx.DiGraph) -> sp.Matrix:
@@ -39,10 +48,7 @@ def get_cycles(G: nx.DiGraph) -> sp.Matrix:
     A = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
     node_id = {n: i for i, n in enumerate(nodes)}
-    cycle_nodes = sorted(
-        [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
-        key=lambda x: (len(x), x)
-    )
+    cycle_nodes = _sorted_cycles(G)
     C = [c + [c[0]] for c in cycle_nodes]
     cycles = sp.Matrix([sp.prod([A[node_id[c[i + 1]], node_id[c[i]]] for i in range(len(c) - 1)]) for c in C])
     return cycles
@@ -74,10 +80,7 @@ def cycles_table(G: nx.DiGraph) -> pd.DataFrame:
         # 4       3  C $\\multimap$ R $\\rightarrow$ P $\\multimap$ C    +
         ```
     """
-    cycle_nodes = sorted(
-        [c[c.index(min(c)):] + c[:c.index(min(c))] for c in nx.simple_cycles(G)],
-        key=lambda x: (len(x), x)
-    )
+    cycle_nodes = _sorted_cycles(G)
     all_cycles = [cycle + [cycle[0]] for cycle in cycle_nodes]
     cycle_signs = [_sign_string(G, path) for path in all_cycles]
     cycles_df = pd.DataFrame(
@@ -145,28 +148,18 @@ def get_paths(
     if not nx.has_path(G, source, target):
         return sp.Matrix([sp.Integer(0)])
     path_nodes = list(nx.all_simple_paths(G, source, target))
+    if form == "binary":
+        return sp.ones(len(path_nodes), 1)
     paths = []
     for p in path_nodes:
         effect = sp.Integer(1)
         for i in range(len(p) - 1):
             u, v = p[i], p[i + 1]
             s = G[u][v].get("sign", 1)
-            if form == "binary":
-                effect *= sp.Integer(1)
-            elif form == "signed":
+            if form == "signed":
                 effect *= sp.Integer(s)
             else:
-                u_cat = G.nodes[u].get("category", "state")
-                v_cat = G.nodes[v].get("category", "state")
-                if u_cat == "input" and v_cat == "output":
-                    prefix = "d"
-                elif u_cat == "input":
-                    prefix = "b"
-                elif v_cat == "output":
-                    prefix = "c"
-                else:
-                    prefix = "a"
-                effect *= sp.Symbol(f"{prefix}_{v},{u}") * s
+                effect *= sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}") * s
         paths.append(effect)
     return sp.Matrix(paths)
 
@@ -265,17 +258,16 @@ def complementary_feedback(
     all_nodes = get_nodes(G, "all")
     if source not in all_nodes or target not in all_nodes:
         raise ValueError("Invalid source or target node")
+    feedback_funcs = {"symbolic": system_feedback, "signed": net_feedback, "binary": absolute_feedback}
+    if form not in feedback_funcs:
+        raise ValueError("Invalid form. Choose 'symbolic', 'signed', or 'binary'.")
     if source == target:
         paths = [[source]]
     elif not nx.has_path(G, source, target):
         return sp.Matrix([sp.Integer(0)])
     else:
         paths = list(nx.all_simple_paths(G, source, target))
-    
-    feedback_funcs = {"symbolic": system_feedback, "signed": net_feedback, "binary": absolute_feedback}
-    if form not in feedback_funcs:
-        raise ValueError("Invalid form. Choose 'symbolic', 'signed', or 'binary'.")
-    
+
     feedback = []
     for path in paths:
         subsystem_nodes = [n for n in state_nodes if n not in path]
@@ -428,6 +420,7 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     positive_fb = get_positive(net_fb, absolute_fb)
     negative_fb = get_negative(net_fb, absolute_fb)
     weighted_path = weighted_paths(G, source, target)
+    system_path = system_paths(G, source, target, form="signed")
     n = len(paths)
     paths_df = pd.DataFrame(
         {
@@ -443,6 +436,7 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
             "Negative feedback": [negative_fb[i] for i in range(n)],
             "Weighted feedback": [weighted_fb[i] for i in range(n)],
             "Weighted path": [weighted_path[i] for i in range(n)],
+            "System path": [system_path[i] for i in range(n)],
         }
     )
     return paths_df

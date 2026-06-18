@@ -3,6 +3,8 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
+from scipy.sparse import csr_matrix
+from scipy.sparse.csgraph import connected_components, maximum_bipartite_matching
 from typing import List, Union, Dict, Any, Optional, Tuple, Literal
 from dataclasses import dataclass
 from numba import jit
@@ -48,6 +50,7 @@ def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[Li
         for j in range(n):
             if matrix[i][j] != 0:
                 G.add_edge(node_ids[j], node_ids[i], sign=int(matrix[i][j]))
+    _check_signs(G)
     nx.set_node_attributes(G, "state", "category")
     nx.freeze(G)
     return G
@@ -460,58 +463,33 @@ def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
                 for obs in s.split(","))
 
 
+def _check_signs(G: nx.DiGraph) -> None:
+    """Raise unless every edge sign is +1 or -1."""
+    bad = [(u, v, d.get("sign")) for u, v, d in G.edges(data=True) if d.get("sign", 1) not in (-1, 1)]
+    if bad:
+        raise ValueError(f"Edge signs must be +1 or -1: {bad}")
+
+
+def _edge_prefix(G: nx.DiGraph, source: str, target: str) -> str:
+    """Edge symbol prefix d/b/c/a by endpoint category; shared so create_matrix,
+    edges_table and get_paths always agree."""
+    src_in = G.nodes[source].get("category", "state") == "input"
+    tgt_out = G.nodes[target].get("category", "state") == "output"
+    return "d" if src_in and tgt_out else "b" if src_in else "c" if tgt_out else "a"
+
+
 def _check_direct_io_edges(G: nx.DiGraph) -> None:
-    """Check for unsupported direct input-to-output edges.
-
-    Args:
-        G: NetworkX DiGraph representing signed digraph model
-
-    Raises:
-        ValueError: If direct input-to-output edge exists
-    """
-    input_nodes = get_nodes(G, "input")
-    output_nodes = get_nodes(G, "output")
-    for inp in input_nodes:
-        for out in output_nodes:
+    """Raise on any direct input->output edge."""
+    inputs, outputs = get_nodes(G, "input"), get_nodes(G, "output")
+    for inp in inputs:
+        for out in outputs:
             if G.has_edge(inp, out):
-                raise ValueError(
-                    f"Direct input to output edge ({inp} to {out}) not supported."
-                )
+                raise ValueError(f"Direct input to output edge ({inp} to {out}) not supported.")
 
 
-def _check_acyclic_inputs(G: nx.DiGraph) -> None:
-    """Check that input subgraph is acyclic.
-
-    Args:
-        G: NetworkX DiGraph representing signed digraph model
-
-    Raises:
-        ValueError: If input subgraph contains cycles
-    """
-    input_nodes = get_nodes(G, "input")
-    if input_nodes:
-        input_subgraph = G.subgraph(input_nodes)
-        if not nx.is_directed_acyclic_graph(input_subgraph):
-            raise ValueError("Input subgraph contains cycles - input nodes must be acyclic")
-
-
-def _check_acyclic_outputs(G: nx.DiGraph) -> None:
-    """Check that output subgraph is acyclic.
-
-    Args:
-        G: NetworkX DiGraph representing signed digraph model
-
-    Raises:
-        ValueError: If output subgraph contains cycles
-    """
-    output_nodes = get_nodes(G, "output")
-    if output_nodes:
-        output_subgraph = G.subgraph(output_nodes)
-        if not nx.is_directed_acyclic_graph(output_subgraph):
-            raise ValueError("Output subgraph contains cycles - output nodes must be acyclic")
-
-
-def perm(A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg") -> float:
+def perm(
+    A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg", decompose: bool = True
+) -> float:
     """Compute the permanent of a square matrix.
 
     The permanent is similar to the determinant but uses only addition
@@ -522,6 +500,7 @@ def perm(A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg") -> float:
         A: A square numpy array (float or complex).
         method: Algorithm to use - "bbfg" for BBFG formula (default, faster)
                 or "ryser" for Ryser formula. Any other value uses Ryser.
+        decompose: Dulmage-Mendelsohn decomposition (default True) for sparse matrices.
 
     Returns:
         The permanent of matrix A.
@@ -567,10 +546,22 @@ def perm(A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg") -> float:
             + A[0, 0] * A[1, 1] * A[2, 2]
         )
 
-    if method == "bbfg":
-        return _perm_bbfg(A)
-    else:
-        return _perm_ryser(A)
+    if decompose:
+        S = csr_matrix(A != 0)
+        col_of = maximum_bipartite_matching(S, perm_type="column")
+        if (col_of < 0).any():
+            return 0
+        nb, labels = connected_components(S[:, col_of], connection="strong")
+        if nb > 1:
+            result = 1
+            for b in range(nb):
+                rk = np.flatnonzero(labels == b)
+                blk = np.ascontiguousarray(A[np.ix_(rk, col_of[rk])])
+                result *= perm(blk, method, decompose=False)
+            return result
+    if np.prod(np.abs(A).sum(axis=0, dtype=float)) > 2.0**53:
+        raise OverflowError("perm exceeds float precision (2**53)")
+    return _perm_bbfg(A) if method == "bbfg" else _perm_ryser(A)
 
 
 @jit(nopython=True)

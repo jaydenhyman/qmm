@@ -157,8 +157,9 @@ def colour_pass():
 
 @pytest.fixture
 def disconnected_graph():
-    """Graph with disconnected components (A->B, C)."""
+    """Disconnected components: a self-regulating A->B (feedback core) plus isolated C."""
     G = nx.DiGraph()
+    G.add_edge('A', 'A', sign=-1)
     G.add_edge('A', 'B', sign=1)
     G.add_node('C')
     return G

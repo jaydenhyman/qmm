@@ -546,6 +546,10 @@ def perm(
             + A[0, 0] * A[1, 1] * A[2, 2]
         )
 
+    overflow = bool(np.prod(np.abs(A).sum(axis=0, dtype=float)) > 2.0**53)
+    if overflow and int((A != 0).sum()) <= 8 * matshape[0] and not np.mod(A, 1).any():
+        return _perm_int(A)
+
     if decompose:
         S = csr_matrix(A != 0)
         col_of = maximum_bipartite_matching(S, perm_type="column")
@@ -559,7 +563,7 @@ def perm(
                 blk = np.ascontiguousarray(A[np.ix_(rk, col_of[rk])])
                 result *= perm(blk, method, decompose=False)
             return result
-    if np.prod(np.abs(A).sum(axis=0, dtype=float)) > 2.0**53:
+    if overflow:
         raise OverflowError("perm exceeds float precision (2**53)")
     return _perm_bbfg(A) if method == "bbfg" else _perm_ryser(A)
 
@@ -651,6 +655,36 @@ def _perm_bbfg(M: np.ndarray) -> float:
         old_gray = new_gray
 
     return total / num_loops
+
+
+def _perm_int(A: np.ndarray) -> int:
+    """Compute exact integer permanent using minor expansion.
+
+    Args:
+        A: A square numpy array.
+
+    Returns:
+        The permanent of matrix A.
+    """
+    n = A.shape[0]
+    rows = [[(j, int(A[i, j])) for j in range(n) if A[i, j] != 0] for i in range(n)]
+    rows.sort(key=len)  # most-constrained row first => fewer reachable subsets
+    memo: dict = {}
+
+    def expand(depth: int, available: int) -> int:
+        if depth == n:
+            return 1
+        if available in memo:
+            return memo[available]
+        total = 0
+        for col, value in rows[depth]:
+            bit = 1 << col
+            if available & bit:
+                total += value * expand(depth + 1, available ^ bit)
+        memo[available] = total
+        return total
+
+    return expand(0, (1 << n) - 1)
 
 
 def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"], size: int) -> np.ndarray:

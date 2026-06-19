@@ -25,6 +25,7 @@ from qmm.core.helper import (
     perm,
     _perm_ryser,
     _perm_bbfg,
+    _perm_int,
     get_dashed_alternatives,
 )
 from qmm.core.stability import net_feedback, absolute_feedback
@@ -652,6 +653,23 @@ def test_perm_bbfg_py_func_2x2_no_fixture():
 def test_perm_overflow_raises_no_fixture():
     with pytest.raises(OverflowError):
         perm(np.ones((17, 17)))
+
+
+def test_perm_sparse_overflow_exact_no_fixture():
+    n = 40
+    M = np.array([[1.0 if abs(i - j) <= 1 else 0.0 for j in range(n)] for i in range(n)])
+    fib = [0, 1]
+    for _ in range(n + 1):
+        fib.append(fib[-1] + fib[-2])
+    assert int(perm(M)) == fib[n + 1]
+
+
+def test_perm_int_matches_bbfg_random_sparse_no_fixture():
+    rng = np.random.default_rng(7)
+    for n in (5, 8, 11):
+        for _ in range(20):
+            M = (rng.random((n, n)) < 0.35).astype(float)
+            assert int(_perm_int(M)) == int(round(float(_perm_bbfg(np.ascontiguousarray(M)))))
 
 
 def test_absolute_feedback_overflow_raises_no_fixture():

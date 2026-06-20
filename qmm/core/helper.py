@@ -203,7 +203,7 @@ def get_nodes(
         raise TypeError("Input must be a networkx.DiGraph.")
 
     if node_type == "all":
-        return list(G.nodes()) if not labels else list(G.nodes(data=True))
+        return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True)]
     else:
         return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True) if d.get("category") == node_type]
 
@@ -396,7 +396,7 @@ def sign_determinacy(
 def _arrows(G: nx.DiGraph, path: List[str]) -> str:
     arrows = []
     for i in range(len(path) - 1):
-        if G[path[i]][path[i + 1]]["sign"] > 0:
+        if G[path[i]][path[i + 1]].get("sign", 1) > 0:
             arrows.append(f"{path[i]} $\\rightarrow$")
         else:
             arrows.append(f"{path[i]} $\\multimap$")
@@ -406,7 +406,7 @@ def _arrows(G: nx.DiGraph, path: List[str]) -> str:
 def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
     product = 1
     for from_node, to_node in zip(path, path[1:]):
-        product *= G[from_node][to_node]["sign"]
+        product *= G[from_node][to_node].get("sign", 1)
     if product > 0:
         return "+"
     elif product < 0:
@@ -422,14 +422,14 @@ class _NodeSign:
     
     @classmethod
     def from_str(cls, s: str) -> '_NodeSign':
-        """Create from string like 'B:+' or 'B: +' or 'B:0'"""
-        s = s.strip()
-        node, sign = s.split(":")
+        """Create from 'B:+', 'B: -', 'B:0', or a bare 'B' (sign defaults to +)."""
+        node, sep, sign = s.strip().partition(":")
         node = node.strip()
-        sign = sign.strip()
-        
+        sign = sign.strip() if sep else "+"
+        if not node:
+            raise ValueError(f"Missing node name in '{s}'")
         if sign not in ["+", "-", "0"]:
-            raise ValueError(f"Sign must be +, -, or 0, got '{sign}'")
+            raise ValueError(f"Sign must be +, -, or 0, got '{sign}' in '{s}'")
         return cls(node, 1 if sign == "+" else (-1 if sign == "-" else 0))
     
     def to_tuple(self) -> tuple[str, int]:
@@ -687,7 +687,7 @@ def _perm_int(A: np.ndarray) -> int:
     return expand(0, (1 << n) - 1)
 
 
-def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"], size: int) -> np.ndarray:
+def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"], size: int, rng: Optional[np.random.RandomState] = None) -> np.ndarray:
     """Sample random interaction strengths from a specified distribution.
 
     Used for numerical simulations where interaction strengths are drawn from
@@ -702,6 +702,7 @@ def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "unif
             - "strong": Beta(3, 1) - strong interactions predominate
             - "uniform_two_oom": Uniform(0.01, 1)
         size: Number of samples to draw
+        rng: NumPy RandomState for reproducible draws (a fresh one is used if None)
 
     Returns:
         np.ndarray: Array of sampled interaction strengths
@@ -709,14 +710,16 @@ def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "unif
     Raises:
         ValueError: If dist is not a valid distribution name
     """
+    if rng is None:
+        rng = np.random.RandomState()
     if dist == "uniform_two_oom":
-        return np.random.uniform(0.01, 1.0, size)
+        return rng.uniform(0.01, 1.0, size)
 
     samplers = {
-        "uniform": lambda: np.random.uniform(0, 1, size),
-        "weak": lambda: np.random.beta(1, 3, size),
-        "moderate": lambda: np.random.beta(2, 2, size),
-        "strong": lambda: np.random.beta(3, 1, size),
+        "uniform": lambda: rng.uniform(0, 1, size),
+        "weak": lambda: rng.beta(1, 3, size),
+        "moderate": lambda: rng.beta(2, 2, size),
+        "strong": lambda: rng.beta(3, 1, size),
     }
 
     if dist not in samplers:

@@ -2,8 +2,6 @@
 
 import pytest
 import networkx as nx
-import subprocess
-from pathlib import Path
 
 from qmm.core.helper import list_to_digraph
 from qmm.extensions.effects import define_input_output

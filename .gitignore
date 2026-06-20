@@ -124,6 +124,9 @@ cython_debug/
 # Quarto
 /.quarto/
 
+# macOS
+.DS_Store
+
 # Misc
 .pypirc
 *.sage.py

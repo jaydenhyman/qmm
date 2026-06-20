@@ -60,14 +60,15 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
         # 6    Sign stable               Satisfies necessary and sufficient conditions for sign stability   False
         ```
     """
-    A = sp.matrix2numpy(create_matrix(G, form="signed")).astype(int)
+    A_signed = create_matrix(G, form="signed")
+    A = sp.matrix2numpy(A_signed).astype(int)
     n = A.shape[0]
     conditions = [
         all(A[i, i] <= 0 for i in range(n)),
         any(A[i, i] < 0 for i in range(n)),
         all(A[i, j] * A[j, i] <= 0 for i in range(n) for j in range(n) if i != j),
         all(len(cycle) < 3 for cycle in nx.simple_cycles(nx.DiGraph(A))),
-        np.linalg.det(A) != 0,
+        bool(A_signed.det() != 0),
     ]
     colour_result = _colour_test(G) == "Fail"
     is_sign_stable = all(conditions) and colour_result
@@ -106,7 +107,7 @@ def system_feedback(
     Args:
         G: NetworkX DiGraph representing signed digraph model
         level: Level of feedback to compute (None for all levels)
-        form: Type of feedback ('symbolic', 'signed', or 'binary')
+        form: Type of feedback ('symbolic', 'signed')
 
     Returns:
         sp.Matrix: Feedback cycle products at specified levels
@@ -436,7 +437,7 @@ def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
         td = [sp.Integer(1)]
         for k in range(1, n + 1):
             h_k = np.array(h[:k, :k].tolist(), dtype=float)
-            td.append(sp.Abs(sp.Integer(int(perm(h_k)))))
+            td.append(sp.Abs(sp.Integer(int(round(perm(h_k))))))
     else:
         if level < 0 or level > n:
             raise ValueError(f"Level must be between 0 and {n}")
@@ -444,7 +445,7 @@ def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
             td = [sp.Integer(1)]
         else:
             H_k = np.array(h[:level, :level].tolist(), dtype=float)
-            td = [sp.Abs(sp.Integer(int(perm(H_k))))]
+            td = [sp.Abs(sp.Integer(int(round(perm(H_k)))))]
     return sp.Matrix(td)
 
 @cache
@@ -598,6 +599,7 @@ def simulation_stability(
     G: nx.DiGraph,
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
     presample: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
     """Analyse stability using randomly sampled interaction strengths from a specified distribution.
@@ -611,6 +613,7 @@ def simulation_stability(
             - "moderate": Beta(2, 2) - moderate interactions predominate
             - "strong": Beta(3, 1) - strong interactions predominate
             - "uniform_two_oom": Uniform(0.01, 1)
+        seed: Random seed
         presample: Optional pre-sampled values of shape (n_sim, n, n) to use instead of random sampling
 
     Returns:
@@ -625,11 +628,11 @@ def simulation_stability(
         from qmm import load_digraph, simulation_stability
         simulation_stability(load_digraph("snowshoe_rp"), n_sim=1000)
         #                         Test                                                             Definition  Result
-        # 0            Stable matrices              Proportion where all eigenvalues have negative real parts  79.10%
-        # 1          Unstable matrices      Proportion where one or more eigenvalues have positive real parts  20.90%
-        # 2        Hurwitz criterion i  Proportion where polynomial coefficients are not all of the same sign  20.90%
+        # 0            Stable matrices              Proportion where all eigenvalues have negative real parts  76.70%
+        # 1          Unstable matrices      Proportion where one or more eigenvalues have positive real parts  23.30%
+        # 2        Hurwitz criterion i  Proportion where polynomial coefficients are not all of the same sign  23.30%
         # 3       Hurwitz criterion ii             Proportion where Hurwitz determinants are not all positive   0.00%
-        # 4   Hurwitz criterion i only                        Proportion where only Hurwitz criterion i fails  20.90%
+        # 4   Hurwitz criterion i only                        Proportion where only Hurwitz criterion i fails  23.30%
         # 5  Hurwitz criterion ii only                       Proportion where only Hurwitz criterion ii fails   0.00%
         ```
     """
@@ -640,6 +643,7 @@ def simulation_stability(
         if presample.shape != (n_sim, *A.shape):
             raise ValueError(f"presample must have shape ({n_sim}, {A.shape[0]}, {A.shape[1]})")
 
+    rng = np.random.RandomState(seed)
     n_stable = 0
     n_unstable = 0
     n_hurwitz_i_fail = 0
@@ -651,7 +655,7 @@ def simulation_stability(
         if presample is not None:
             M = presample[i]
         else:
-            M = _random_sampler(dist, A.size).reshape(A.shape)
+            M = _random_sampler(dist, A.size, rng).reshape(A.shape)
         S = A * M
         if np.all(np.real(np.linalg.eigvals(S)) < 0):
             n_stable += 1
@@ -661,11 +665,11 @@ def simulation_stability(
         hurwitz_i = np.all(pc[1:] > 0) or np.all(pc[1:] < 0)
         n = len(pc)
         H = np.zeros((n - 1, n - 1))
-        for i in range(1, n):
-            for j in range(1, n):
-                index = 2 * j - i
+        for r in range(1, n):
+            for c in range(1, n):
+                index = 2 * c - r
                 if 0 <= index < n:
-                    H[i - 1, j - 1] = pc[index]
+                    H[r - 1, c - 1] = pc[index]
         hd = [np.linalg.det(H[: k + 1, : k + 1]) for k in range(n - 1)]
         hurwitz_ii = np.all(np.array(hd[1:-1]) > 0)
         if not hurwitz_i:

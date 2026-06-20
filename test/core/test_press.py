@@ -89,7 +89,6 @@ def test_adjoint_matrix_form_signed_perturb_P_mesocosm(mesocosm):
 
 def test_adjoint_matrix_form_symbolic_perturb_R_snowshoe(snowshoe):
     result = adjoint_matrix(snowshoe, form='symbolic', perturb='R')
-    a_RR = sp.Symbol('a_R,R')
     a_CR = sp.Symbol('a_C,R')
     a_CP = sp.Symbol('a_C,P')
     a_PC = sp.Symbol('a_P,C')

@@ -59,7 +59,7 @@ def test_marginal_likelihood_zero_observation_no_edge(snowshoe_io_na):
 def test_model_validation_alternative_structure(snowshoe_dashed):
     df = model_validation(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=True)
     expected_data = {
-        'Marginal likelihood': ['0.520', '0.470', '0.430', '0.430', '0.000', '0.000', '0.000', '0.000'],
+        'Marginal likelihood': ['0.520', '0.470', '0.340', '0.330', '0.000', '0.000', '0.000', '0.000'],
         'R $\\rightarrow$ P': ['\u2713', '\u2713', '\u2713', '\u2713', '', '', '', ''],
         'C $\\multimap$ C': ['\u2713', '', '', '\u2713', '', '\u2713', '', '\u2713'],
         'P $\\multimap$ R': ['\u2713', '\u2713', '', '', '', '', '\u2713', '\u2713']
@@ -149,7 +149,7 @@ def test_diagnose_observations_input_only(snowshoe_io):
     expected_data = {
         'Input': ['Inp1', 'Inp1', 'Inp2', 'Inp2'],
         'Sign': ['+', '-', '+', '-'],
-        'Marginal likelihood': [0.57, 0.0, 0.0, 0.0]
+        'Marginal likelihood': [0.52, 0.0, 0.0, 0.0]
     }
     result = df.to_dict('list')
     expected = expected_data
@@ -178,10 +178,8 @@ def test_diagnose_observations_default_nodes(snowshoe_io):
 
 
 def test_diagnose_observations_with_errors(snowshoe_io):
-    df = diagnose_observations(snowshoe_io, observe='InvalidNode:+', n_sim=100, perturb_nodes='input', seed=42)
-    result = isinstance(df, pd.DataFrame)
-    expected = True
-    assert result == expected
+    with pytest.raises(ValueError, match="Unknown observation node"):
+        diagnose_observations(snowshoe_io, observe='InvalidNode:+', n_sim=100, perturb_nodes='input', seed=42)
 
 
 def test_diagnose_observations_all_errors_empty_df(minimal_error_graph):

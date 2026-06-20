@@ -397,11 +397,11 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         ```python
         from qmm import path_metrics, load_digraph
         path_metrics(load_digraph("snowshoe_io"), 'Inp1', 'Out1')
-        #    Length                 Path Path sign Complementary subsystem Net feedback Absolute feedback Positive feedback Negative feedback Weighted feedback Weighted path
-        # 0       4  Inp1, R, C, P, Out1         +                    None           -1                 1                 0                 1                -1             1
-        # 1       3     Inp1, R, C, Out1         −                       P           -1                 1                 0                 1                -1            -1
-        # 2       3     Inp1, C, P, Out1         −                       R           -1                 1                 0                 1                -1            -1
-        # 3       2        Inp1, C, Out1         +                    R, P           -1                 1                 0                 1                -1             1
+        #    Length                 Path Path sign Complementary subsystem Net feedback Absolute feedback Positive feedback Negative feedback Weighted feedback Weighted path System path
+        # 0       4  Inp1, R, C, P, Out1         +                    None           -1                 1                 0                 1                -1             1           1
+        # 1       3     Inp1, R, C, Out1         −                       P           -1                 1                 0                 1                -1            -1          -1
+        # 2       3     Inp1, C, P, Out1         −                       R           -1                 1                 0                 1                -1            -1          -1
+        # 3       2        Inp1, C, Out1         +                    R, P           -1                 1                 0                 1                -1             1           1
         ```
     """
     _check_direct_io_edges(G)

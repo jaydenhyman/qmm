@@ -388,7 +388,7 @@ def test_get_simulations_all_nodes_includes_all(snowshoe_io):
     assert result == expected
 
 def test_get_simulations_invalid_perturb_node(snowshoe_io):
-    with pytest.raises(KeyError, match="Perturbation node 'InvalidNode' not found."):
+    with pytest.raises(ValueError, match="Perturbation node 'InvalidNode' not found."):
         get_simulations(snowshoe_io, n_sim=100, perturb=('InvalidNode', 1))
 
 
@@ -414,11 +414,11 @@ def test_get_simulations_runtime_error_max_iterations(positive_loop_graph):
 def test_simulation_effects_full_matrix(snowshoe_io):
     result = simulation_effects(snowshoe_io, n_sim=100, seed=42)
     expected = sp.Matrix([
-        [  1.0,  -1.0,  1.0,  1.0, -1.0],
-        [  1.0,   1.0, -1.0, 0.57,  1.0],
-        [  1.0,   1.0,  1.0, 0.57, -1.0],
-        [-0.54, -0.54,  1.0, 0.51, -1.0],
-        [  1.0,   1.0, -1.0, 0.57,  1.0]])
+        [  1.0,  -1.0,  1.0,   1.0, -1.0],
+        [  1.0,   1.0, -1.0,  0.52,  1.0],
+        [  1.0,   1.0,  1.0,  0.52, -1.0],
+        [-0.63, -0.63,  1.0, -0.53, -1.0],
+        [  1.0,   1.0, -1.0,  0.52,  1.0]])
     assert result == expected
 
 
@@ -426,10 +426,10 @@ def test_simulation_effects_positive_only(snowshoe_io):
     result = simulation_effects(snowshoe_io, n_sim=100, seed=42, positive_only=True)
     expected = sp.Matrix([
         [ 1.0,  0.0, 1.0,  1.0, 0.0],
-        [ 1.0,  1.0, 0.0, 0.57, 1.0],
-        [ 1.0,  1.0, 1.0, 0.57, 0.0],
-        [0.46, 0.46, 1.0, 0.51, 0.0],
-        [ 1.0,  1.0, 0.0, 0.57, 1.0]])
+        [ 1.0,  1.0, 0.0, 0.52, 1.0],
+        [ 1.0,  1.0, 1.0, 0.52, 0.0],
+        [0.37, 0.37, 1.0, 0.47, 0.0],
+        [ 1.0,  1.0, 0.0, 0.52, 1.0]])
     assert result == expected
 
 
@@ -449,35 +449,35 @@ def test_simulation_effects_presample_full_matrix(snowshoe_rp):
 def test_simulation_effects_distributions(snowshoe_io, dist):
     expected_mats = {
         'uniform': sp.Matrix([
-            [  1.0,  -1.0,  1.0,  1.0, -1.0],
-            [  1.0,   1.0, -1.0, 0.57,  1.0],
-            [  1.0,   1.0,  1.0, 0.57, -1.0],
-            [-0.54, -0.54,  1.0, 0.51, -1.0],
-            [  1.0,   1.0, -1.0, 0.57,  1.0]]),
+            [  1.0,  -1.0,  1.0,   1.0, -1.0],
+            [  1.0,   1.0, -1.0,  0.52,  1.0],
+            [  1.0,   1.0,  1.0,  0.52, -1.0],
+            [-0.63, -0.63,  1.0, -0.53, -1.0],
+            [  1.0,   1.0, -1.0,  0.52,  1.0]]),
         'uniform_two_oom': sp.Matrix([
-            [  1.0,  -1.0,  1.0,  1.0, -1.0],
-            [  1.0,   1.0, -1.0, 0.57,  1.0],
-            [  1.0,   1.0,  1.0, 0.57, -1.0],
-            [-0.54, -0.54,  1.0, 0.51, -1.0],
-            [  1.0,   1.0, -1.0, 0.57,  1.0]]),
+            [  1.0,  -1.0,  1.0,   1.0, -1.0],
+            [  1.0,   1.0, -1.0,  0.52,  1.0],
+            [  1.0,   1.0,  1.0,  0.52, -1.0],
+            [-0.63, -0.63,  1.0, -0.53, -1.0],
+            [  1.0,   1.0, -1.0,  0.52,  1.0]]),
         'weak': sp.Matrix([
-            [  1.0,  -1.0,  1.0,  1.0, -1.0],
-            [  1.0,   1.0, -1.0, 0.58,  1.0],
-            [  1.0,   1.0,  1.0, 0.58, -1.0],
-            [-0.51, -0.51,  1.0, 0.57, -1.0],
-            [  1.0,   1.0, -1.0, 0.58,  1.0]]),
+            [  1.0,  -1.0,  1.0,   1.0, -1.0],
+            [  1.0,   1.0, -1.0,  0.52,  1.0],
+            [  1.0,   1.0,  1.0,  0.52, -1.0],
+            [-0.57, -0.57,  1.0, -0.63, -1.0],
+            [  1.0,   1.0, -1.0,  0.52,  1.0]]),
         'moderate': sp.Matrix([
             [  1.0,  -1.0,  1.0,  1.0, -1.0],
-            [  1.0,   1.0, -1.0, 0.51,  1.0],
-            [  1.0,   1.0,  1.0, 0.51, -1.0],
-            [-0.52, -0.52,  1.0, 0.53, -1.0],
-            [  1.0,   1.0, -1.0, 0.51,  1.0]]),
+            [  1.0,   1.0, -1.0, 0.57,  1.0],
+            [  1.0,   1.0,  1.0, 0.57, -1.0],
+            [-0.53, -0.53,  1.0,  0.5, -1.0],
+            [  1.0,   1.0, -1.0, 0.57,  1.0]]),
         'strong': sp.Matrix([
             [  1.0,  -1.0,  1.0,   1.0, -1.0],
-            [  1.0,   1.0, -1.0, -0.54,  1.0],
-            [  1.0,   1.0,  1.0, -0.54, -1.0],
-            [-0.56, -0.56,  1.0,  0.52, -1.0],
-            [  1.0,   1.0, -1.0, -0.54,  1.0]]),
+            [  1.0,   1.0, -1.0, -0.51,  1.0],
+            [  1.0,   1.0,  1.0, -0.51, -1.0],
+            [  0.5,   0.5,  1.0, -0.53, -1.0],
+            [  1.0,   1.0, -1.0, -0.51,  1.0]]),
     }
     result = simulation_effects(snowshoe_io, n_sim=100, dist=dist, seed=42)
     expected = expected_mats[dist]
@@ -505,12 +505,12 @@ def test_simulation_effects_vs_numerical_simulations(snowshoe, snowshoe_io):
 def test_simulation_effects_nan_for_no_path(snowshoe_io_na):
     result = simulation_effects(snowshoe_io_na, n_sim=100, seed=42)
     expected = sp.Matrix([
-        [   1.0,   -1.0,    1.0,  1.0,    1.0,   -1.0],
-        [   1.0,    1.0,   -1.0,  1.0,   0.56,    1.0],
-        [   1.0,    1.0,    1.0,  1.0,   0.56,   -1.0],
-        [sp.nan, sp.nan, sp.nan,  1.0, sp.nan, sp.nan],
-        [  0.52,   0.52,    1.0, 0.52,   0.50,   -1.0],
-        [   1.0,    1.0,   -1.0,  1.0,   0.56,    1.0]])
+        [   1.0,   -1.0,    1.0,   1.0,    1.0,   -1.0],
+        [   1.0,    1.0,   -1.0,   1.0,  -0.51,    1.0],
+        [   1.0,    1.0,    1.0,   1.0,  -0.51,   -1.0],
+        [sp.nan, sp.nan, sp.nan,   1.0, sp.nan, sp.nan],
+        [ -0.54,  -0.54,    1.0, -0.54,  -0.57,   -1.0],
+        [   1.0,    1.0,   -1.0,   1.0,  -0.51,    1.0]])
     assert result == expected
 
 
@@ -518,11 +518,11 @@ def test_simulation_effects_positive_only_nan_for_no_path(snowshoe_io_na):
     result = simulation_effects(snowshoe_io_na, n_sim=100, seed=42, positive_only=True)
     expected = sp.Matrix([
         [   1.0,    0.0,    1.0,  1.0,    1.0,    0.0],
-        [   1.0,    1.0,    0.0,  1.0,   0.56,    1.0],
-        [   1.0,    1.0,    1.0,  1.0,   0.56,    0.0],
+        [   1.0,    1.0,    0.0,  1.0,   0.49,    1.0],
+        [   1.0,    1.0,    1.0,  1.0,   0.49,    0.0],
         [sp.nan, sp.nan, sp.nan,  1.0, sp.nan, sp.nan],
-        [  0.52,   0.52,    1.0, 0.52,   0.50,    0.0],
-        [   1.0,    1.0,    0.0,  1.0,   0.56,    1.0]])
+        [  0.46,   0.46,    1.0, 0.46,   0.43,    0.0],
+        [   1.0,    1.0,    0.0,  1.0,   0.49,    1.0]])
     assert result == expected
 
 
@@ -692,7 +692,7 @@ def test_table_of_effects_with_lambda_no_name(snowshoe_io):
 
 
 def test_simulation_effects_handles_singular_matrices(snowshoe_io):
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
     original_inv = np.linalg.inv
     call_count = [0]
 

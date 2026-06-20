@@ -30,7 +30,7 @@ def test_mutual_information_multiple_perturbations_mesocosm_alt_models(mesocosm_
     result['Mutual Information'] = result['Mutual Information'].round(6)
     expected = pd.DataFrame({
         'Node': ['C1', 'C2', 'A2', 'A1', 'H1', 'AP', 'H2', 'P'],
-        'Mutual Information': [0.036561, 0.014593, 0.00897, 0.007682, 0.00634, 0.000936, 0.000936, 0.000936],
+        'Mutual Information': [0.042498, 0.010158, 0.008817, 0.007682, 0.003365, 0.001912, 0.001912, 0.001912],
     })
     assert result.equals(expected)
 
@@ -39,8 +39,8 @@ def test_mutual_information_include_null_mesocosm(mesocosm):
     result = mutual_information(mesocosm, perturb='P:+', n_sim=100, seed=42, include_null=True)
     result['Mutual Information'] = result['Mutual Information'].round(6)
     expected = pd.DataFrame({
-        'Node': ['AP', 'P', 'H2', 'A2', 'A1', 'C1', 'C2', 'H1'],
-        'Mutual Information': [0.349411, 0.293565, 0.287069, 0.174189, 0.173018, 0.159312, 0.14756, 0.130839],
+        'Node': ['H2', 'AP', 'P', 'A2', 'H1', 'A1', 'C1', 'C2'],
+        'Mutual Information': [0.320574, 0.293565, 0.280667, 0.172393, 0.164049, 0.16089, 0.141143, 0.120571],
     })
     assert result.equals(expected)
 

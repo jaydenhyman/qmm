@@ -18,6 +18,7 @@ from ..core.helper import (
     get_dashed_alternatives,
     _check_signs,
     _check_direct_io_edges,
+    _edge_prefix,
 )
 from ..core.structure import create_matrix
 from ..core.press import (
@@ -258,9 +259,7 @@ def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
         # [1,  1, -1, 0,  1]])
         ```
     """
-    net = cumulative_effects(G, form="signed")
-    absolute = cumulative_effects(G, form="binary")
-    return get_weight(net, absolute)
+    return get_weight(net_effects(G), absolute_effects(G))
 
 
 @cache
@@ -297,10 +296,8 @@ def sign_determinacy_effects(
         # [  1,   1, -1, 1/2,  1]])
         ```
     """
-    net = cumulative_effects(G, form="signed")
-    absolute = cumulative_effects(G, form="binary")
-    weighted = get_weight(net, absolute)
-    return sign_determinacy(weighted, absolute, method=method)
+    absolute = absolute_effects(G)
+    return sign_determinacy(weighted_effects(G), absolute, method=method)
 
 
 @cache
@@ -313,6 +310,7 @@ def get_simulations(
     observe: Optional[Tuple[Tuple[str, int], ...]] = None,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
     return_samples: bool = False,
+    average_uncertain: bool = False,
 ) -> Dict[str, Any]:
     """Calculate average proportion of positive and negative effects from stable numerical simulations.
 
@@ -326,6 +324,7 @@ def get_simulations(
         presample: Optional callable that receives the tuple of free symbols and
             returns a mapping of symbol substitutions to apply before sampling.
         return_samples: If True, include dict mapping symbol names to arrays of sampled values
+        average_uncertain: If True, sample edges marked dashes=True in/out each draw (structure averaging)
 
     Returns:
         Dict containing effects, valid_sims, all_nodes, tmat, prop_stable, attempts, and optionally samples.
@@ -335,15 +334,14 @@ def get_simulations(
         from qmm import get_simulations, load_digraph
         result = get_simulations(load_digraph("snowshoe_io"), n_sim=1000, perturb=('Inp1', 1))
         result['effects'][0]
-        # array([ 0.20429708, -0.79306194, -0.97014254, -0.14970721, -0.41616435])
+        # array([ 1.29385476,  2.55918625,  3.12917778, -1.74767706,  2.48217995])
         ```
     """
 
-    np.random.seed(seed)
+    rng = np.random.RandomState(seed)
 
     A_sym, B_sym, C_sym, D_sym = (create_matrix(G, form="symbolic", matrix_type=m) for m in "ABCD")
     symbols_all = {s for m in (A_sym, B_sym, C_sym, D_sym) if m for s in m.free_symbols}
-    symbols_all |= {sp.Symbol(f"a_{u},{v}") for u, v in G.edges}
     symbols_all = tuple(sorted(symbols_all, key=str))
     fixed_subs = {}
 
@@ -359,9 +357,13 @@ def get_simulations(
     n_x, n_u, n_y = len(state), len(inputs), len(outputs)
 
     response_idx = {node: i for i, node in enumerate(state + outputs)}
+    if observe:
+        unknown = [n for n, _ in observe if n not in response_idx]
+        if unknown:
+            raise ValueError(f"Unknown observation node(s): {unknown}. Valid response nodes: {list(response_idx)}")
     perturb_nodes = state + inputs
     if perturb and perturb[0] not in perturb_nodes:
-        raise KeyError(f"Perturbation node '{perturb[0]}' not found.")
+        raise ValueError(f"Perturbation node '{perturb[0]}' not found.")
     p_idx, p_sign = (perturb_nodes.index(perturb[0]), perturb[1]) if perturb else (None, 1)
 
     tmat = sp.matrix2numpy(absolute_effects(G)).astype(int)
@@ -396,11 +398,23 @@ def get_simulations(
                 return False
         return True
 
+    uncertain = [(u, v, symbols_sampled.index(sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")))
+                 for u, v, d in G.edges(data=True) if d.get("dashes")] if average_uncertain else []
+    base_cls, checked = {n: d.get("category", "state") for n, d in G.nodes(data=True)}, set()
     effects, valid_sims, samples = [], [], []
     attempts, max_attempts = 0, n_sim * 100
     while len(effects) < n_sim and attempts < max_attempts:
         attempts += 1
-        values = _random_sampler(dist, len(symbols_sampled))
+        values = _random_sampler(dist, len(symbols_sampled), rng)
+        if uncertain:
+            keep = rng.uniform(size=len(uncertain)) < rng.uniform()
+            if (k := tuple(keep)) not in checked:
+                variant = nx.DiGraph(G)
+                variant.remove_edges_from([(u, v) for ke, (u, v, _) in zip(keep, uncertain) if not ke])
+                if {n: d.get("category", "state") for n, d in define_input_output(variant, remove_disconnected=False).nodes(data=True)} != base_cls:
+                    raise ValueError("Excluding an uncertain edge re-classifies a node; structure averaging halted.")
+                checked.add(k)
+            values[[i for ke, (_, _, i) in zip(keep, uncertain) if not ke]] = 0.0
         if (effect := compute_sample(values)) is None:
             continue
         effects.append(effect)
@@ -434,6 +448,11 @@ def get_simulations(
     return result
 
 
+def _sign_counts(effects) -> Tuple[np.ndarray, np.ndarray]:
+    arr = np.array(effects)
+    return np.sum(arr > 0, axis=0), np.sum(arr < 0, axis=0)
+
+
 def simulation_effects(
     G: nx.DiGraph,
     n_sim: int = 10000,
@@ -441,6 +460,7 @@ def simulation_effects(
     seed: int = 42,
     positive_only: bool = False,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
+    average_uncertain: bool = False,
 ) -> sp.Matrix:
     """Performs numerical simulations of cumulative effects using random interaction strengths.
 
@@ -451,6 +471,7 @@ def simulation_effects(
         seed: Random seed
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
         presample: Optional callable passed through to get_simulations
+        average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
 
     Returns:
         SymPy Matrix containing simulation results
@@ -460,28 +481,26 @@ def simulation_effects(
         from qmm import load_digraph, simulation_effects
         simulation_effects(load_digraph("snowshoe_io"), n_sim=1000)
         # Matrix([
-        # [   1.0,   -1.0,  1.0,   1.0, -1.0],
-        # [   1.0,    1.0, -1.0, 0.511,  1.0],
-        # [   1.0,    1.0,  1.0, 0.511, -1.0],
-        # [-0.524, -0.524,  1.0, 0.513, -1.0],
-        # [   1.0,    1.0, -1.0, 0.511,  1.0]])
+        # [   1.0,   -1.0,  1.0,    1.0, -1.0],
+        # [   1.0,    1.0, -1.0, -0.513,  1.0],
+        # [   1.0,    1.0,  1.0, -0.513, -1.0],
+        # [-0.517, -0.517,  1.0,  0.526, -1.0],
+        # [   1.0,    1.0, -1.0, -0.513,  1.0]])
 
         simulation_effects(load_digraph("snowshoe_io"), n_sim=1000, positive_only=True)
         # Matrix([
         # [  1.0,   0.0, 1.0,   1.0, 0.0],
-        # [  1.0,   1.0, 0.0, 0.511, 1.0],
-        # [  1.0,   1.0, 1.0, 0.511, 0.0],
-        # [0.476, 0.476, 1.0, 0.513, 0.0],
-        # [  1.0,   1.0, 0.0, 0.511, 1.0]])
+        # [  1.0,   1.0, 0.0, 0.487, 1.0],
+        # [  1.0,   1.0, 1.0, 0.487, 0.0],
+        # [0.483, 0.483, 1.0, 0.526, 0.0],
+        # [  1.0,   1.0, 0.0, 0.487, 1.0]])
         ```
     """
-    sims = get_simulations(G, n_sim, dist, seed, presample=presample)
+    sims = get_simulations(G, n_sim, dist, seed, presample=presample, average_uncertain=average_uncertain)
     tmat = sims["tmat"]
     n_rows, n_cols = tmat.shape
 
-    effects = np.array(sims["effects"])
-    positive = np.sum(effects > 0, axis=0)
-    negative = np.sum(effects < 0, axis=0)
+    positive, negative = _sign_counts(sims["effects"])
 
     smat = positive / n_sim if positive_only else np.where(
         negative > positive, -negative / n_sim, positive / n_sim
@@ -521,10 +540,10 @@ def simulations_table(
         simulations_table(load_digraph("snowshoe_io"), perturb='Inp1:+', n_sim=1000)
         #    model effect_on  negative  no_effect  positive  valid_sims  stable_sims  attempts
         # 0      1         R         0          0      1000        1000         1000      1000
-        # 1      1         C       489          0       511        1000         1000      1000
-        # 2      1         P       489          0       511        1000         1000      1000
-        # 3      1      Out1       487          0       513        1000         1000      1000
-        # 4      1      Out2       489          0       511        1000         1000      1000
+        # 1      1         C       513          0       487        1000         1000      1000
+        # 2      1         P       513          0       487        1000         1000      1000
+        # 3      1      Out1       474          0       526        1000         1000      1000
+        # 4      1      Out2       513          0       487        1000         1000      1000
         ```
     """
     variants = get_dashed_alternatives(G, combinations=combinations)
@@ -553,9 +572,7 @@ def simulations_table(
         valid_effects = [effect[:node_count] for effect, valid in zip(sims["effects"], sims["valid_sims"]) if valid]
         valid_count = len(valid_effects)
         if valid_count:
-            effect_arr = np.array(valid_effects)
-            negative = np.sum(effect_arr < 0, axis=0).astype(int)
-            positive = np.sum(effect_arr > 0, axis=0).astype(int)
+            positive, negative = (c.astype(int) for c in _sign_counts(valid_effects))
         else:
             negative = np.zeros(node_count, dtype=int)
             positive = np.zeros(node_count, dtype=int)
@@ -589,6 +606,15 @@ def table_of_direct_effects(
     return _tabulate_effects(G, direct_effects(G, form=form))
 
 
+_EFFECT_GENERATORS = {
+    "net_effects": net_effects,
+    "absolute_effects": absolute_effects,
+    "weighted_effects": weighted_effects,
+    "sign_determinacy_effects": sign_determinacy_effects,
+    "simulation_effects": simulation_effects,
+}
+
+
 def table_of_effects(
     G: nx.DiGraph,
     generator: Union[
@@ -606,13 +632,7 @@ def table_of_effects(
     generator_name = None
     if isinstance(generator, str):
         generator_name = generator
-        generator = {
-            "net_effects": net_effects,
-            "absolute_effects": absolute_effects,
-            "weighted_effects": weighted_effects,
-            "sign_determinacy_effects": sign_determinacy_effects,
-            "simulation_effects": simulation_effects,
-        }.get(generator)
+        generator = _EFFECT_GENERATORS.get(generator)
     if not callable(generator):
         raise ValueError(f"Generator must be callable, got: {type(generator)}")
     if generator_name is None:

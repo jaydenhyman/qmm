@@ -24,6 +24,7 @@ def marginal_likelihood(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
+    average_uncertain: bool = False,
 ) -> float:
     """Calculate proportion of simulations matching qualitative observations.
 
@@ -34,6 +35,7 @@ def marginal_likelihood(
         n_sim: Number of simulations
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
         seed: Random seed
+        average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
 
     Returns:
         float: Marginal likelihood
@@ -46,13 +48,14 @@ def marginal_likelihood(
         ```python
         from qmm import marginal_likelihood, load_digraph
         marginal_likelihood(load_digraph("snowshoe_io"), perturb='Inp1:+', observe='Out1:+', n_sim=1000)
-        # 0.513
+        # 0.526
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
     sims = get_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
                           perturb=pert,
-                          observe=_parse_observations(observe) if observe else None)
+                          observe=_parse_observations(observe) if observe else None,
+                          average_uncertain=average_uncertain)
     return sum(sims["valid_sims"]) / n_sim
 
 @cache
@@ -91,8 +94,8 @@ def model_validation(
         G.add_edge('R', 'P', sign=1, dashes=True)
         model_validation(G, perturb='Inp1:+', observe='Out1:+', n_sim=1000, combinations=False)
         #   Marginal likelihood R $\\rightarrow$ P
-        # 0               0.829                 ✓
-        # 1               0.513
+        # 0               0.815                 ✓
+        # 1               0.526
         ```
     """
     dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
@@ -134,6 +137,7 @@ def posterior_predictions(
     seed: int = 42,
     positive_only: bool = False,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
+    average_uncertain: bool = False,
 ) -> sp.Matrix:
     """Calculate model predictions conditioned on observations.
 
@@ -146,6 +150,7 @@ def posterior_predictions(
         seed: Random seed
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
         presample: Optional callable passed through to get_simulations
+        average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
 
     Returns:
         sp.Matrix: Predictions conditioned on observations
@@ -159,17 +164,18 @@ def posterior_predictions(
         from qmm import posterior_predictions, load_digraph
         posterior_predictions(load_digraph("snowshoe_io"), perturb='Inp1:+', observe='Out1:+', n_sim=1000)
         # Matrix([
-        # [               1.0],
-        # [-0.512670565302144],
-        # [-0.512670565302144],
-        # [               1.0],
-        # [-0.512670565302144]])
+        # [              1.0],
+        # [-0.52851711026616],
+        # [-0.52851711026616],
+        # [              1.0],
+        # [-0.52851711026616]])
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
     observations = _parse_observations(observe) if observe else None
     sims = get_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
-                          perturb=pert, observe=observations, presample=presample)
+                          perturb=pert, observe=observations, presample=presample,
+                          average_uncertain=average_uncertain)
 
     state, outputs = get_nodes(G, "state"), get_nodes(G, "output")
     n_total = len(state) + len(outputs)
@@ -220,8 +226,8 @@ def diagnose_observations(
         diagnose_observations(load_digraph("snowshoe_io"), observe='Out1:+', perturb_nodes='input', n_sim=1000)
         #   Input Sign  Marginal likelihood
         # 0  Inp2    -                1.000
-        # 1  Inp1    +                0.513
-        # 2  Inp1    -                0.487
+        # 1  Inp1    +                0.526
+        # 2  Inp1    -                0.474
         # 3  Inp2    +                0.000
         ```
     """
@@ -240,13 +246,15 @@ def diagnose_observations(
         for sign in ["+", "-"]:
             try:
                 likelihood = marginal_likelihood(G, f"{node}:{sign}", observe, n_sim, dist, seed)
-                results.append({"Input": node, "Sign": sign, "Marginal likelihood": likelihood})
-            except Exception as e:
-                print(f"Error for node {node} with sign {sign}: {str(e)}")
+            except RuntimeError:
+                likelihood = np.nan
+            results.append({"Input": node, "Sign": sign, "Marginal likelihood": likelihood})
 
     if not results:
         return pd.DataFrame(columns=["Input", "Sign", "Marginal likelihood"])
-    return pd.DataFrame(results).sort_values("Marginal likelihood", ascending=False).reset_index(drop=True)
+    return pd.DataFrame(results).sort_values(
+        "Marginal likelihood", ascending=False, na_position="last"
+    ).reset_index(drop=True)
 
 
 def bayes_factors(
@@ -284,7 +292,7 @@ def bayes_factors(
         G2.remove_edge('C', 'P')
         bayes_factors([G1, G2], perturb='Inp1:+', observe='Out1:+', n_sim=1000)
         #   Model comparison  Likelihood 1  Likelihood 2  Bayes factor
-        # 0  Model A/Model B         0.513         0.489       1.04908
+        # 0  Model A/Model B         0.526         0.474      1.109705
         ```
     """
     graphs = list(G_list) if isinstance(G_list, tuple) else G_list

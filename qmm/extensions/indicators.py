@@ -9,7 +9,7 @@ from .effects import get_simulations
 from typing import Union, List
 
 @cache
-def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False) -> pd.DataFrame:
+def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False, average_uncertain: bool = False) -> pd.DataFrame:
     """Calculate mutual information of variables for alternative models.
 
     Args:
@@ -35,9 +35,9 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         G2.remove_edge('C', 'P')
         mutual_information((G1, G2), perturb='R:+', n_sim=1000)
         #   Node  Mutual Information
-        # 0    R            0.522021
-        # 1    P            0.463441
-        # 2    C            0.147516
+        # 0    R            0.513827
+        # 1    P            0.456516
+        # 2    C            0.153711
         ```
     """
     models = [models] if not isinstance(models, (list, tuple)) else list(models)
@@ -46,7 +46,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
     all_effects = []
     for G in models:
         G_modified, perturb_tuple = _parse_perturbations(G, perturb)
-        sims = get_simulations(G_modified, n_sim=n_sim, seed=seed, perturb=perturb_tuple)
+        sims = get_simulations(G_modified, n_sim=n_sim, seed=seed, perturb=perturb_tuple, average_uncertain=average_uncertain)
         response_nodes = get_nodes(G, "state") + get_nodes(G, "output")
         node_map = {node: i for i, node in enumerate(response_nodes)}
         sim_effects = []
@@ -54,7 +54,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
             sim_effects.append([effect[node_map[n]] if n in node_map and node_map[n] < len(effect) else np.nan for n in nodes])
         all_effects.append(np.array(sim_effects))
     if include_null:
-        rng = np.random.default_rng(seed)
+        rng = np.random.RandomState(seed)
         choices = rng.choice([1.0, -1.0, 0.0], size=(n_sim, len(nodes)))
         all_effects.append(choices)
     n_models = len(all_effects)
@@ -72,7 +72,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         joint, _, _ = np.histogram2d(labels, effect_signs, bins=(n_models, 3))
         joint_p = joint / joint.sum()
         l_p, e_p = joint_p.sum(axis=1), joint_p.sum(axis=0)
-        mi = sum(joint_p[i, j] * np.log(joint_p[i, j] / (l_p[i] * e_p[j] + 1e-10))
+        mi = sum(joint_p[i, j] * np.log(joint_p[i, j] / (l_p[i] * e_p[j]))
                  for i in range(n_models)
                  for j in range(3)
                  if joint_p[i, j] > 0)

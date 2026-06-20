@@ -306,7 +306,7 @@ def numerical_simulations(
     if match_adjoint and as_abs:
         raise ValueError("Invalid parameter combination: match_adjoint=True is incompatible with as_abs=True")
 
-    np.random.seed(seed)
+    rng = np.random.RandomState(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
     state_nodes = get_nodes(G, "state")
     n = len(state_nodes)
@@ -319,8 +319,10 @@ def numerical_simulations(
         adjoint_signs_np = np.array(
             adjoint_matrix(G, form="signed").tolist(), dtype=float
         )
-    while total_simulations < n_sim:
-        values = _random_sampler(dist, len(symbols))
+    attempts, max_attempts = 0, n_sim * 100
+    while total_simulations < n_sim and attempts < max_attempts:
+        attempts += 1
+        values = _random_sampler(dist, len(symbols), rng)
         sim_A = A_sp(*values)
         if np.all(np.real(np.linalg.eigvals(sim_A)) < 0):
             try:
@@ -330,6 +332,8 @@ def numerical_simulations(
                 total_simulations += 1
             except np.linalg.LinAlgError:
                 continue
+    if total_simulations < n_sim and n_sim > 0:
+        raise RuntimeError(f"Maximum iterations reached. Stable proportion: {total_simulations / max_attempts:.4f}")
     if total_simulations == 0:
         smat = np.full((n, n), np.nan)
     elif positive_only:

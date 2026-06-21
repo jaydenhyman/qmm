@@ -627,19 +627,14 @@ def table_of_effects(
             "simulation_effects",
         ],
     ] = net_effects,
+    decimals: Optional[int] = None,
+    **kwargs: Any,
 ) -> pd.DataFrame:
-    """Create a table of effects with state/input columns and state/output rows."""
-    generator_name = None
     if isinstance(generator, str):
-        generator_name = generator
         generator = _EFFECT_GENERATORS.get(generator)
     if not callable(generator):
         raise ValueError(f"Generator must be callable, got: {type(generator)}")
-    if generator_name is None:
-        generator_name = getattr(generator, "__name__", None)
-
-    effects = generator(G)
-    if generator_name in {"weighted_effects", "sign_determinacy_effects", "simulation_effects"}:
-        if isinstance(effects, sp.MatrixBase):
-            effects = effects.evalf(2)
+    effects = generator(G, **kwargs)
+    if decimals is not None and isinstance(effects, sp.MatrixBase):
+        effects = effects.evalf(decimals)
     return _tabulate_effects(G, effects)

@@ -691,6 +691,20 @@ def test_table_of_effects_with_lambda_no_name(snowshoe_io):
     assert result.shape == (5, 5)
 
 
+def test_table_of_effects_forwards_kwargs(snowshoe_io):
+    default = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42)
+    positive = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42, positive_only=True)
+    assert isinstance(positive, pd.DataFrame)
+    assert not default.equals(positive)
+
+
+def test_table_of_effects_decimals_rounds(snowshoe_io):
+    full = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42)
+    rounded = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42, decimals=2)
+    assert isinstance(rounded, pd.DataFrame)
+    assert not full.equals(rounded)
+
+
 def test_simulation_effects_handles_singular_matrices(snowshoe_io):
     from unittest.mock import patch
     original_inv = np.linalg.inv

@@ -220,7 +220,7 @@ def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
         return None
-    paths = list(nx.all_simple_paths(G, source, target))
+    paths = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in paths],

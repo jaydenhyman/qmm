@@ -25,6 +25,7 @@ from .paths import (
     system_paths,
     weighted_paths,
     path_metrics,
+    pathway_effects,
 )
 
 from .effects import (
@@ -76,6 +77,7 @@ __all__ = [
     "system_paths",
     "weighted_paths",
     "path_metrics",
+    "pathway_effects",
     # effects.py
     "define_input_output",
     "cumulative_effects",

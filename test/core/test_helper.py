@@ -14,7 +14,6 @@ from qmm.core.helper import (
     get_positive,
     get_negative,
     sign_determinacy,
-    _arrows,
     _sign_string,
     _NodeSign,
     _parse_perturbations,
@@ -26,9 +25,12 @@ from qmm.core.helper import (
     _perm_ryser,
     _perm_bbfg,
     _perm_int,
+    cycle_products,
     get_dashed_alternatives,
 )
-from qmm.core.stability import net_feedback, absolute_feedback
+from qmm.core.stability import net_feedback, absolute_feedback, absolute_determinants, _hurwitz_matrix
+from qmm.core.press import absolute_feedback_matrix
+from qmm.core.structure import create_matrix
 
 
 # =============================================================================
@@ -381,28 +383,6 @@ def test_sign_determinacy_invalid_method_no_fixture():
 
 
 # =============================================================================
-# _arrows()
-# =============================================================================
-
-def test_arrows_positive_edge_simple_ab_positive(simple_ab_positive):
-    result = _arrows(simple_ab_positive, ['A', 'B'])
-    expected = 'A $\\rightarrow$ B'
-    assert result == expected
-
-
-def test_arrows_negative_edge_simple_xy_negative(simple_xy_negative):
-    result = _arrows(simple_xy_negative, ['X', 'Y'])
-    expected = 'X $\\multimap$ Y'
-    assert result == expected
-
-
-def test_arrows_chain_path_chain(chain):
-    result = _arrows(chain, ['1', '2', '3'])
-    expected = '1 $\\rightarrow$ 2 $\\rightarrow$ 3'
-    assert result == expected
-
-
-# =============================================================================
 # _sign_string()
 # =============================================================================
 
@@ -731,3 +711,145 @@ def test_parse_perturbations_invalid_node_multi(snowshoe):
     from qmm.extensions.effects import simulations_table
     with pytest.raises(ValueError, match="Unknown perturbation node"):
         simulations_table(snowshoe, perturb='R:+, Invalid:+', observe='')
+
+
+# =============================================================================
+# cycle_products()
+# =============================================================================
+
+def test_cycle_products_not_array_no_fixture():
+    with pytest.raises(TypeError, match="NumPy array"):
+        cycle_products([[1, 2], [3, 4]])
+
+
+def test_cycle_products_non_square_no_fixture():
+    with pytest.raises(ValueError, match="square"):
+        cycle_products(np.array([[1, 2, 3], [4, 5, 6]]))
+
+
+def test_cycle_products_contains_nan_no_fixture():
+    with pytest.raises(ValueError, match="NaN"):
+        cycle_products(np.array([[1, np.nan], [3, 4]]))
+
+
+def test_cycle_products_too_many_rows_no_fixture():
+    with pytest.raises(ValueError, match="63"):
+        cycle_products(np.eye(64, dtype=int))
+
+
+def test_cycle_products_matches_perm_small_no_fixture():
+    matrices = (
+        np.array([]).reshape(0, 0),
+        np.array([[5.0]]),
+        np.array([[1, 2], [3, 4]], dtype=float),
+        np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float),
+        np.ones((4, 4)),
+    )
+    for A in matrices:
+        result = cycle_products(A)
+        expected = perm(A)
+        assert result == expected
+
+
+def test_cycle_products_matches_perm_random_sparse_no_fixture():
+    rng = np.random.default_rng(11)
+    for n in (5, 8, 11):
+        for _ in range(10):
+            A = (rng.random((n, n)) < 0.35).astype(float)
+            assert cycle_products(A) == int(round(float(perm(A))))
+
+
+def test_cycle_products_matches_perm_int_random_sparse_no_fixture():
+    rng = np.random.default_rng(3)
+    for _ in range(20):
+        A = (rng.random((9, 9)) < 0.3).astype(float)
+        assert cycle_products(A) == _perm_int(A)
+
+
+def test_cycle_products_matches_perm_bbfg_and_ryser_no_fixture():
+    rng = np.random.default_rng(5)
+    for _ in range(10):
+        A = np.ascontiguousarray((rng.random((7, 7)) < 0.4).astype(float))
+        assert cycle_products(A) == int(round(float(_perm_bbfg(A))))
+        assert cycle_products(A) == int(round(float(_perm_ryser(A))))
+
+
+def test_cycle_products_matches_sympy_permanent_no_fixture():
+    rng = np.random.default_rng(7)
+    for _ in range(20):
+        n = int(rng.integers(1, 7))
+        A = rng.integers(0, 3, size=(n, n)) * (rng.random((n, n)) < 0.6)
+        assert cycle_products(A) == int(sp.Matrix(A.tolist()).per())
+
+
+def test_cycle_products_matches_perm_sparse_overflow_exact_no_fixture():
+    n = 40
+    A = np.array([[1.0 if abs(i - j) <= 1 else 0.0 for j in range(n)] for i in range(n)])
+    assert cycle_products(A) == int(perm(A))
+
+
+@pytest.mark.parametrize("model", ["snowshoe", "snowshoe_rp", "chain", "mesocosm"])
+def test_cycle_products_source_matches_absolute_feedback_matrix(model):
+    G = load_digraph(model)
+    A = sp.matrix2numpy(create_matrix(G, form="binary"), dtype=int)
+    n = A.shape[0]
+    result = sp.Matrix([cycle_products(A, source=j) for j in range(n)]).T
+    assert result == absolute_feedback_matrix(G)
+
+
+@pytest.mark.parametrize("model", ["snowshoe", "chain", "mesocosm"])
+def test_cycle_products_source_matches_absolute_feedback_matrix_perturb(model):
+    G = load_digraph(model)
+    A = sp.matrix2numpy(create_matrix(G, form="binary"), dtype=int)
+    for j, node in enumerate(get_nodes(G, "state")):
+        assert sp.Matrix(cycle_products(A, source=j)) == absolute_feedback_matrix(G, perturb=node)
+
+
+@pytest.mark.parametrize("model", ["snowshoe", "snowshoe_rp", "chain", "mesocosm"])
+def test_cycle_products_levels_matches_absolute_feedback(model):
+    G = load_digraph(model)
+    A = np.abs(sp.matrix2numpy(create_matrix(G, form="signed"), dtype=int))
+    assert sp.Matrix(cycle_products(A, levels=True)) == absolute_feedback(G)
+
+
+@pytest.mark.parametrize("model", ["snowshoe", "chain", "mesocosm"])
+def test_cycle_products_levels_matches_absolute_feedback_polynomial(model):
+    G = load_digraph(model)
+    A = np.abs(sp.matrix2numpy(create_matrix(G, form="signed"), dtype=int))
+    assert sp.Matrix(cycle_products(A, levels=True)) == absolute_feedback(G, method="polynomial")
+
+
+@pytest.mark.parametrize("model", ["snowshoe", "chain", "mesocosm"])
+def test_cycle_products_matches_absolute_determinants(model):
+    G = load_digraph(model)
+    n = absolute_feedback(G).shape[0] - 1
+    h = _hurwitz_matrix(absolute_feedback(G), n)
+    result = [sp.Integer(1)]
+    for k in range(1, n + 1):
+        H = np.array([[abs(int(x)) for x in row] for row in h[:k, :k].tolist()], dtype=object)
+        result.append(sp.Integer(cycle_products(H)))
+    assert sp.Matrix(result) == absolute_determinants(G)
+
+
+def test_cycle_products_levels_matches_perm_of_principal_submatrices_no_fixture():
+    from itertools import combinations
+    rng = np.random.default_rng(13)
+    for _ in range(10):
+        n = int(rng.integers(1, 7))
+        A = (rng.random((n, n)) < 0.5).astype(float)
+        levels = cycle_products(A, levels=True)
+        for k in range(n + 1):
+            expected = sum(int(round(float(perm(A[np.ix_(c, c)])))) for c in combinations(range(n), k))
+            assert levels[k] == expected
+
+
+def test_cycle_products_source_matches_perm_of_minors_no_fixture():
+    rng = np.random.default_rng(17)
+    for _ in range(10):
+        n = int(rng.integers(2, 8))
+        A = (rng.random((n, n)) < 0.4).astype(float)
+        for j in range(n):
+            minors = cycle_products(A, source=j)
+            for i in range(n):
+                expected = int(round(float(perm(np.delete(np.delete(A, j, 0), i, 1)))))
+                assert minors[i] == expected

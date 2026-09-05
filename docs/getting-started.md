@@ -65,12 +65,11 @@ qmm.create_matrix(G, form="signed")
 
 # Analyse feedback cycles
 qmm.cycles_table(G)
-#    Length          Cycle Sign
-# 0       1          P ⊸ P    −
-# 1       1          V ⊸ V    −
-# 2       2      H → P ⊸ H    −
-# 3       2      H ⊸ V → H    −
-# 4       3  H ⊸ V → P ⊸ H    +
+#    Length                             Cycle Sign
+# 0       1                   P $\multimap$ P    −
+# 1       1                   R $\multimap$ R    −
+# 2       2   C $\rightarrow$ P $\multimap$ C    −
+# 3       2   C $\multimap$ R $\rightarrow$ C    −
 
 # Generate qualitative predictions
 qmm.qualitative_predictions(G)

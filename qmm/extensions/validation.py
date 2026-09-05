@@ -7,7 +7,6 @@ from functools import cache
 from .effects import get_simulations
 from ..core.helper import (
     get_nodes,
-    _arrows,
     _parse_perturbations,
     _parse_observations,
 )
@@ -93,8 +92,8 @@ def model_validation(
         G = nx.DiGraph(load_digraph("snowshoe_io"))
         G.add_edge('R', 'P', sign=1, dashes=True)
         model_validation(G, perturb='Inp1:+', observe='Out1:+', n_sim=1000, combinations=False)
-        #   Marginal likelihood R $\\rightarrow$ P
-        # 0               0.815                 ✓
+        #   Marginal likelihood (R, P)
+        # 0               0.815      ✓
         # 1               0.526
         ```
     """
@@ -117,7 +116,7 @@ def model_validation(
         edge_presence.append(presence)
 
     likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in variants]
-    edge_cols = [_arrows(G, [u, v]) for u, v in dashed_edges]
+    edge_cols = [(u, v) for u, v in dashed_edges]
     rows = [
         {"Marginal likelihood": likelihoods[i], **{edge_cols[j]: "\u2713" if edge_presence[i][j] else "" for j in range(len(dashed_edges))}}
         for i in range(len(variants))

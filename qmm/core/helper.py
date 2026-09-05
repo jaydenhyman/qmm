@@ -393,15 +393,20 @@ def sign_determinacy(
     return pmat
 
 
-def _arrows(G: nx.DiGraph, path: List[str]) -> str:
-    arrows = []
-    for i in range(len(path) - 1):
-        if G[path[i]][path[i + 1]].get("sign", 1) > 0:
-            arrows.append(f"{path[i]} $\\rightarrow$")
-        else:
-            arrows.append(f"{path[i]} $\\multimap$")
-    arrows.append(str(path[-1]))
-    return " ".join(arrows)
+def _node_name(G: nx.DiGraph, node: str, labels: bool = False) -> str:
+    """The node's label when labels is True and it has one, otherwise its id."""
+    return str(G.nodes[node].get("label") or node) if labels else str(node)
+
+
+def _arrows(G: nx.DiGraph, path: List[str], labels: bool = False) -> str:
+    """Write a path as nodes joined by $\\rightarrow$ (positive link) or $\\multimap$ (negative link)."""
+    parts = []
+    for from_node, to_node in zip(path, path[1:]):
+        arrow = "$\\rightarrow$" if G[from_node][to_node].get("sign", 1) > 0 else "$\\multimap$"
+        parts.append(f"{_node_name(G, from_node, labels)} {arrow}")
+    parts.append(_node_name(G, path[-1], labels))
+    return " ".join(parts)
+
 
 def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
     product = 1
@@ -685,6 +690,121 @@ def _perm_int(A: np.ndarray) -> int:
         return total
 
     return expand(0, (1 << n) - 1)
+
+
+def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:
+    """Count products of disjoint cycles in a square matrix.
+
+    An alternative to perm() whose cost follows the sparsity of the model.
+    Counts are exact integers. For a binary interaction matrix they are
+    the absolute number of feedback terms.
+
+    Args:
+        A: A square numpy array with at most 63 rows.
+        source: Index of the perturbed variable. Returns the permanent of
+            each minor with that row removed.
+        levels: If True, return the number of terms covering 0, 1, ..., n
+            variables (absolute feedback at each level).
+
+    Returns:
+        The permanent of A, a list of n values if source is given, or a
+        list of n + 1 values if levels is True.
+
+    Raises:
+        TypeError: If input is not a numpy array.
+        ValueError: If matrix is not square, has more than 63 rows or contains NaNs.
+
+    References:
+        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
+        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
+        - Björklund, A., Husfeldt, T., Kaski, P., Koivisto, M. (2010). Evaluation of permanents in rings and semirings. Information Processing Letters 110, 867–870.
+
+    Examples:
+        ```python
+        import numpy as np
+        from qmm.core.helper import cycle_products
+        A = np.array([[1, 1, 0], [1, 0, 1], [0, 1, 1]])
+        cycle_products(A)
+        # 2
+
+        cycle_products(A, source=0)
+        # [1, 1, 1]
+
+        cycle_products(A, levels=True)
+        # [1, 2, 3, 2]
+        ```
+    """
+    if not isinstance(A, np.ndarray):
+        raise TypeError("Input matrix must be a NumPy array.")
+    n = A.shape[0]
+    if A.ndim != 2 or A.shape[1] != n:
+        raise ValueError("Input matrix must be square.")
+    if n > 63:
+        raise ValueError("Input matrix must have at most 63 rows.")
+    if A.dtype.kind == "f" and np.isnan(A).any():
+        raise ValueError("Input matrix must not contain NaNs.")
+
+    links = A.tolist()
+    pattern = (A != 0) | np.eye(n, dtype=bool) if levels else A != 0
+    remaining = np.ones(n, dtype=bool)
+    if source is not None:
+        remaining[source] = False
+    order = []
+    reached = np.zeros(n, dtype=bool)
+    while remaining.any():
+        wanted = pattern[remaining].sum(0) - pattern > 0
+        opens = ((reached | pattern) & wanted).sum(1)
+        opens[~remaining] = n + 1
+        i = int(np.lexsort((pattern.sum(1), opens))[0])
+        order.append(i)
+        remaining[i] = False
+        reached = reached | pattern[i]
+
+    states = np.zeros(1, dtype=np.int64)
+    weights = np.zeros((1, n + 1) if levels else 1, dtype=object)
+    weights.flat[0] = 1
+    remaining[order] = True
+    for i in order:
+        remaining[i] = False
+        new_states, new_weights = [], []
+        for j in np.flatnonzero(A[i]):
+            free = ((states >> j) & 1) == 0
+            if free.any():
+                new_states.append(states[free] | np.int64(1 << int(j)))
+                new_weights.append(weights[free] * links[i][j])
+        if levels:
+            free = ((states >> i) & 1) == 0
+            if free.any():
+                left_off = np.zeros_like(weights[free])
+                left_off[:, 1:] = weights[free][:, :-1]
+                new_states.append(states[free] | np.int64(1 << i))
+                new_weights.append(left_off)
+        if not new_states:
+            states = states[:0]
+            weights = weights[:0]
+            break
+        states = np.concatenate(new_states)
+        weights = np.concatenate(new_weights)
+        idx = np.argsort(states, kind="stable")
+        states = states[idx]
+        weights = weights[idx]
+        first = np.flatnonzero(np.concatenate(([True], states[1:] != states[:-1])))
+        states = states[first]
+        weights = np.add.reduceat(weights, first, axis=0)
+        closed = np.int64(sum(1 << int(j) for j in np.flatnonzero(~pattern[remaining].any(0))))
+        unused = closed & ~states
+        keep = unused == 0 if source is None else (unused & (unused - 1)) == 0
+        states = states[keep]
+        weights = weights[keep]
+
+    found = dict(zip(states.tolist(), weights.tolist()))
+    full = (1 << n) - 1
+    if source is not None:
+        return [found.get(full ^ (1 << i), 0) for i in range(n)]
+    if levels:
+        left_off = found.get(full, [0] * (n + 1))
+        return [left_off[n - k] for k in range(n + 1)]
+    return found.get(full, 0)
 
 
 def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"], size: int, rng: Optional[np.random.RandomState] = None) -> np.ndarray:

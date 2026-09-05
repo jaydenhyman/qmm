@@ -60,9 +60,9 @@ def test_model_validation_alternative_structure(snowshoe_dashed):
     df = model_validation(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=True)
     expected_data = {
         'Marginal likelihood': ['0.520', '0.470', '0.340', '0.330', '0.000', '0.000', '0.000', '0.000'],
-        'R $\\rightarrow$ P': ['\u2713', '\u2713', '\u2713', '\u2713', '', '', '', ''],
-        'C $\\multimap$ C': ['\u2713', '', '', '\u2713', '', '\u2713', '', '\u2713'],
-        'P $\\multimap$ R': ['\u2713', '\u2713', '', '', '', '', '\u2713', '\u2713']
+        ('R', 'P'): ['\u2713', '\u2713', '\u2713', '\u2713', '', '', '', ''],
+        ('C', 'C'): ['\u2713', '', '', '\u2713', '', '\u2713', '', '\u2713'],
+        ('P', 'R'): ['\u2713', '\u2713', '', '', '', '', '\u2713', '\u2713']
     }
     result = df.to_dict('list')
     expected = expected_data
@@ -72,9 +72,9 @@ def test_model_validation_combinations_false(snowshoe_dashed):
     df = model_validation(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=False)
     expected_data = {
         'Marginal likelihood': ['0.520', '0.000'],
-        'R $\\rightarrow$ P': ['\u2713', ''],
-        'C $\\multimap$ C': ['\u2713', ''],
-        'P $\\multimap$ R': ['\u2713', '']
+        ('R', 'P'): ['\u2713', ''],
+        ('C', 'C'): ['\u2713', ''],
+        ('P', 'R'): ['\u2713', '']
     }
     result = df.to_dict('list')
     expected = expected_data

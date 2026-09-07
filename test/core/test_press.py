@@ -15,6 +15,14 @@ from qmm.core.press import (
 from qmm.core.helper import list_to_digraph
 
 
+def test_numerical_simulations_rejects_nonfinite_inverse_draws(monkeypatch):
+    graph = list_to_digraph([[-1]])
+    monkeypatch.setattr('qmm.core.press._random_sampler',
+                        lambda dist, size, rng: np.full(size, 1e-320))
+    with pytest.raises(RuntimeError, match='Maximum iterations reached'):
+        numerical_simulations(graph, n_sim=1)
+
+
 # =============================================================================
 # adjoint_matrix()
 # =============================================================================

@@ -1,6 +1,7 @@
 """Tests for qmm.core.structure module."""
 
 import json
+import networkx as nx
 import pytest
 import sympy as sp
 
@@ -11,6 +12,29 @@ from qmm.core.structure import (
     nodes_table,
     edges_table,
 )
+
+
+@pytest.mark.parametrize('arrow', ['to', {'type': 'box'}])
+def test_import_digraph_preserves_explicit_sign_and_metadata_for_other_arrow_forms(arrow):
+    model = {
+        'nodes': [{'id': 1, 'title': 'First'}, {'id': 2, 'title': 'Second'}],
+        'edges': [{'from': 1, 'to': 2, 'arrows': {'to': arrow}, 'sign': -1,
+                   'dashes': True, 'title': 'Uncertain negative link'}],
+    }
+    graph = import_digraph(model, file_path=False)
+    assert graph.nodes['1']['title'] == 'First'
+    assert graph['1']['2'] == {'sign': -1, 'dashes': True, 'title': 'Uncertain negative link'}
+    assert nx.is_frozen(graph)
+
+
+def test_create_output_equations_without_external_inputs():
+    graph = nx.DiGraph()
+    graph.add_node('X', category='state')
+    graph.add_node('Y', category='output')
+    graph.add_edge('X', 'X', sign=-1)
+    graph.add_edge('X', 'Y', sign=1)
+    assert create_equations(graph, form='output') == sp.Matrix([
+        sp.Symbol('c_Y,X') * sp.Symbol('x_X')])
 
 # =============================================================================
 # import_digraph()

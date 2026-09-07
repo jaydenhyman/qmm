@@ -5,9 +5,9 @@ import numpy as np
 import networkx as nx
 from ..core.helper import get_nodes, _parse_perturbations
 from .effects import get_simulations
-from typing import Union, List
+from typing import Union, List, Literal
 
-def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False, average_uncertain: bool = False) -> pd.DataFrame:
+def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False, average_uncertain: bool = False, weights: Literal["equal", "posterior"] = "equal", base: float = np.e) -> pd.DataFrame:
     """Calculate mutual information of variables for alternative models.
 
     Args:
@@ -18,9 +18,17 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         include_null: If True, include a null model with equal probability (1/3)
             of positive, negative, or zero response across simulations
         average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
+        weights: 'equal' gives each model equal weight; 'posterior' weights models
+            by their stable proportion, assuming equal prior model probabilities.
+            The null model, if included, has acceptance probability one.
+        base: Logarithm base; the default gives nats, and 2 gives bits.
 
     Returns:
         pd.DataFrame: Mutual information for indicator selection
+
+    Raises:
+        ValueError: If weights is not 'equal' or 'posterior', or base is not
+            finite and greater than one.
 
     References:
         - Hosack, G.R., Hayes, K.R., Dambacher, J.M. (2008). Assessing Model Structure Uncertainty Through an Analysis of System Feedback and Bayesian Networks. Ecological Applications 18, 1070–1082.
@@ -39,10 +47,14 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         # 2    C            0.153711
         ```
     """
+    if weights not in ("equal", "posterior"):
+        raise ValueError("weights must be 'equal' or 'posterior'.")
+    if not np.isfinite(base) or base <= 1:
+        raise ValueError("base must be finite and greater than 1.")
     models = [models] if not isinstance(models, (list, tuple)) else list(models)
     models = [nx.DiGraph(G) if not isinstance(G, nx.DiGraph) else G for G in models]
     nodes = sorted(set(node for G in models for node in get_nodes(G, "state") + get_nodes(G, "output")))
-    all_effects = []
+    all_effects, model_weights = [], []
     for G in models:
         G_modified, perturb_tuple = _parse_perturbations(G, perturb)
         sims = get_simulations(G_modified, n_sim=n_sim, seed=seed, perturb=perturb_tuple, average_uncertain=average_uncertain)
@@ -52,10 +64,12 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         for effect in sims["effects"]:
             sim_effects.append([effect[node_map[n]] if n in node_map and node_map[n] < len(effect) else np.nan for n in nodes])
         all_effects.append(np.array(sim_effects))
+        model_weights.append(sims["prop_stable"])
     if include_null:
         rng = np.random.RandomState(seed)
         choices = rng.choice([1.0, -1.0, 0.0], size=(n_sim, len(nodes)))
         all_effects.append(choices)
+        model_weights.append(1.0)
     n_models = len(all_effects)
     mi_vals = []
     for i, node in enumerate(nodes):
@@ -65,15 +79,19 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
             continue
         node_effects = np.concatenate(node_effects)
         labels = np.concatenate([np.full(effects.shape[0], i) for i, effects in enumerate(all_effects)])
+        sample_weights = (np.concatenate([np.full(len(effects), w / len(effects))
+                                          for effects, w in zip(all_effects, model_weights)])
+                          if weights == "posterior" else None)
         valid = ~np.isnan(node_effects)
         node_effects, labels = node_effects[valid], labels[valid]
         effect_signs = np.sign(node_effects) + 1
-        joint, _, _ = np.histogram2d(labels, effect_signs, bins=(n_models, 3))
+        joint, _, _ = np.histogram2d(labels, effect_signs, bins=(n_models, 3),
+                                    weights=sample_weights[valid] if sample_weights is not None else None)
         joint_p = joint / joint.sum()
         l_p, e_p = joint_p.sum(axis=1), joint_p.sum(axis=0)
         mi = sum(joint_p[i, j] * np.log(joint_p[i, j] / (l_p[i] * e_p[j]))
                  for i in range(n_models)
                  for j in range(3)
-                 if joint_p[i, j] > 0)
+                 if joint_p[i, j] > 0) / np.log(base)
         mi_vals.append(max(0, mi))
     return pd.DataFrame({"Node": nodes, "Mutual Information": mi_vals}).sort_values("Mutual Information", ascending=False).reset_index(drop=True)

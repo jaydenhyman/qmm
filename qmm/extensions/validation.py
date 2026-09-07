@@ -181,9 +181,7 @@ def posterior_predictions(
     valid_count = len(valid_indices)
 
     if valid_count == 0:
-        if observations:
-            raise ValueError(f"No simulations matched the observations '{observe}' under perturbation '{perturb}'; the posterior is undefined.")
-        return sp.Matrix([np.nan] * n_total)
+        raise ValueError(f"No simulations matched the observations '{observe}' under perturbation '{perturb}'.")
 
     effects = np.array([sims["effects"][i][:n_total] for i in valid_indices])
     positive = np.sum(effects > 0, axis=0)

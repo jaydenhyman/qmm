@@ -24,8 +24,7 @@ def _structural_sensitivity(G: nx.DiGraph, level: Optional[int], feedback_fn: Ca
                 sG = nx.DiGraph(G)
                 sG[nodes[j]][nodes[i]]["sign"] = 0
                 scp = feedback_fn(sG)[1:]
-                if level <= len(fcp) and level <= len(scp):
-                    S[i, j] = fcp[level - 1] - scp[level - 1]
+                S[i, j] = fcp[level - 1] - scp[level - 1]
     return S
 
 @cache

@@ -488,28 +488,41 @@ def _check_direct_io_edges(G: nx.DiGraph) -> None:
 
 
 def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:
-    """Compute the permanent, minor permanents, or sums of principal permanents.
+    """Calculate the permanent of a square matrix.
+
+    The permanent is like the determinant, but without alternating signs between
+    permutations. Each term multiplies one entry from every row and column.
+    For a binary matrix, it counts how many such terms are nonzero.
+
+    The calculation reuses partial results and skips terms that must be zero.
+    This can greatly reduce work for sparse, structured matrices, although
+    runtime can still grow exponentially. Integer arithmetic is exact;
+    floating-point arithmetic can have rounding error.
 
     Args:
-        A: A square numpy array. Larger matrices use arbitrary-width masks.
-        source: Row index to remove. Return a list whose element j is the
-            permanent with that row and column j removed.
-        levels: If True, return sums of principal permanents of sizes 0, 1,
-            ..., n (absolute feedback at each level for a binary matrix).
+        A: Square NumPy array.
+        source: Return minor permanents after removing this row. Entry j is the
+            permanent after also removing column j.
+        levels: Return sums of principal permanents for sizes 0 through n.
+            A principal submatrix uses the same set of rows and columns.
+            For a binary interaction matrix, these count feedback terms.
 
     Returns:
-        The permanent of A, a list of n values if source is given, or a
-        list of n + 1 values if levels is True.
+        One permanent, a list of n minor permanents when source is given, or
+        n + 1 totals when levels is True.
 
     Raises:
-        TypeError: If input is not a numpy array.
-        ValueError: If the matrix is not square, a float or complex array has
-            nonfinite entries, source is invalid, or source and levels are both given.
+        TypeError: If A is not a NumPy array.
+        ValueError: If A is not square, has nonfinite float or complex entries,
+            source is invalid, or source and levels are requested together.
 
     References:
-        - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
-        - Dambacher, J.M., Luh, H.-K., Li, H.W., Rossignol, P.A. (2003). Qualitative stability and ambiguity in model ecosystems. The American Naturalist 161, 876–888.
-        - Björklund, A., Husfeldt, T., Kaski, P., Koivisto, M. (2010). Evaluation of permanents in rings and semirings. Information Processing Letters 110, 867–870.
+        - Björklund, A., Husfeldt, T., Kaski, P., Koivisto, M. (2010).
+          Evaluation of permanents in rings and semirings. Information Processing
+          Letters 110, 867–870. https://doi.org/10.1016/j.ipl.2010.07.005
+        - Kiah, H.M., Vardy, A., Yao, H. (2021). Computing Permanents on a Trellis,
+          Definition 12 (sparse trellis). Preprint: https://arxiv.org/abs/2107.07377
+          Row ordering and feasibility pruning here are additional optimizations.
 
     Examples:
         ```python
@@ -541,12 +554,15 @@ def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> U
             raise ValueError("Source and levels cannot be requested together.")
 
     links = A.tolist()
-    pattern = (A != 0) | np.eye(n, dtype=bool) if levels else A != 0
+    if A.dtype.kind == "O":
+        links = [[int(value) if isinstance(value, (np.integer, np.bool_)) else value
+                  for value in row] for row in links]
+    pattern = (A != 0) | (np.eye(n, dtype=bool) if levels else False)
     remaining = np.ones(n, dtype=bool)
     if source is not None:
         remaining[source] = False
-    order = []
-    reached = np.zeros(n, dtype=bool)
+    # Finish columns early to keep the table of partial choices small.
+    order, reached = [], np.zeros(n, dtype=bool)
     while remaining.any():
         wanted = pattern[remaining].sum(0) - pattern > 0
         opens = ((reached | pattern) & wanted).sum(1)
@@ -554,54 +570,32 @@ def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> U
         i = int(np.lexsort((pattern.sum(1), opens))[0])
         order.append(i)
         remaining[i] = False
-        reached = reached | pattern[i]
+        reached |= pattern[i]
 
-    mask_type = int if n > 63 else np.int64
-    states = np.zeros(1, dtype=object if n > 63 else np.int64)
-    weights = np.zeros((1, n + 1) if levels else 1, dtype=object)
-    weights.flat[0] = 1
-    remaining[order] = True
-    for i in order:
-        remaining[i] = False
-        new_states, new_weights = [], []
-        for j in np.flatnonzero(A[i]):
-            free = ((states >> j) & 1) == 0
-            if free.any():
-                new_states.append(states[free] | mask_type(1 << int(j)))
-                new_weights.append(weights[free] * links[i][j])
-        if levels:
-            free = ((states >> i) & 1) == 0
-            if free.any():
-                left_off = np.zeros_like(weights[free])
-                left_off[:, 1:] = weights[free][:, :-1]
-                new_states.append(states[free] | mask_type(1 << i))
-                new_weights.append(left_off)
-        if not new_states:
-            states = states[:0]
-            weights = weights[:0]
-            break
-        states = np.concatenate(new_states)
-        weights = np.concatenate(new_weights)
-        idx = np.argsort(states, kind="stable")
-        states = states[idx]
-        weights = weights[idx]
-        first = np.flatnonzero(np.concatenate(([True], states[1:] != states[:-1])))
-        states = states[first]
-        weights = np.add.reduceat(weights, first, axis=0)
-        closed = mask_type(sum(1 << int(j) for j in np.flatnonzero(~pattern[remaining].any(0))))
-        unused = closed & ~states
-        keep = unused == 0 if source is None else (unused & (unused - 1)) == 0
-        states = states[keep]
-        weights = weights[keep]
-
-    found = dict(zip(states.tolist(), weights.tolist()))
+    states = {0: np.array([1] + [0] * n, dtype=object) if levels else 1}
     full = (1 << n) - 1
+    for k, i in enumerate(order):
+        # Find columns that no later row can fill.
+        updated, closed = {}, sum(1 << int(j) for j in np.flatnonzero(~pattern[order[k + 1:]].any(0)))
+        options = [(1 << int(j), links[i][j], levels and i == j) for j in np.flatnonzero(pattern[i])]
+        for used, weight in states.items():
+            for bit, strength, skip in options:
+                if used & bit:
+                    continue
+                target = used | bit
+                unused = closed & ~target
+                # A source minor may leave one column unused.
+                if (unused if source is None else unused & (unused - 1)):
+                    continue
+                value = weight * strength
+                if skip:  # The diagonal contributes A[i, i] + x for per(A + xI).
+                    value[1:] += weight[:-1]
+                updated[target] = updated.get(target, 0) + value
+        states = updated
     if source is not None:
-        return [found.get(full ^ (1 << i), 0) for i in range(n)]
-    if levels:
-        left_off = found.get(full, [0] * (n + 1))
-        return [left_off[n - k] for k in range(n + 1)]
-    return found.get(full, 0)
+        return [states.get(full ^ (1 << j), 0) for j in range(n)]
+    result = states.get(full, np.zeros(n + 1, dtype=object) if levels else 0)
+    return result[::-1].tolist() if levels else result
 
 
 def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"], size: int, rng: Optional[np.random.RandomState] = None) -> np.ndarray:

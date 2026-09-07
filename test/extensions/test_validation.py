@@ -254,3 +254,17 @@ def test_bayes_factor_is_undefined_when_both_models_reject_observations():
     result = bayes_factors([G, G.copy()], 'A:+', 'A:-', n_sim=5)
     assert result['Likelihood 1'].iloc[0] == result['Likelihood 2'].iloc[0] == 0
     assert np.isnan(result['Bayes factor'].iloc[0])
+
+
+@pytest.mark.parametrize('perturb_nodes', [[], 'input'])
+def test_diagnose_observations_without_candidate_inputs_has_named_empty_columns(snowshoe, perturb_nodes):
+    result = diagnose_observations(snowshoe, 'R:+', n_sim=1, perturb_nodes=perturb_nodes)
+    assert result.empty
+    assert list(result.columns) == ['Input', 'Sign', 'Marginal likelihood']
+
+
+def test_diagnose_observations_accepts_an_explicit_node_list(snowshoe):
+    result = diagnose_observations(snowshoe, 'R:+', n_sim=3, perturb_nodes=['R'])
+    assert result['Input'].tolist() == ['R', 'R']
+    assert result['Sign'].tolist() == ['+', '-']
+    assert result['Marginal likelihood'].tolist() == [1.0, 0.0]

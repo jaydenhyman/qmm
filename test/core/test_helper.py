@@ -411,6 +411,12 @@ def test_sign_string_zero_product_no_fixture():
 # _NodeSign
 # =============================================================================
 
+
+@pytest.mark.parametrize('text', ['', '  ', ':+', ' : -'])
+def test_node_sign_requires_a_node_name(text):
+    with pytest.raises(ValueError, match='Missing node name'):
+        _NodeSign.from_str(text)
+
 @pytest.mark.parametrize("s,node,sign", [('A:+', 'A', 1), ('B:-', 'B', -1), ('C:0', 'C', 0)])
 def test_node_sign_from_str_node_sign_params(s, node, sign):
     ns = _NodeSign.from_str(s)
@@ -679,6 +685,24 @@ def test_perm_exact_beyond_float_precision_no_fixture():
     for _ in range(41):
         fib.append(fib[-1] + fib[-2])
     assert perm(A) == fib[41]
+
+
+@pytest.mark.parametrize('scalar', [np.int64, np.uint64])
+def test_perm_object_array_numpy_integers_remain_exact(scalar):
+    value = 2**62 + 1
+    A = np.zeros((3, 3), dtype=object)
+    for i in range(3):
+        A[i, i] = scalar(value)
+    assert perm(A) == value**3
+    assert perm(A, source=1) == [0, value**2, 0]
+    assert perm(A, levels=True) == [1, 3 * value, 3 * value**2, value**3]
+
+
+def test_perm_object_array_numpy_booleans_remain_exact():
+    A = np.kron(np.eye(63, dtype=bool), np.ones((2, 2), dtype=bool)).astype(object)
+    for i, j in zip(*A.nonzero()):
+        A[i, j] = np.bool_(True)
+    assert perm(A) == 2**63
 
 
 def test_perm_matches_sympy_permanent_no_fixture():

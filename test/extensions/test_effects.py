@@ -846,3 +846,29 @@ def test_simulation_results_and_graph_edits_do_not_reuse_stale_cache():
     G.add_node('B', category='state')
     G.add_edge('B', 'B', sign=-1)
     assert get_simulations(G, n_sim=np.int64(1))['effects'][0].shape == (2, 2)
+
+
+def test_structure_averaging_rejects_changes_to_node_roles():
+    graph = nx.DiGraph()
+    graph.add_node('A', category='state')
+    graph.add_node('B', category='state')
+    graph.add_edge('A', 'A', sign=-1, dashes=True)
+    graph.add_edge('A', 'B', sign=1)
+    graph.add_edge('B', 'B', sign=-1)
+    with pytest.raises(ValueError, match='re-classifies a node'):
+        get_simulations(graph, n_sim=20, average_uncertain=True, seed=42)
+
+
+def test_zero_presampled_output_link_disconnects_the_whole_output_chain():
+    graph = nx.DiGraph()
+    graph.add_edge('X', 'X', sign=-1)
+    graph.add_edge('X', 'Y0', sign=1)
+    graph.add_edge('Y0', 'Y1', sign=1)
+    graph = define_input_output(graph)
+    result = get_simulations(
+        graph, n_sim=3, return_samples=True,
+        presample=lambda symbols: {sp.Symbol('c_Y0,X'): 0},
+    )
+    assert all(np.array_equal(effect[1:], np.zeros((2, 1))) for effect in result['effects'])
+    assert np.array_equal(result['samples']['c_Y0,X'], np.zeros(3))
+    assert 'c_Y1,Y0' not in result['samples']

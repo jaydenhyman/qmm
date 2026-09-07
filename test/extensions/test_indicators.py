@@ -2,6 +2,8 @@
 
 import pandas as pd
 import networkx as nx
+import numpy as np
+import pytest
 
 from qmm.extensions.indicators import mutual_information
 
@@ -61,3 +63,51 @@ def test_mutual_information_accepts_a_list_of_models(snowshoe_rp):
     alternative.remove_edge("C", "P")
     result = mutual_information([snowshoe_rp, alternative], perturb="R:+", n_sim=100, seed=42)
     assert set(result["Node"]) == {"R", "C", "P"}
+
+
+def test_mutual_information_posterior_weights_and_bits(monkeypatch):
+    models = [nx.DiGraph(), nx.DiGraph()]
+    for model in models:
+        model.add_node('X', category='state')
+    draws = iter([
+        {'effects': [np.array([1.0])] * 4, 'prop_stable': 0.25},
+        {'effects': [np.array([-1.0])] * 4, 'prop_stable': 0.75},
+    ])
+    monkeypatch.setattr('qmm.extensions.indicators.get_simulations', lambda *args, **kwargs: next(draws))
+    result = mutual_information(models, 'X:+', n_sim=4, weights='posterior', base=2)
+    # The sign identifies the model perfectly, so MI equals the model entropy.
+    expected = -(0.25 * np.log2(0.25) + 0.75 * np.log2(0.75))
+    assert result['Mutual Information'].iloc[0] == pytest.approx(expected)
+
+
+def test_mutual_information_bits_are_nats_over_log_two(mesocosm_alt_models):
+    nats = mutual_information(mesocosm_alt_models, 'P:+', n_sim=100)
+    bits = mutual_information(mesocosm_alt_models, 'P:+', n_sim=100, base=2)
+    np.testing.assert_allclose(bits['Mutual Information'], nats['Mutual Information'] / np.log(2))
+
+
+def test_mutual_information_melbourne_thomas_2012_table_1(mesocosm_alt_models):
+    """Reproduce the indicator information in Melbourne-Thomas et al. (2012).
+
+    Ecological Monographs 82:505–519, Table 1, reports bits after conditioning
+    the two mesocosm models on stability and increasing phosphorus. The paper
+    uses 100,000 simulated samples. This test uses 20,000 accepted simulations
+    per model and the validation suite's 0.01-bit Monte Carlo tolerance.
+    https://doi.org/10.1890/12-0207.1
+    """
+    result = mutual_information(
+        mesocosm_alt_models, perturb='P:+', n_sim=20_000, seed=1,
+        weights='posterior', base=2,
+    ).set_index('Node')['Mutual Information']
+    expected = pd.Series({
+        'A1': 0.078, 'C2': 0.064, 'C1': 0.048, 'A2': 0.016,
+        'H1': 0.002, 'H2': 0.0, 'P': 0.0, 'AP': 0.0,
+    })
+    assert set(result.index) == set(expected.index)
+    np.testing.assert_allclose(result.reindex(expected.index), expected, atol=0.01, rtol=0)
+
+
+@pytest.mark.parametrize('kwargs', [{'weights': 'invalid'}, {'base': 1}, {'base': 0}, {'base': np.inf}, {'base': np.nan}])
+def test_mutual_information_rejects_invalid_weight_or_base(snowshoe, kwargs):
+    with pytest.raises(ValueError):
+        mutual_information(snowshoe, 'R:+', n_sim=1, **kwargs)

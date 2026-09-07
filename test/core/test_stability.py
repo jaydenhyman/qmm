@@ -12,6 +12,7 @@ from qmm.core.stability import (
     determinants_metrics,
     conditional_stability,
     simulation_stability,
+    stability_analysis,
     system_feedback,
     net_feedback,
     absolute_feedback,
@@ -23,6 +24,28 @@ from qmm.core.stability import (
     _hurwitz_matrix,
     _colour_test,
 )
+
+
+def test_simulation_stability_zero_strengths_fail_both_hurwitz_criteria():
+    graph = list_to_digraph(-np.eye(3, dtype=int))
+    result = simulation_stability(graph, n_sim=1, presample=np.zeros((1, 3, 3)))
+    results = result.set_index('Test')['Result']
+    assert results['Stable matrices'] == '0.00%'
+    assert results['Unstable matrices'] == '100.00%'
+    assert results['Hurwitz criterion i'] == results['Hurwitz criterion ii'] == '100.00%'
+    assert results['Hurwitz criterion i only'] == results['Hurwitz criterion ii only'] == '0.00%'
+
+
+def test_stability_analysis_reports_all_three_analyses_with_supplied_strengths(snowshoe):
+    result = stability_analysis(snowshoe, n_sim=2, presample=np.ones((2, 3, 3)))
+    assert list(result.columns) == ['Test', 'Definition', 'Result']
+    assert result.index.tolist() == list(range(17))
+    assert result['Test'].is_unique
+    results = result.set_index('Test')['Result']
+    assert bool(results['Sign stable'])
+    assert 'Model class' in results
+    assert results['Stable matrices'] == '100.00%'
+    assert results['Unstable matrices'] == '0.00%'
 
 
 # =============================================================================

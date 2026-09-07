@@ -4,17 +4,25 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import sympy as sp
-from itertools import combinations
 from functools import cache
 from .structure import create_matrix
-from .helper import get_positive, get_negative, get_weight, perm, _random_sampler
+from .helper import get_positive, get_negative, get_weight, get_nodes, perm, _random_sampler
 from typing import Optional, Literal
+from networkx.algorithms import bipartite
+
+
+def _has_cycle_cover(A: np.ndarray) -> bool:
+    n = A.shape[0]
+    B = nx.Graph()
+    B.add_nodes_from(range(2 * n))
+    B.add_edges_from((int(i), n + int(j)) for i, j in zip(*np.nonzero(A)))
+    return len(bipartite.hopcroft_karp_matching(B, top_nodes=range(n))) == 2 * n
 
 def _colour_test(G) -> str:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     colour = {i: "black" if A[i, i] != 0 else "white" for i in range(n)}
-    if n <= 4 or "white" not in colour.values():
+    if "white" not in colour.values():
         return "Fail"
     else:
         while "white" in colour.values():
@@ -55,7 +63,7 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
         # 1   Condition ii                                           At least one node is self-regulating    True
         # 2  Condition iii                        The product of any pairwise interaction is non-positive    True
         # 3   Condition iv                                              No cycles greater than length two   False
-        # 4    Condition v  Non-zero determinant (all nodes have at least one incoming and outgoing link)    True
+        # 4    Condition v                 A cycle cover exists (disjoint cycles cover every node)    True
         # 5    Colour test                                                    Fails Jeffries' colour test    True
         # 6    Sign stable               Satisfies necessary and sufficient conditions for sign stability   False
         ```
@@ -68,7 +76,7 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
         any(A[i, i] < 0 for i in range(n)),
         all(A[i, j] * A[j, i] <= 0 for i in range(n) for j in range(n) if i != j),
         all(len(cycle) < 3 for cycle in nx.simple_cycles(nx.DiGraph(A))),
-        bool(A_signed.det() != 0),
+        _has_cycle_cover(A),
     ]
     colour_result = _colour_test(G) == "Fail"
     is_sign_stable = all(conditions) and colour_result
@@ -88,7 +96,7 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
                 "At least one node is self-regulating",
                 "The product of any pairwise interaction is non-positive",
                 "No cycles greater than length two",
-                "Non-zero determinant (all nodes have at least " + "one incoming and outgoing link)",
+                "A cycle cover exists (disjoint cycles cover every node)",
                 "Fails Jeffries' colour test",
                 "Satisfies necessary and sufficient conditions for sign stability",
             ],
@@ -96,7 +104,6 @@ def sign_stability(G: nx.DiGraph) -> pd.DataFrame:
         }
     )
 
-@cache
 def system_feedback(
     G: nx.DiGraph,
     level: Optional[int] = None,
@@ -150,7 +157,6 @@ def system_feedback(
         fb = [-p.coeff(lam, n - level)]
     return sp.Matrix(fb)
 
-@cache
 def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate net feedback at a specified level of the system.
 
@@ -180,7 +186,6 @@ def net_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """
     return system_feedback(G, level=level, form="signed")
 
-@cache
 def absolute_feedback(
     G: nx.DiGraph,
     level: Optional[int] = None,
@@ -213,38 +218,24 @@ def absolute_feedback(
         # [3]])
         ```
     """
-    A = create_matrix(G, form="signed")
-    if level == 0:
-        return sp.Matrix([1])
+    A = np.abs(sp.matrix2numpy(create_matrix(G, form="signed")).astype(int))
     n = A.shape[0]
     if level is not None and (level < 0 or level > n):
         raise ValueError(f"Level must be between 0 and {n}")
-    if method == "combinations":
-        A = sp.matrix2numpy(A).astype(int)
-        A = np.abs(A)
-        if level is None:
-            fb = []
-            for k in range(n + 1):
-                fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), k))
-                fb.append(int(fb_k))
-        else:
-            fb_k = sum(perm(A[np.ix_(c, c)], method="bbfg") for c in combinations(range(n), level))
-            fb = [int(fb_k)]
-        if any(v > 2**53 for v in fb):
-            raise OverflowError("absolute_feedback exceeds float precision (2**53)")
-    elif method == "polynomial":
-        lam = sp.Symbol("lambda")
-        A_abs = sp.Matrix(sp.Abs(A) + lam * sp.eye(n))
-        P = sp.per(A_abs)
-        if level is None:
-            fb = [P.coeff(lam, n - k) for k in range(n + 1)]
-        else:
-            fb = [P.coeff(lam, n - level)]
-    else:
+    if method not in ("combinations", "polynomial"):
         raise ValueError("method must be either 'combinations' or 'polynomial'")
-    return sp.Matrix(fb)
+    if level == 0:
+        return sp.Matrix([1])
+    if level == 1:
+        return sp.Matrix([int(np.trace(A))])
+    if method == "polynomial":
+        lam = sp.Symbol("lambda")
+        polynomial = sp.per(sp.Matrix(A) + lam * sp.eye(n)).expand()
+        counts = [polynomial.coeff(lam, n - k) for k in range(n + 1)]
+    else:
+        counts = perm(A, levels=True)
+    return sp.Matrix(counts if level is None else [counts[level]])
 
-@cache
 def weighted_feedback(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate ratio of net to total feedback terms at each level of the system.
 
@@ -288,7 +279,6 @@ def _hurwitz_matrix(fb, level) -> sp.Matrix:
                 H[i, j] = fb_pos[index]
     return H
 
-@cache
 def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
     """Calculate net, absolute and weighted feedback metrics at each level of the system.
 
@@ -331,7 +321,6 @@ def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
 
     return pd.DataFrame(df)
 
-@cache
 def hurwitz_determinants(
     G: nx.DiGraph,
     level: Optional[int] = None,
@@ -358,12 +347,12 @@ def hurwitz_determinants(
         # Matrix([[a_C,P*a_P,C*a_P,P + a_C,P*a_P,R*a_R,C + a_C,R*a_R,C*a_R,R + a_P,P**2*a_R,R + a_P,P*a_R,R**2]])
         ```
     """
-    fb = system_feedback(G, level=None, form=form)
-    n = len(fb) - 1
+    n = len(get_nodes(G, "state"))
     if n > 5 and form == "symbolic":
         raise ValueError("Limited to systems with five or fewer variables.")
     if level is not None and (level < 0 or level > n):
         raise ValueError(f"Level must be between 0 and {n}")
+    fb = system_feedback(G, level=None, form=form)
     if level is None:
         h = _hurwitz_matrix(fb, n)
         hd = sp.Matrix([sp.det(h[:k, :k]) for k in range(0, n + 1)])
@@ -372,7 +361,6 @@ def hurwitz_determinants(
         hd = sp.Matrix([sp.det(h[:level, :level])])
     return sp.Matrix(hd)
 
-@cache
 def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate net terms in Hurwitz determinants.
 
@@ -402,7 +390,6 @@ def net_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """
     return hurwitz_determinants(G, level=level, form="signed")
 
-@cache
 def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate absolute terms in Hurwitz determinants.
 
@@ -433,22 +420,17 @@ def absolute_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
     tot_fb = absolute_feedback(G)
     n = tot_fb.shape[0] - 1
     h = _hurwitz_matrix(tot_fb, n)
-    if level is None:
-        td = [sp.Integer(1)]
-        for k in range(1, n + 1):
-            h_k = np.array(h[:k, :k].tolist(), dtype=float)
-            td.append(sp.Abs(sp.Integer(int(round(perm(h_k))))))
-    else:
-        if level < 0 or level > n:
-            raise ValueError(f"Level must be between 0 and {n}")
-        if level == 0:
-            td = [sp.Integer(1)]
-        else:
-            H_k = np.array(h[:level, :level].tolist(), dtype=float)
-            td = [sp.Abs(sp.Integer(int(round(perm(H_k)))))]
-    return sp.Matrix(td)
 
-@cache
+    def terms(k):
+        block = np.array([[abs(int(x)) for x in row] for row in h[:k, :k].tolist()], dtype=object)
+        return sp.Integer(1) if k == 0 else sp.Integer(perm(block))
+
+    if level is None:
+        return sp.Matrix([terms(k) for k in range(n + 1)])
+    if level < 0 or level > n:
+        raise ValueError(f"Level must be between 0 and {n}")
+    return sp.Matrix([terms(level)])
+
 def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate ratio of net to total terms for Hurwitz determinants.
 
@@ -481,7 +463,6 @@ def weighted_determinants(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matr
     wgt_det = get_weight(net_det, tot_det)
     return wgt_det
 
-@cache
 def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
     """Calculate net, absolute and weighted Hurwitz determinant metrics.
 
@@ -531,9 +512,11 @@ def _create_model_c(n: int) -> nx.DiGraph:
     nx.freeze(C)
     return C
 
-@cache
 def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     """Analyse conditional stability metrics and model stability class.
+
+    Class I/II describes feedback structure; it does not certify that stable
+    interaction strengths exist.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
@@ -558,11 +541,15 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     A = create_matrix(G, form="signed")
     n = A.shape[0]
     w_fb = weighted_feedback(G)
+    missing = [k for k in range(1, n + 1) if w_fb[k] is sp.nan]
+    if missing:
+        raise ValueError(f"No feedback terms at level {', '.join(map(str, missing))}: the model cannot satisfy Hurwitz criterion i and has no conditional stability class.")
     w_det = weighted_determinants(G, level=n - 1)[0]
     C = _create_model_c(n)
     w_det_c = weighted_determinants(C, level=n - 1)[0]
     ratio_C = w_det / w_det_c
-    max_fb_n = np.max(w_fb) == w_fb[-1]
+    max_fb = max(w_fb)
+    max_fb_n = max_fb == -1 or not any(w_fb[k] == max_fb for k in range(len(w_fb) - 1))
     kmax = len(w_fb) - 1 - np.argmax(w_fb[::-1])
     is_sign_stable = sign_stability(G)["Result"].iloc[-1]
     if is_sign_stable:
@@ -581,7 +568,7 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
             ],
             "Definition": [
                 f"Maximum weighted feedback (level {kmax})",
-                "n-1 weighted determinant at level",
+                f"Weighted determinant at level {n - 1}",
                 "Ratio to a 'model-c' type system",
                 "Class of the model based on conditional stability metrics",
             ],
@@ -606,7 +593,7 @@ def simulation_stability(
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        n_sim: Number of simulations to perform (default 10000)
+        n_sim: Positive integer number of simulations to perform (default 10000)
         dist: Distribution to sample from (default 'uniform'):
             - "uniform": Uniform(0, 1) - no assumption about interaction strength
             - "weak": Beta(1, 3) - weak interactions predominate
@@ -614,7 +601,7 @@ def simulation_stability(
             - "strong": Beta(3, 1) - strong interactions predominate
             - "uniform_two_oom": Uniform(0.01, 1)
         seed: Random seed
-        presample: Optional pre-sampled values of shape (n_sim, n, n) to use instead of random sampling
+        presample: Optional finite nonnegative strengths of shape (n_sim, n, n) to use instead of random sampling
 
     Returns:
         pd.DataFrame: Proportion of stable matrices and proportion that fail Hurwitz criteria
@@ -636,12 +623,17 @@ def simulation_stability(
         # 5  Hurwitz criterion ii only                       Proportion where only Hurwitz criterion ii fails   0.00%
         ```
     """
+    if isinstance(n_sim, (bool, np.bool_)) or not isinstance(n_sim, (int, np.integer)) or n_sim <= 0:
+        raise ValueError("n_sim must be a positive integer")
+
     A = create_matrix(G, "signed")
     A = sp.matrix2numpy(A).astype(int)
 
     if presample is not None:
         if presample.shape != (n_sim, *A.shape):
             raise ValueError(f"presample must have shape ({n_sim}, {A.shape[0]}, {A.shape[1]})")
+        if not np.isfinite(presample).all() or np.any(presample < 0):
+            raise ValueError("presample must contain finite nonnegative strengths")
 
     rng = np.random.RandomState(seed)
     n_stable = 0
@@ -661,8 +653,9 @@ def simulation_stability(
             n_stable += 1
         else:
             n_unstable += 1
-        pc = np.poly(S)
-        hurwitz_i = np.all(pc[1:] > 0) or np.all(pc[1:] < 0)
+        magnitude = np.max(np.abs(S), initial=0)
+        pc = np.poly(S / magnitude if magnitude > 0 else S)
+        hurwitz_i = bool(np.all(pc[1:] > 0))  # np.poly is monic, so every coefficient must be positive.
         n = len(pc)
         H = np.zeros((n - 1, n - 1))
         for r in range(1, n):
@@ -670,8 +663,17 @@ def simulation_stability(
                 index = 2 * c - r
                 if 0 <= index < n:
                     H[r - 1, c - 1] = pc[index]
-        hd = [np.linalg.det(H[: k + 1, : k + 1]) for k in range(n - 1)]
-        hurwitz_ii = np.all(np.array(hd[1:-1]) > 0)
+        hurwitz_ii = True
+        for k in range(2, n - 1):
+            block = H[:k, :k]
+            scale = np.max(np.abs(block), axis=1)
+            if np.any(scale == 0):
+                hurwitz_ii = False
+                break
+            block = block / scale[:, None]
+            if not np.linalg.det(block) > 0:
+                hurwitz_ii = False
+                break
         if not hurwitz_i:
             n_hurwitz_i_fail += 1
             if hurwitz_ii:
@@ -717,3 +719,32 @@ def simulation_stability(
         }
     )
     return sim_df
+
+
+def stability_analysis(
+    G: nx.DiGraph,
+    n_sim: int = 10000,
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
+    presample: Optional[np.ndarray] = None,
+) -> pd.DataFrame:
+    """Append sign, conditional and simulation stability results into one table.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        n_sim: Number of simulations (default 10000)
+        dist: Interaction-strength distribution, as in simulation_stability
+        seed: Random seed (default 42)
+        presample: Optional strengths to pass to simulation_stability
+
+    Returns:
+        pd.DataFrame: Combined Test, Definition and Result columns
+    """
+    return pd.concat(
+        [
+            sign_stability(G),
+            conditional_stability(G),
+            simulation_stability(G, n_sim=n_sim, dist=dist, seed=seed, presample=presample),
+        ],
+        ignore_index=True,
+    )

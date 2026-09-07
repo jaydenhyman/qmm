@@ -540,3 +540,32 @@ def test_pathway_effects_observe_unknown_node_snowshoe_io(snowshoe_io):
     with pytest.raises(ValueError, match="Unknown observation node"):
         pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=10, observe="Missing:+")
 
+
+def test_tables_are_fresh_objects_snowshoe_io(snowshoe_io):
+    first = cycles_table(snowshoe_io)
+    first["Cycle"] = "edited"
+    assert list(cycles_table(snowshoe_io)["Cycle"]) != ["edited"] * len(first)
+    paths = paths_table(snowshoe_io, "Inp1", "Out1")
+    paths["Path"] = "edited"
+    assert list(paths_table(snowshoe_io, "Inp1", "Out1")["Path"]) != ["edited"] * len(paths)
+
+
+def test_pathway_effects_no_route_returns_empty_table():
+    G = nx.DiGraph()
+    for n in "AB":
+        G.add_node(n, category="state")
+        G.add_edge(n, n, sign=-1)
+    result = pathway_effects(G, "A", "B", n_sim=10)
+    assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"]
+
+
+def test_pathway_effects_reflects_changed_edge_sign():
+    G = nx.DiGraph()
+    G.add_nodes_from("AB", category="state")
+    G.add_edges_from([("A", "A"), ("B", "B")], sign=-1)
+    G.add_edge("A", "B", sign=1)
+    assert pathway_effects(G, "A", "B", n_sim=10).loc[0, "Positive"] == 1
+    G["A"]["B"]["sign"] = -1
+    result = pathway_effects(G, "A", "B", n_sim=10)
+    assert result.loc[0, "Sign"] == "−"
+    assert result.loc[0, "Negative"] == 1

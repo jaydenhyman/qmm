@@ -2,7 +2,6 @@
 
 import numpy as np
 import sympy as sp
-from functools import cache
 from .structure import create_matrix
 from .helper import (
     get_weight,
@@ -15,7 +14,6 @@ from .helper import (
 from typing import Optional, Literal
 import networkx as nx
 
-@cache
 def adjoint_matrix(
     G: nx.DiGraph,
     form: Literal["symbolic", "signed"] = "symbolic",
@@ -75,7 +73,6 @@ def adjoint_matrix(
     return sp.Matrix(adjoint_matrix)
 
 
-@cache
 def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp.Matrix:
     """Calculate total number of both positive and negative terms for press perturbation response.
 
@@ -105,27 +102,14 @@ def absolute_feedback_matrix(G: nx.DiGraph, perturb: Optional[str] = None) -> sp
         # [1]])
         ```
     """
-    A = create_matrix(G, form="binary")
-    A_np = np.array(sp.matrix2numpy(A), dtype=float)
+    A = sp.matrix2numpy(create_matrix(G, form="binary"), dtype=int)
     nodes = get_nodes(G, "state")
     if perturb is not None and perturb not in nodes:
         raise ValueError(f"Perturbation node must be one of: {nodes}")
-    n = A_np.shape[0]
     if perturb is not None:
-        perturb_index = nodes.index(perturb)
-        result = np.zeros(n, dtype=int)
-        for j in range(n):
-            minor = np.delete(np.delete(A_np, perturb_index, 0), j, 1)
-            result[j] = int(perm(minor))
-        return sp.Matrix(result)
-    tmat = np.zeros((n, n), dtype=int)
-    for i in range(n):
-        for j in range(n):
-            minor = np.delete(np.delete(A_np, j, 0), i, 1)
-            tmat[i, j] = int(perm(minor))
-    return sp.Matrix(tmat)
+        return sp.Matrix(perm(A, source=nodes.index(perturb)))
+    return sp.Matrix([perm(A, source=j) for j in range(len(nodes))]).T
 
-@cache
 def weighted_predictions_matrix(G: nx.DiGraph, as_nan: bool = True, as_abs: bool = False, perturb: Optional[str] = None) -> sp.Matrix:
     """Calculate ratio of net to total terms for a press perturbation response.
 
@@ -179,7 +163,6 @@ def weighted_predictions_matrix(G: nx.DiGraph, as_nan: bool = True, as_abs: bool
         wmat = get_weight(amat, tmat, sp.Integer(1))
     return sp.Matrix(wmat)
 
-@cache
 def sign_determinacy_matrix(
     G: nx.DiGraph,
     method: Literal["average", "95_bound"] = "average",
@@ -235,7 +218,6 @@ def sign_determinacy_matrix(
     pmat = sign_determinacy(wmat, tmat, method)
     return sp.Matrix(pmat)
 
-@cache
 def numerical_simulations(
     G: nx.DiGraph,
     n_sim: int = 10000,
@@ -250,7 +232,7 @@ def numerical_simulations(
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        n_sim: Number of simulations
+        n_sim: Nonnegative integer number of simulations
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong')
         seed: Random seed
         as_nan: Return NaN for undefined ratios
@@ -297,6 +279,8 @@ def numerical_simulations(
         # [  1.0, 0.639, 1.0]])
         ```
     """
+    if isinstance(n_sim, (bool, np.bool_)) or not isinstance(n_sim, (int, np.integer)) or n_sim < 0:
+        raise ValueError("n_sim must be a nonnegative integer")
     if positive_only and not as_nan:
         raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=True")
     if as_abs and not as_nan:
@@ -323,10 +307,12 @@ def numerical_simulations(
     while total_simulations < n_sim and attempts < max_attempts:
         attempts += 1
         values = _random_sampler(dist, len(symbols), rng)
-        sim_A = A_sp(*values)
+        sim_A = np.asarray(A_sp(*values), dtype=float).reshape(n, n)
         if np.all(np.real(np.linalg.eigvals(sim_A)) < 0):
             try:
                 inv_A = np.linalg.inv(-sim_A)
+                if not np.isfinite(inv_A).all():
+                    continue
                 positive += inv_A > 0
                 negative += inv_A < 0
                 total_simulations += 1

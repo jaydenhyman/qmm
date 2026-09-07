@@ -5,6 +5,7 @@ import sympy as sp
 import numpy as np
 import pandas as pd
 
+from qmm.core.helper import list_to_digraph
 from qmm.core.stability import (
     sign_stability,
     feedback_metrics,
@@ -254,6 +255,12 @@ def test_absolute_feedback_polynomial_all_levels_snowshoe(snowshoe):
     result = absolute_feedback(snowshoe, method="polynomial")
     expected = sp.Matrix([[1], [2], [3], [2]])
     assert result == expected
+
+
+def test_absolute_feedback_exact_for_large_counts_no_fixture():
+    n = 20
+    G = list_to_digraph([[-1 if i == j else 1 for j in range(n)] for i in range(n)])
+    assert absolute_feedback(G, level=n)[0] == __import__("math").factorial(n)
 
 
 def test_absolute_feedback_all_levels_default_form_chain(chain):
@@ -645,3 +652,118 @@ def test_absolute_feedback_invalid_method(snowshoe):
 def test_hurwitz_determinants_invalid_form(snowshoe):
     with pytest.raises(ValueError, match="form must be either 'symbolic' or 'signed'"):
         hurwitz_determinants(snowshoe, form="invalid")
+
+
+def test_sign_stability_jeffries_counterexample_no_fixture():
+    # Jeffries (1974): species 1 self-regulating, species 2 preyed on by species 3. Conditions i-v hold,
+    # but the predation community {2, 3} passes the colour test and the system is only neutrally stable.
+    G = list_to_digraph([[-1, 1, 0], [0, 0, -1], [0, 1, 0]], ["1", "2", "3"])
+    result = sign_stability(G).set_index("Test")["Result"]
+    assert all(result[f"Condition {c}"] for c in ["i", "ii", "iii", "iv", "v"])
+    assert result["Colour test"] == False  # noqa: E712 - numpy bool
+    assert result["Sign stable"] == False  # noqa: E712
+
+
+def test_simulation_stability_positive_self_effect_fails_criterion_i_no_fixture():
+    G = list_to_digraph([[1, 0], [0, -1]], ["a", "b"])
+    result = simulation_stability(G, n_sim=200).set_index("Test")["Result"]
+    assert result["Stable matrices"] == "0.00%"
+    assert result["Hurwitz criterion i"] == "100.00%"
+
+
+def test_conditional_stability_tied_maximum_is_class_ii():
+    from qmm import list_to_digraph
+    G = list_to_digraph([[-1, 1, -1], [1, -1, -1], [1, 1, -1]], ["A", "B", "C"])
+    assert conditional_stability(G)["Result"].iloc[-1] == "Class II"
+
+
+def test_conditional_stability_missing_feedback_raises():
+    from qmm import list_to_digraph
+    with pytest.raises(ValueError, match="No feedback terms at level"):
+        conditional_stability(list_to_digraph([[0, -1], [1, 0]], ["A", "B"]))
+
+
+def test_sign_stability_and_level_zero_feedback_beyond_63_states():
+    from qmm import list_to_digraph
+    G = list_to_digraph((-np.eye(64)).astype(int).tolist(), [f"n{i}" for i in range(64)])
+    assert sign_stability(G)["Result"].iloc[-1]
+    assert absolute_feedback(G, level=0) == sp.Matrix([1])
+
+
+def test_absolute_feedback_beyond_63_states():
+    G = list_to_digraph(-np.eye(64, dtype=int))
+    assert absolute_feedback(G, level=1) == sp.Matrix([64])
+    assert absolute_feedback(G, level=64) == sp.Matrix([1])
+
+
+def test_first_level_feedback_uses_diagonal(monkeypatch):
+    def unexpected_count(*args, **kwargs):
+        pytest.fail("First-level feedback only needs diagonal entries")
+    monkeypatch.setattr("qmm.core.stability.perm", unexpected_count)
+    G = list_to_digraph(-np.ones((16, 16), dtype=int))
+    assert absolute_feedback(G, level=1) == sp.Matrix([16])
+
+
+def test_cycle_cover_matching_agrees_with_exact_count():
+    from qmm.core.stability import _has_cycle_cover
+    from qmm.core.helper import perm
+    rng = np.random.RandomState(0)
+    for _ in range(300):
+        n = rng.randint(1, 7)
+        A = (rng.uniform(size=(n, n)) < 0.35).astype(int)
+        assert _has_cycle_cover(A) == (perm(A) > 0)
+
+
+def test_stability_results_follow_graph_attributes_and_own_values():
+    G = list_to_digraph([[-1]])
+    result = weighted_feedback(G)
+    result[1] = 999
+    assert weighted_feedback(G) == sp.Matrix([-1, -1])
+    G["1"]["1"]["sign"] = 1
+    assert weighted_feedback(G) == sp.Matrix([-1, 1])
+
+
+def test_symbolic_hurwitz_limit_precedes_expansion(monkeypatch):
+    def unexpected_expansion(*args, **kwargs):
+        pytest.fail("The unsupported symbolic system should be rejected before expansion")
+
+    monkeypatch.setattr("qmm.core.stability.system_feedback", unexpected_expansion)
+    with pytest.raises(ValueError, match="five or fewer"):
+        hurwitz_determinants(list_to_digraph(-np.eye(6, dtype=int)))
+
+
+@pytest.mark.parametrize("strengths", [[1, 1e-16], [1, 1e-6, 1e-6, 1e-6]])
+def test_simulation_stability_accepts_stable_diagonals_at_different_rates(strengths):
+    n = len(strengths)
+    result = simulation_stability(
+        list_to_digraph(-np.eye(n, dtype=int)), n_sim=1,
+        presample=np.diag(strengths)[None],
+    ).set_index("Test")["Result"]
+    assert result["Stable matrices"] == "100.00%"
+    assert result["Hurwitz criterion i"] == "0.00%"
+    assert result["Hurwitz criterion ii"] == "0.00%"
+
+
+@pytest.mark.parametrize("scale", [1e-100, 1.0, 1e100])
+def test_simulation_stability_hurwitz_checks_independent_of_overall_scale(scale):
+    result = simulation_stability(
+        list_to_digraph(-np.eye(5, dtype=int)), n_sim=1,
+        presample=np.full((1, 5, 5), scale),
+    ).set_index("Test")["Result"]
+    assert result["Stable matrices"] == "100.00%"
+    assert result["Hurwitz criterion i"] == "0.00%"
+    assert result["Hurwitz criterion ii"] == "0.00%"
+
+
+@pytest.mark.parametrize("n_sim", [0, -1, 1.5, True])
+def test_simulation_stability_requires_positive_integer_count(n_sim):
+    with pytest.raises(ValueError, match="n_sim must be a positive integer"):
+        simulation_stability(list_to_digraph([[-1]]), n_sim=n_sim)
+
+
+@pytest.mark.parametrize("strength", [-1, np.inf, np.nan])
+def test_simulation_stability_rejects_invalid_presampled_strengths(strength):
+    with pytest.raises(ValueError, match="finite nonnegative strengths"):
+        simulation_stability(
+            list_to_digraph([[-1]]), n_sim=1, presample=np.full((1, 1, 1), strength)
+        )

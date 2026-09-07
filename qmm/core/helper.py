@@ -3,11 +3,8 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from scipy.sparse import csr_matrix
-from scipy.sparse.csgraph import connected_components, maximum_bipartite_matching
 from typing import List, Union, Dict, Any, Optional, Tuple, Literal
 from dataclasses import dataclass
-from numba import jit
 
 def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
     """Convert an adjacency matrix to a directed graph.
@@ -37,6 +34,8 @@ def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[Li
         matrix = np.array(matrix)
     if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
         raise ValueError("Input must be a square matrix")
+    if not np.isin(matrix, [-1, 0, 1]).all():
+        raise ValueError("Matrix entries must be -1, 0, or +1")
     G = nx.DiGraph()
     n = matrix.shape[0]
     if ids is None:
@@ -45,6 +44,8 @@ def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[Li
         if len(ids) != n:
             raise ValueError("Number of ids must match matrix dimensions")
         node_ids = ids
+    if len(set(node_ids)) != n:
+        raise ValueError("Node ids must be unique")
     G.add_nodes_from(node_ids)
     for i in range(n):
         for j in range(n):
@@ -441,25 +442,19 @@ class _NodeSign:
         """Convert to tuple format for internal use"""
         return (self.node, self.sign)
 
-def _parse_perturbations(G: nx.DiGraph, perturb: str) -> Tuple[nx.DiGraph, Tuple[str, int]]:
+def _parse_perturbations(G: nx.DiGraph, perturb: str) -> Tuple[nx.DiGraph, Tuple[Tuple[str, int], ...]]:
+    """Parse fixed simultaneous unit presses without changing the graph."""
     perturbations = [p.strip() for p in perturb.split(',') if p.strip()]
     if not perturbations:
         raise ValueError("Perturbation string cannot be empty.")
     valid_nodes = set(get_nodes(G, "all"))
-    if len(perturbations) > 1:
-        G_mod = G.copy()
-        G_mod.add_node('_P', category='input')
-        for p in perturbations:
-            ns = _NodeSign.from_str(p)
-            if ns.node not in valid_nodes:
-                raise ValueError(f"Unknown perturbation node: {ns.node}")
-            G_mod.add_edge('_P', ns.node, sign=ns.sign)
-        nx.freeze(G_mod)
-        return G_mod, ('_P', 1)
-    ns = _NodeSign.from_str(perturbations[0])
-    if ns.node not in valid_nodes:
-        raise ValueError(f"Unknown perturbation node: {ns.node}")
-    return G, ns.to_tuple()
+    presses = []
+    for p in perturbations:
+        ns = _NodeSign.from_str(p)
+        if ns.node not in valid_nodes:
+            raise ValueError(f"Unknown perturbation node: {ns.node}")
+        presses.append(ns.to_tuple())
+    return G, tuple(presses)
 
 def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
     if not s:
@@ -492,219 +487,15 @@ def _check_direct_io_edges(G: nx.DiGraph) -> None:
                 raise ValueError(f"Direct input to output edge ({inp} to {out}) not supported.")
 
 
-def perm(
-    A: np.ndarray, method: Literal["bbfg", "ryser"] = "bbfg", decompose: bool = True
-) -> float:
-    """Compute the permanent of a square matrix.
-
-    The permanent is similar to the determinant but uses only addition
-    (no sign alternation). This implementation is based on the algorithms
-    from thewalrus library (https://github.com/XanaduAI/thewalrus).
+def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:
+    """Compute the permanent, minor permanents, or sums of principal permanents.
 
     Args:
-        A: A square numpy array (float or complex).
-        method: Algorithm to use - "bbfg" for BBFG formula (default, faster)
-                or "ryser" for Ryser formula. Any other value uses Ryser.
-        decompose: Dulmage-Mendelsohn decomposition (default True) for sparse matrices.
-
-    Returns:
-        The permanent of matrix A.
-
-    Raises:
-        TypeError: If input is not a numpy array.
-        ValueError: If matrix is not square or contains NaNs.
-
-    References:
-        - Ryser, H.J. (1963). Combinatorial Mathematics.
-        - Glynn, D.G. (2010). The permanent of a square matrix. European Journal of Combinatorics 31, 1887–1891.
-
-    Examples:
-        ```python
-        import numpy as np
-        from qmm.core.helper import perm
-        perm(np.array([[1, 2], [3, 4]]), method='bbfg')
-        # 10
-        ```
-    """
-    if not isinstance(A, np.ndarray):
-        raise TypeError("Input matrix must be a NumPy array.")
-
-    matshape = A.shape
-    if matshape[0] != matshape[1]:
-        raise ValueError("Input matrix must be square.")
-    if np.isnan(A).any():
-        raise ValueError("Input matrix must not contain NaNs.")
-
-    if matshape[0] == 0:
-        return A.dtype.type(1.0)
-    if matshape[0] == 1:
-        return A[0, 0]
-    if matshape[0] == 2:
-        return A[0, 0] * A[1, 1] + A[0, 1] * A[1, 0]
-    if matshape[0] == 3:
-        return (
-            A[0, 2] * A[1, 1] * A[2, 0]
-            + A[0, 1] * A[1, 2] * A[2, 0]
-            + A[0, 2] * A[1, 0] * A[2, 1]
-            + A[0, 0] * A[1, 2] * A[2, 1]
-            + A[0, 1] * A[1, 0] * A[2, 2]
-            + A[0, 0] * A[1, 1] * A[2, 2]
-        )
-
-    overflow = bool(np.prod(np.abs(A).sum(axis=0, dtype=float)) > 2.0**53)
-    if overflow and int((A != 0).sum()) <= 8 * matshape[0] and not np.mod(A, 1).any():
-        return _perm_int(A)
-
-    if decompose:
-        S = csr_matrix(A != 0)
-        col_of = maximum_bipartite_matching(S, perm_type="column")
-        if (col_of < 0).any():
-            return 0
-        nb, labels = connected_components(S[:, col_of], connection="strong")
-        if nb > 1:
-            result = 1
-            for b in range(nb):
-                rk = np.flatnonzero(labels == b)
-                blk = np.ascontiguousarray(A[np.ix_(rk, col_of[rk])])
-                result *= perm(blk, method, decompose=False)
-            return result
-    if overflow:
-        raise OverflowError("perm exceeds float precision (2**53)")
-    return _perm_bbfg(A) if method == "bbfg" else _perm_ryser(A)
-
-
-@jit(nopython=True)
-def _perm_ryser(M: np.ndarray) -> float:
-    """Compute permanent using Ryser formula with Gray code ordering.
-
-    Args:
-        M: A square numpy array.
-
-    Returns:
-        The permanent of matrix M.
-    """
-    n = len(M)
-    if n == 0:
-        return M.dtype.type(1.0)
-
-    row_comb = np.zeros(n, dtype=M.dtype)
-    total = 0
-    old_grey = 0
-    sign = +1
-    binary_power_dict = np.array([2**i for i in range(n)])
-    num_loops = 2**n
-
-    for k in range(num_loops):
-        bin_index = (k + 1) % num_loops
-        reduced = np.prod(row_comb)
-        total += sign * reduced
-        new_grey = bin_index ^ (bin_index // 2)
-        grey_diff = old_grey ^ new_grey
-        grey_diff_index = 0
-        for idx in range(n):
-            if binary_power_dict[idx] == grey_diff:
-                grey_diff_index = idx
-                break
-        new_vector = M[grey_diff_index]
-        direction = (old_grey > new_grey) - (old_grey < new_grey)
-
-        for i in range(n):
-            row_comb[i] += new_vector[i] * direction
-
-        sign = -sign
-        old_grey = new_grey
-
-    return total
-
-
-@jit(nopython=True)
-def _perm_bbfg(M: np.ndarray) -> float:
-    """Compute permanent using BBFG formula with Gray code ordering.
-
-    This is generally faster than Ryser for most matrices.
-
-    Args:
-        M: A square numpy array.
-
-    Returns:
-        The permanent of matrix M.
-    """
-    n = len(M)
-    if n == 0:
-        return M.dtype.type(1.0)
-
-    row_comb = np.sum(M, 0)
-    total = 0
-    old_gray = 0
-    sign = +1
-    binary_power_dict = np.array([2**i for i in range(n)])
-    num_loops = 2 ** (n - 1)
-
-    for bin_index in range(1, num_loops + 1):
-        reduced = np.prod(row_comb)
-        total += sign * reduced
-        new_gray = bin_index ^ (bin_index // 2)
-        gray_diff = old_gray ^ new_gray
-        gray_diff_index = 0
-        for idx in range(n):
-            if binary_power_dict[idx] == gray_diff:
-                gray_diff_index = idx
-                break
-        new_vector = M[gray_diff_index]
-        direction = 2 * ((old_gray > new_gray) - (old_gray < new_gray))
-
-        for i in range(n):
-            row_comb[i] += new_vector[i] * direction
-
-        sign = -sign
-        old_gray = new_gray
-
-    return total / num_loops
-
-
-def _perm_int(A: np.ndarray) -> int:
-    """Compute exact integer permanent using minor expansion.
-
-    Args:
-        A: A square numpy array.
-
-    Returns:
-        The permanent of matrix A.
-    """
-    n = A.shape[0]
-    rows = [[(j, int(A[i, j])) for j in range(n) if A[i, j] != 0] for i in range(n)]
-    rows.sort(key=len)  # most-constrained row first => fewer reachable subsets
-    memo: dict = {}
-
-    def expand(depth: int, available: int) -> int:
-        if depth == n:
-            return 1
-        if available in memo:
-            return memo[available]
-        total = 0
-        for col, value in rows[depth]:
-            bit = 1 << col
-            if available & bit:
-                total += value * expand(depth + 1, available ^ bit)
-        memo[available] = total
-        return total
-
-    return expand(0, (1 << n) - 1)
-
-
-def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:
-    """Count products of disjoint cycles in a square matrix.
-
-    An alternative to perm() whose cost follows the sparsity of the model.
-    Counts are exact integers. For a binary interaction matrix they are
-    the absolute number of feedback terms.
-
-    Args:
-        A: A square numpy array with at most 63 rows.
-        source: Index of the perturbed variable. Returns the permanent of
-            each minor with that row removed.
-        levels: If True, return the number of terms covering 0, 1, ..., n
-            variables (absolute feedback at each level).
+        A: A square numpy array. Larger matrices use arbitrary-width masks.
+        source: Row index to remove. Return a list whose element j is the
+            permanent with that row and column j removed.
+        levels: If True, return sums of principal permanents of sizes 0, 1,
+            ..., n (absolute feedback at each level for a binary matrix).
 
     Returns:
         The permanent of A, a list of n values if source is given, or a
@@ -712,7 +503,8 @@ def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = F
 
     Raises:
         TypeError: If input is not a numpy array.
-        ValueError: If matrix is not square, has more than 63 rows or contains NaNs.
+        ValueError: If the matrix is not square, a float or complex array has
+            nonfinite entries, source is invalid, or source and levels are both given.
 
     References:
         - Puccia, C.J., Levins, R. (1985). Qualitative Modeling of Complex Systems: An Introduction to Loop Analysis and Time Averaging. Harvard University Press.
@@ -722,27 +514,31 @@ def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = F
     Examples:
         ```python
         import numpy as np
-        from qmm.core.helper import cycle_products
+        from qmm.core.helper import perm
         A = np.array([[1, 1, 0], [1, 0, 1], [0, 1, 1]])
-        cycle_products(A)
+        perm(A)
         # 2
 
-        cycle_products(A, source=0)
+        perm(A, source=0)
         # [1, 1, 1]
 
-        cycle_products(A, levels=True)
+        perm(A, levels=True)
         # [1, 2, 3, 2]
         ```
     """
     if not isinstance(A, np.ndarray):
         raise TypeError("Input matrix must be a NumPy array.")
-    n = A.shape[0]
-    if A.ndim != 2 or A.shape[1] != n:
+    A = np.asarray(A)
+    if A.ndim != 2 or A.shape[0] != A.shape[1]:
         raise ValueError("Input matrix must be square.")
-    if n > 63:
-        raise ValueError("Input matrix must have at most 63 rows.")
-    if A.dtype.kind == "f" and np.isnan(A).any():
-        raise ValueError("Input matrix must not contain NaNs.")
+    n = A.shape[0]
+    if A.dtype.kind in "fc" and not np.isfinite(A).all():
+        raise ValueError("Input matrix must not contain NaNs or infinities.")
+    if source is not None:
+        if isinstance(source, (bool, np.bool_)) or not isinstance(source, (int, np.integer)) or not 0 <= source < n:
+            raise ValueError("Source must be an integer index within the matrix.")
+        if levels:
+            raise ValueError("Source and levels cannot be requested together.")
 
     links = A.tolist()
     pattern = (A != 0) | np.eye(n, dtype=bool) if levels else A != 0
@@ -760,7 +556,8 @@ def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = F
         remaining[i] = False
         reached = reached | pattern[i]
 
-    states = np.zeros(1, dtype=np.int64)
+    mask_type = int if n > 63 else np.int64
+    states = np.zeros(1, dtype=object if n > 63 else np.int64)
     weights = np.zeros((1, n + 1) if levels else 1, dtype=object)
     weights.flat[0] = 1
     remaining[order] = True
@@ -770,14 +567,14 @@ def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = F
         for j in np.flatnonzero(A[i]):
             free = ((states >> j) & 1) == 0
             if free.any():
-                new_states.append(states[free] | np.int64(1 << int(j)))
+                new_states.append(states[free] | mask_type(1 << int(j)))
                 new_weights.append(weights[free] * links[i][j])
         if levels:
             free = ((states >> i) & 1) == 0
             if free.any():
                 left_off = np.zeros_like(weights[free])
                 left_off[:, 1:] = weights[free][:, :-1]
-                new_states.append(states[free] | np.int64(1 << i))
+                new_states.append(states[free] | mask_type(1 << i))
                 new_weights.append(left_off)
         if not new_states:
             states = states[:0]
@@ -791,7 +588,7 @@ def cycle_products(A: np.ndarray, source: Optional[int] = None, levels: bool = F
         first = np.flatnonzero(np.concatenate(([True], states[1:] != states[:-1])))
         states = states[first]
         weights = np.add.reduceat(weights, first, axis=0)
-        closed = np.int64(sum(1 << int(j) for j in np.flatnonzero(~pattern[remaining].any(0))))
+        closed = mask_type(sum(1 << int(j) for j in np.flatnonzero(~pattern[remaining].any(0))))
         unused = closed & ~states
         keep = unused == 0 if source is None else (unused & (unused - 1)) == 0
         states = states[keep]

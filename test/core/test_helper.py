@@ -4,6 +4,8 @@ import pytest
 import networkx as nx
 import numpy as np
 import sympy as sp
+from itertools import combinations, permutations
+from math import comb, prod
 
 from qmm.core.helper import (
     list_to_digraph,
@@ -22,10 +24,6 @@ from qmm.core.helper import (
     _check_direct_io_edges,
     _random_sampler,
     perm,
-    _perm_ryser,
-    _perm_bbfg,
-    _perm_int,
-    cycle_products,
     get_dashed_alternatives,
 )
 from qmm.core.stability import net_feedback, absolute_feedback, absolute_determinants, _hurwitz_matrix
@@ -120,9 +118,6 @@ def test_load_digraph_snowshoe_io_structure():
     )
     expected = (7, 12, "state", "input", "output", 1, 1)
     assert result == expected
-
-
-
 
 
 def test_load_digraph_invalid_model():
@@ -441,7 +436,7 @@ def test_parse_perturbations_single_value_snowshoe(snowshoe):
     G = snowshoe
     _, pt = _parse_perturbations(G, 'R:+')
     result = pt
-    expected = ('R', 1)
+    expected = (('R', 1),)
     assert result == expected
 
 
@@ -449,7 +444,7 @@ def test_parse_perturbations_multiple_values_snowshoe(snowshoe):
     G = snowshoe
     G2, pt2 = _parse_perturbations(G, 'R:+, C:-')
     result = ('_P' in G2.nodes(), pt2)
-    expected = (True, ('_P', 1))
+    expected = (False, (('R', 1), ('C', -1)))
     assert result == expected
 
 
@@ -519,154 +514,6 @@ def test_random_sampler_uniform_two_oom_range_no_fixture():
 
 
 # =============================================================================
-# perm()
-# =============================================================================
-
-def test_perm_not_array_no_fixture():
-    with pytest.raises(TypeError, match="NumPy array"):
-        perm([[1, 2], [3, 4]])
-
-
-def test_perm_non_square_no_fixture():
-    with pytest.raises(ValueError, match="square"):
-        perm(np.array([[1, 2, 3], [4, 5, 6]]))
-
-
-def test_perm_contains_nan_no_fixture():
-    with pytest.raises(ValueError, match="NaN"):
-        perm(np.array([[1, np.nan], [3, 4]]))
-
-
-def test_perm_empty_matrix_no_fixture():
-    A = np.array([]).reshape(0, 0)
-    result = perm(A)
-    expected = 1.0
-    assert result == expected
-
-
-def test_perm_1x1_no_fixture():
-    A = np.array([[5.0]])
-    result = perm(A)
-    expected = 5.0
-    assert result == expected
-
-
-def test_perm_2x2_no_fixture():
-    A = np.array([[1, 2], [3, 4]])
-    result = perm(A)
-    expected = 1*4 + 2*3
-    assert result == expected
-
-
-def test_perm_3x3_no_fixture():
-    A = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float)
-    result = perm(A)
-    expected = 450.0
-    assert result == expected
-
-
-def test_perm_4x4_bbfg_no_fixture():
-    A = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=float)
-    result = perm(A, method="bbfg")
-    expected = 24.0
-    assert result == expected
-
-
-def test_perm_4x4_ryser_no_fixture():
-    A = np.array([[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]], dtype=float)
-    result = perm(A, method="ryser")
-    expected = 24.0
-    assert result == expected
-
-
-def test_perm_methods_agree_no_fixture():
-    A = np.array([[1, 2, 3, 4], [5, 6, 7, 8], [9, 10, 11, 12], [13, 14, 15, 16]], dtype=float)
-    result_bbfg = perm(A, method="bbfg")
-    result_ryser = perm(A, method="ryser")
-    result = abs(result_bbfg - result_ryser) < 1e-10
-    expected = True
-    assert result == expected
-
-
-def test_perm_ryser_empty_no_fixture():
-    A = np.array([], dtype=float).reshape(0, 0)
-    result = _perm_ryser(A)
-    expected = 1.0
-    assert result == expected
-
-
-def test_perm_bbfg_empty_no_fixture():
-    A = np.array([], dtype=float).reshape(0, 0)
-    result = _perm_bbfg(A)
-    expected = 1.0
-    assert result == expected
-
-
-def test_perm_ryser_py_func_empty_no_fixture():
-    A = np.array([], dtype=float).reshape(0, 0)
-    result = _perm_ryser.py_func(A)
-    expected = 1.0
-    assert result == expected
-
-
-def test_perm_bbfg_py_func_empty_no_fixture():
-    A = np.array([], dtype=float).reshape(0, 0)
-    result = _perm_bbfg.py_func(A)
-    expected = 1.0
-    assert result == expected
-
-
-def test_perm_ryser_py_func_2x2_no_fixture():
-    A = np.array([[1.0, 2.0], [3.0, 4.0]])
-    result = _perm_ryser.py_func(A)
-    expected = 1.0 * 4.0 + 2.0 * 3.0
-    assert result == expected
-
-
-def test_perm_bbfg_py_func_2x2_no_fixture():
-    A = np.array([[1.0, 2.0], [3.0, 4.0]])
-    result = _perm_bbfg.py_func(A)
-    expected = 1.0 * 4.0 + 2.0 * 3.0
-    assert result == expected
-
-
-def test_perm_overflow_raises_no_fixture():
-    with pytest.raises(OverflowError):
-        perm(np.ones((17, 17)))
-
-
-def test_perm_sparse_overflow_exact_no_fixture():
-    n = 40
-    M = np.array([[1.0 if abs(i - j) <= 1 else 0.0 for j in range(n)] for i in range(n)])
-    fib = [0, 1]
-    for _ in range(n + 1):
-        fib.append(fib[-1] + fib[-2])
-    assert int(perm(M)) == fib[n + 1]
-
-
-def test_perm_int_matches_bbfg_random_sparse_no_fixture():
-    rng = np.random.default_rng(7)
-    for n in (5, 8, 11):
-        for _ in range(20):
-            M = (rng.random((n, n)) < 0.35).astype(float)
-            assert int(_perm_int(M)) == int(round(float(_perm_bbfg(np.ascontiguousarray(M)))))
-
-
-def test_absolute_feedback_overflow_raises_no_fixture():
-    M = [[(-1 if i == j else 1) for j in range(17)] for i in range(17)]
-    with pytest.raises(OverflowError):
-        absolute_feedback(list_to_digraph(M))
-
-
-@pytest.mark.parametrize("seed", range(8))
-def test_perm_decompose_equals_plain_random(seed):
-    rng = np.random.default_rng(seed)
-    n = int(rng.integers(4, 10))
-    A = (rng.random((n, n)) < rng.uniform(0.25, 0.6)).astype(float)
-    assert round(perm(A, decompose=True)) == round(perm(A, decompose=False))
-
-
-# =============================================================================
 # get_dashed_alternatives()
 # =============================================================================
 
@@ -713,143 +560,219 @@ def test_parse_perturbations_invalid_node_multi(snowshoe):
         simulations_table(snowshoe, perturb='R:+, Invalid:+', observe='')
 
 
-# =============================================================================
-# cycle_products()
-# =============================================================================
-
-def test_cycle_products_not_array_no_fixture():
+def test_perm_not_array_no_fixture():
     with pytest.raises(TypeError, match="NumPy array"):
-        cycle_products([[1, 2], [3, 4]])
+        perm([[1, 2], [3, 4]])
 
 
-def test_cycle_products_non_square_no_fixture():
+def test_perm_non_square_no_fixture():
     with pytest.raises(ValueError, match="square"):
-        cycle_products(np.array([[1, 2, 3], [4, 5, 6]]))
+        perm(np.array([[1, 2, 3], [4, 5, 6]]))
 
 
-def test_cycle_products_contains_nan_no_fixture():
+def test_perm_contains_nan_no_fixture():
     with pytest.raises(ValueError, match="NaN"):
-        cycle_products(np.array([[1, np.nan], [3, 4]]))
+        perm(np.array([[1, np.nan], [3, 4]]))
 
 
-def test_cycle_products_too_many_rows_no_fixture():
-    with pytest.raises(ValueError, match="63"):
-        cycle_products(np.eye(64, dtype=int))
+@pytest.mark.parametrize("n", [63, 64, 65, 127, 128, 129])
+def test_perm_arbitrary_width_masks(n):
+    A = np.eye(n, dtype=int)
+    assert perm(A) == 1
+    assert perm(A, levels=True) == [comb(n, k) for k in range(n + 1)]
+    for source in [0, n // 2, n - 1]:
+        assert perm(A, source=source) == [int(i == source) for i in range(n)]
 
 
-def test_cycle_products_matches_perm_small_no_fixture():
-    matrices = (
-        np.array([]).reshape(0, 0),
-        np.array([[5.0]]),
-        np.array([[1, 2], [3, 4]], dtype=float),
-        np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float),
-        np.ones((4, 4)),
-    )
-    for A in matrices:
-        result = cycle_products(A)
-        expected = perm(A)
-        assert result == expected
+@pytest.mark.parametrize("n", [64, 65, 129])
+def test_perm_large_directed_cycle(n):
+    columns = np.roll(np.arange(n), 1)
+    A = np.eye(n, dtype=int)[columns]
+    assert perm(A) == 1
+    assert perm(A, levels=True) == [1] + [0] * (n - 1) + [1]
+    for source in [0, n // 2, n - 1]:
+        assert perm(A, source=source) == [int(i == columns[source]) for i in range(n)]
 
 
-def test_cycle_products_matches_perm_random_sparse_no_fixture():
-    rng = np.random.default_rng(11)
-    for n in (5, 8, 11):
-        for _ in range(10):
-            A = (rng.random((n, n)) < 0.35).astype(float)
-            assert cycle_products(A) == int(round(float(perm(A))))
+def test_perm_large_signed_tridiagonal():
+    n = 65
+    A = 2 * np.eye(n, dtype=int) + np.eye(n, k=1, dtype=int) - np.eye(n, k=-1, dtype=int)
+    assert perm(A) == n + 1
+    assert perm(A, levels=True) == [comb(2 * n - k + 1, k) for k in range(n + 1)]
+    for source in [0, 32, 64]:
+        expected = [(-1) ** max(target - source, 0) * (min(source, target) + 1) * (n - max(source, target))
+                    for target in range(n)]
+        assert perm(A, source=source) == expected
+    rng = np.random.default_rng(65)
+    assert perm(A[np.ix_(rng.permutation(n), rng.permutation(n))]) == n + 1
 
 
-def test_cycle_products_matches_perm_int_random_sparse_no_fixture():
-    rng = np.random.default_rng(3)
-    for _ in range(20):
-        A = (rng.random((9, 9)) < 0.3).astype(float)
-        assert cycle_products(A) == _perm_int(A)
+@pytest.mark.parametrize("source", [True, np.bool_(False), -1, 2, 0.0, [0], "0"])
+def test_perm_rejects_invalid_source(source):
+    with pytest.raises(ValueError, match="Source"):
+        perm(np.eye(2, dtype=int), source=source)
 
 
-def test_cycle_products_matches_perm_bbfg_and_ryser_no_fixture():
-    rng = np.random.default_rng(5)
-    for _ in range(10):
-        A = np.ascontiguousarray((rng.random((7, 7)) < 0.4).astype(float))
-        assert cycle_products(A) == int(round(float(_perm_bbfg(A))))
-        assert cycle_products(A) == int(round(float(_perm_ryser(A))))
+def test_perm_rejects_combined_modes():
+    with pytest.raises(ValueError, match="Source and levels"):
+        perm(np.eye(2, dtype=int), source=0, levels=True)
 
 
-def test_cycle_products_matches_sympy_permanent_no_fixture():
+@pytest.mark.parametrize("A", [np.array(1), np.array([1, 2]), np.zeros((1, 1, 1))])
+def test_perm_rejects_wrong_dimensions(A):
+    with pytest.raises(ValueError, match="square"):
+        perm(A)
+
+
+@pytest.mark.parametrize("value", [np.inf, -np.inf, complex(1, np.nan)])
+def test_perm_rejects_nonfinite_entries(value):
+    with pytest.raises(ValueError, match="NaNs or infinities"):
+        perm(np.array([[value]]))
+
+
+def test_perm_normalizes_matrix_subclass():
+    with pytest.warns(PendingDeprecationWarning):
+        A = np.matrix([[1, 2], [3, 4]])
+    assert perm(A) == 10
+    assert perm(A, source=np.int64(0)) == [4, 3]
+    assert perm(A, levels=True) == [1, 5, 10]
+
+
+def test_perm_signed_and_huge_integer_independent_oracle():
+    rng = np.random.default_rng(9187)
+    for n in range(6):
+        A = rng.integers(-2, 3, size=(n, n)).astype(object) * (10**25 + 7)
+
+        def direct_permanent(rows, columns):
+            return sum(prod(A[i, j] for i, j in zip(rows, assignment))
+                       for assignment in permutations(columns))
+
+        assert perm(A) == direct_permanent(range(n), range(n))
+        assert perm(A, levels=True) == [
+            sum(direct_permanent(subset, subset) for subset in combinations(range(n), k))
+            for k in range(n + 1)
+        ]
+        for source in range(n):
+            assert perm(A, source=source) == [
+                direct_permanent([i for i in range(n) if i != source], [j for j in range(n) if j != target])
+                for target in range(n)
+            ]
+
+
+def test_perm_small_matrices_no_fixture():
+    cases = [
+        (np.array([]).reshape(0, 0), 1),
+        (np.array([[5.0]]), 5),
+        (np.array([[1, 2], [3, 4]], dtype=float), 10),
+        (np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]], dtype=float), 450),
+        (np.ones((4, 4)), 24),
+    ]
+    for A, expected in cases:
+        assert perm(A) == expected
+
+
+def test_perm_exact_beyond_float_precision_no_fixture():
+    n = 19
+    assert perm(np.ones((n, n), dtype=int)) == __import__("math").factorial(n)
+    A = np.array([[1 if abs(i - j) <= 1 else 0 for j in range(40)] for i in range(40)])
+    fib = [0, 1]
+    for _ in range(41):
+        fib.append(fib[-1] + fib[-2])
+    assert perm(A) == fib[41]
+
+
+def test_perm_matches_sympy_permanent_no_fixture():
     rng = np.random.default_rng(7)
     for _ in range(20):
         n = int(rng.integers(1, 7))
         A = rng.integers(0, 3, size=(n, n)) * (rng.random((n, n)) < 0.6)
-        assert cycle_products(A) == int(sp.Matrix(A.tolist()).per())
-
-
-def test_cycle_products_matches_perm_sparse_overflow_exact_no_fixture():
-    n = 40
-    A = np.array([[1.0 if abs(i - j) <= 1 else 0.0 for j in range(n)] for i in range(n)])
-    assert cycle_products(A) == int(perm(A))
+        assert perm(A) == int(sp.Matrix(A.tolist()).per())
 
 
 @pytest.mark.parametrize("model", ["snowshoe", "snowshoe_rp", "chain", "mesocosm"])
-def test_cycle_products_source_matches_absolute_feedback_matrix(model):
+def test_perm_source_matches_absolute_feedback_matrix(model):
     G = load_digraph(model)
     A = sp.matrix2numpy(create_matrix(G, form="binary"), dtype=int)
     n = A.shape[0]
-    result = sp.Matrix([cycle_products(A, source=j) for j in range(n)]).T
+    result = sp.Matrix([perm(A, source=j) for j in range(n)]).T
     assert result == absolute_feedback_matrix(G)
 
 
 @pytest.mark.parametrize("model", ["snowshoe", "chain", "mesocosm"])
-def test_cycle_products_source_matches_absolute_feedback_matrix_perturb(model):
+def test_perm_source_matches_absolute_feedback_matrix_perturb(model):
     G = load_digraph(model)
     A = sp.matrix2numpy(create_matrix(G, form="binary"), dtype=int)
     for j, node in enumerate(get_nodes(G, "state")):
-        assert sp.Matrix(cycle_products(A, source=j)) == absolute_feedback_matrix(G, perturb=node)
+        assert sp.Matrix(perm(A, source=j)) == absolute_feedback_matrix(G, perturb=node)
 
 
 @pytest.mark.parametrize("model", ["snowshoe", "snowshoe_rp", "chain", "mesocosm"])
-def test_cycle_products_levels_matches_absolute_feedback(model):
+def test_perm_levels_matches_absolute_feedback(model):
     G = load_digraph(model)
     A = np.abs(sp.matrix2numpy(create_matrix(G, form="signed"), dtype=int))
-    assert sp.Matrix(cycle_products(A, levels=True)) == absolute_feedback(G)
+    assert sp.Matrix(perm(A, levels=True)) == absolute_feedback(G)
 
 
 @pytest.mark.parametrize("model", ["snowshoe", "chain", "mesocosm"])
-def test_cycle_products_levels_matches_absolute_feedback_polynomial(model):
+def test_perm_levels_matches_absolute_feedback_polynomial(model):
     G = load_digraph(model)
     A = np.abs(sp.matrix2numpy(create_matrix(G, form="signed"), dtype=int))
-    assert sp.Matrix(cycle_products(A, levels=True)) == absolute_feedback(G, method="polynomial")
+    assert sp.Matrix(perm(A, levels=True)) == absolute_feedback(G, method="polynomial")
 
 
 @pytest.mark.parametrize("model", ["snowshoe", "chain", "mesocosm"])
-def test_cycle_products_matches_absolute_determinants(model):
+def test_perm_matches_absolute_determinants(model):
     G = load_digraph(model)
     n = absolute_feedback(G).shape[0] - 1
     h = _hurwitz_matrix(absolute_feedback(G), n)
     result = [sp.Integer(1)]
     for k in range(1, n + 1):
         H = np.array([[abs(int(x)) for x in row] for row in h[:k, :k].tolist()], dtype=object)
-        result.append(sp.Integer(cycle_products(H)))
+        result.append(sp.Integer(perm(H)))
     assert sp.Matrix(result) == absolute_determinants(G)
 
 
-def test_cycle_products_levels_matches_perm_of_principal_submatrices_no_fixture():
+def test_perm_levels_matches_perm_of_principal_submatrices_no_fixture():
     from itertools import combinations
     rng = np.random.default_rng(13)
     for _ in range(10):
         n = int(rng.integers(1, 7))
         A = (rng.random((n, n)) < 0.5).astype(float)
-        levels = cycle_products(A, levels=True)
+        levels = perm(A, levels=True)
         for k in range(n + 1):
-            expected = sum(int(round(float(perm(A[np.ix_(c, c)])))) for c in combinations(range(n), k))
+            expected = sum(int(sp.Matrix(A[np.ix_(c, c)].tolist()).per()) if k else 1 for c in combinations(range(n), k))
             assert levels[k] == expected
 
 
-def test_cycle_products_source_matches_perm_of_minors_no_fixture():
+def test_perm_source_matches_perm_of_minors_no_fixture():
     rng = np.random.default_rng(17)
     for _ in range(10):
         n = int(rng.integers(2, 8))
         A = (rng.random((n, n)) < 0.4).astype(float)
         for j in range(n):
-            minors = cycle_products(A, source=j)
+            minors = perm(A, source=j)
             for i in range(n):
-                expected = int(round(float(perm(np.delete(np.delete(A, j, 0), i, 1)))))
+                minor = np.delete(np.delete(A, j, 0), i, 1)
+                expected = int(sp.Matrix(minor.tolist()).per()) if minor.size else 1
                 assert minors[i] == expected
+
+
+@pytest.mark.parametrize("value", [1.8, -0.5, np.nan, np.inf])
+def test_list_to_digraph_rejects_non_sign_entries(value):
+    with pytest.raises(ValueError, match="entries"):
+        list_to_digraph([[value]])
+
+
+def test_list_to_digraph_rejects_duplicate_ids():
+    with pytest.raises(ValueError, match="unique"):
+        list_to_digraph([[-1, 1], [-1, -1]], ids=["A", "A"])
+
+
+def test_parse_perturbations_preserves_graph_with_existing_press_node_name():
+    G = list_to_digraph([[-1, 0], [1, -1]], ids=["_P", "B"])
+    modified, press = _parse_perturbations(G, "_P:+, B:-")
+    assert modified is G
+    assert press == (("_P", 1), ("B", -1))
+    assert modified.nodes["_P"]["category"] == "state"
+    assert modified["_P"]["_P"]["sign"] == -1
+    assert "_P_" not in G

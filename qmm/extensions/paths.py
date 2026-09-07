@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import sympy as sp
-from functools import cache
 from typing import Optional, Literal, Tuple
 from ..core.structure import create_matrix
 from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback
@@ -42,7 +41,6 @@ def _check_source_target(G: nx.DiGraph, source: str, target: str) -> None:
         raise ValueError(f"Invalid target node '{target}'. Valid targets are state and output nodes.")
 
 
-@cache
 def get_cycles(G: nx.DiGraph) -> pd.DataFrame:
     """Find all feedback cycles in the signed digraph.
 
@@ -79,7 +77,6 @@ def get_cycles(G: nx.DiGraph) -> pd.DataFrame:
         products.append(sp.prod([A[node_id[closed[i + 1]], node_id[closed[i]]] for i in range(len(closed) - 1)]))
     return pd.DataFrame({"Cycle": [tuple(c) for c in cycle_nodes], "Product": products})
 
-@cache
 def cycles_table(G: nx.DiGraph, labels: bool = False) -> pd.DataFrame:
     """Tabulate all feedback cycles in the signed digraph.
 
@@ -122,7 +119,6 @@ def cycles_table(G: nx.DiGraph, labels: bool = False) -> pd.DataFrame:
     )
     return cycles_df
 
-@cache
 def get_paths(
     G: nx.DiGraph,
     source: str,
@@ -185,7 +181,6 @@ def get_paths(
         products.append(effect)
     return pd.DataFrame({"Path": [tuple(p) for p in path_nodes], "Product": products})
 
-@cache
 def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -> Optional[pd.DataFrame]:
     """Tabulate the causal pathways between two nodes.
 
@@ -230,7 +225,6 @@ def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -
     )
     return paths_df
 
-@cache
 def complementary_feedback(
     G: nx.DiGraph,
     source: str,
@@ -291,7 +285,6 @@ def complementary_feedback(
         }
     )
 
-@cache
 def system_paths(
     G: nx.DiGraph,
     source: str,
@@ -341,7 +334,6 @@ def system_paths(
         }
     )
 
-@cache
 def weighted_paths(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     """Calculate ratio of net to total path effects.
 
@@ -385,7 +377,6 @@ def weighted_paths(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         wgt_effects.append(wgt_effect)
     return pd.DataFrame({"Path": [tuple(p) for p in path_nodes], "Weight": wgt_effects})
 
-@cache
 def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     """Calculate comprehensive metrics for paths between nodes.
 
@@ -489,7 +480,6 @@ def _pathway_terms(
         terms[:, j] = product * det_complement / det_system
     return path_nodes, terms, sims
 
-@cache
 def pathway_effects(
     G: nx.DiGraph,
     source: str,
@@ -529,6 +519,10 @@ def pathway_effects(
         # 1       1     (R, P)    +       0.0       0.0   1.0           0.0
         ```
     """
+    _check_direct_io_edges(G)
+    _check_source_target(G, source, target)
+    if not nx.has_path(G, source, target):
+        return pd.DataFrame(columns=["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"])
     path_nodes, terms, sims = _pathway_terms(G, source, target, n_sim, dist, seed, average_uncertain, observe)
     if observe:
         mask = np.asarray(sims["valid_sims"], dtype=bool)

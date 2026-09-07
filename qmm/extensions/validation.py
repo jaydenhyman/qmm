@@ -3,7 +3,6 @@
 import sympy as sp
 import numpy as np
 import pandas as pd
-from functools import cache
 from .effects import get_simulations
 from ..core.helper import (
     get_nodes,
@@ -15,7 +14,6 @@ from typing import Any, Callable, Dict, List, Literal, Optional, Tuple, Union
 
 
 
-@cache
 def marginal_likelihood(
     G: nx.DiGraph,
     perturb: str,
@@ -29,7 +27,7 @@ def marginal_likelihood(
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        perturb: Perturbation string (node:sign, comma-separated allowed)
+        perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
         n_sim: Number of simulations
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
@@ -57,7 +55,6 @@ def marginal_likelihood(
                           average_uncertain=average_uncertain)
     return sum(sims["valid_sims"]) / n_sim
 
-@cache
 def model_validation(
     G: nx.DiGraph,
     perturb: str,
@@ -71,7 +68,7 @@ def model_validation(
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        perturb: Perturbation string (node:sign, comma-separated allowed)
+        perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
         n_sim: Number of simulations
         dist: Distribution for sampling
@@ -126,7 +123,6 @@ def model_validation(
     df["Marginal likelihood"] = df["Marginal likelihood"].apply(lambda x: f"{x:.3f}")
     return df
 
-@cache
 def posterior_predictions(
     G: nx.DiGraph,
     perturb: str,
@@ -142,7 +138,7 @@ def posterior_predictions(
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        perturb: Perturbation string (node:sign, comma-separated allowed)
+        perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
         n_sim: Number of simulations
         dist: Distribution for sampling
@@ -153,6 +149,9 @@ def posterior_predictions(
 
     Returns:
         sp.Matrix: Predictions conditioned on observations
+
+    Raises:
+        ValueError: If no simulations match the supplied observations.
 
     References:
         - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
@@ -182,6 +181,8 @@ def posterior_predictions(
     valid_count = len(valid_indices)
 
     if valid_count == 0:
+        if observations:
+            raise ValueError(f"No simulations matched the observations '{observe}' under perturbation '{perturb}'; the posterior is undefined.")
         return sp.Matrix([np.nan] * n_total)
 
     effects = np.array([sims["effects"][i][:n_total] for i in valid_indices])
@@ -192,9 +193,9 @@ def posterior_predictions(
         negative > positive, -negative / valid_count, positive / valid_count
     )
 
-    p_idx = sims["all_nodes"].index(pert[0])
+    p_cols = [sims["all_nodes"].index(node) for node, _ in pert]
     tmat = sims["tmat"]
-    smat = [sp.nan if not tmat[i, p_idx] else smat[i] for i in range(n_total)]
+    smat = [sp.nan if not tmat[i, p_cols].any() else smat[i] for i in range(n_total)]
 
     return sp.Matrix(smat)
 
@@ -269,7 +270,7 @@ def bayes_factors(
 
     Args:
         G_list: List or tuple of NetworkX DiGraphs representing alternative models
-        perturb: Perturbation string (node:sign, comma-separated allowed)
+        perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
         n_sim: Number of simulations
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
@@ -302,7 +303,7 @@ def bayes_factors(
     factors = {
         f"{model_names[i]}/{model_names[j]}": (
             float("inf") if likelihoods[j] == 0 and likelihoods[i] > 0 else
-            0 if likelihoods[j] == 0 else likelihoods[i] / likelihoods[j]
+            np.nan if likelihoods[j] == 0 else likelihoods[i] / likelihoods[j]
         ) for i, j in comparisons
     }
 

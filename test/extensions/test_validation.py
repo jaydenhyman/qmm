@@ -3,6 +3,8 @@
 import pytest
 import pandas as pd
 import numpy as np
+import networkx as nx
+import sympy as sp
 from qmm.extensions.validation import (
     marginal_likelihood,
     model_validation,
@@ -135,10 +137,31 @@ def test_posterior_predictions_positive_only(mesocosm):
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
 
 
-def test_posterior_predictions_no_matching_simulations(mesocosm):
-    result = posterior_predictions(mesocosm, perturb='P:+', observe='A1:-, A2:-, AP:-, H1:-, H2:-, C1:-, C2:-', n_sim=100, seed=42)
-    expected = (8, 1)
-    assert result.shape == expected
+def test_posterior_predictions_no_matching_simulations_raises(mesocosm):
+    with pytest.raises(ValueError, match="No simulations matched"):
+        posterior_predictions(mesocosm, perturb='P:+', observe='A1:-, A2:-, AP:-, H1:-, H2:-, C1:-, C2:-', n_sim=100, seed=42)
+
+
+def test_posterior_predictions_structural_no_path_stays_nan():
+    G = nx.DiGraph()
+    for n in "AB":
+        G.add_node(n, category="state")
+        G.add_edge(n, n, sign=-1)
+    result = posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, seed=1)
+    assert float(result[0]) == 1.0 and result[1] is sp.nan
+
+def test_posterior_predictions_simultaneous_cancellation_matches_zero_observation():
+    G = nx.DiGraph()
+    for node in 'AB':
+        G.add_node(node, category='state')
+        G.add_edge(node, node, sign=-1)
+    G.add_edge('A', 'B', sign=1)
+    result = posterior_predictions(
+        G, perturb='A:+, B:-', observe='B:0', n_sim=5,
+        presample=lambda symbols: {symbol: 1 for symbol in symbols},
+    )
+    assert list(result) == [sp.Float(1), sp.Float(0)]
+
 
 # =============================================================================
 # diagnose_observations
@@ -222,3 +245,12 @@ def test_bayes_factors_custom_names(bayes_models):
     result = 'ModA/ModB' in df['Model comparison'].values
     expected = True
     assert result == expected
+
+
+def test_bayes_factor_is_undefined_when_both_models_reject_observations():
+    G = nx.DiGraph()
+    G.add_node('A', category='state')
+    G.add_edge('A', 'A', sign=-1)
+    result = bayes_factors([G, G.copy()], 'A:+', 'A:-', n_sim=5)
+    assert result['Likelihood 1'].iloc[0] == result['Likelihood 2'].iloc[0] == 0
+    assert np.isnan(result['Bayes factor'].iloc[0])

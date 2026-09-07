@@ -1,6 +1,7 @@
 """Tests for qmm.extensions.indicators module."""
 
 import pandas as pd
+import networkx as nx
 
 from qmm.extensions.indicators import mutual_information
 
@@ -29,8 +30,8 @@ def test_mutual_information_multiple_perturbations_mesocosm_alt_models(mesocosm_
     result = mutual_information(mesocosm_alt_models, perturb='A1:+, H1:-', n_sim=100, seed=42)
     result['Mutual Information'] = result['Mutual Information'].round(6)
     expected = pd.DataFrame({
-        'Node': ['C1', 'C2', 'A2', 'A1', 'H1', 'AP', 'H2', 'P'],
-        'Mutual Information': [0.042498, 0.010158, 0.008817, 0.007682, 0.003365, 0.001912, 0.001912, 0.001912],
+        'Node': ['A2', 'C1', 'C2', 'A1', 'AP', 'H2', 'P', 'H1'],
+        'Mutual Information': [0.024017, 0.020364, 0.006702, 0.005268, 0.000471, 0.000471, 0.000471, 0.000080],
     })
     assert result.equals(expected)
 
@@ -53,3 +54,10 @@ def test_mutual_information_nan_effects_snowshoe(snowshoe):
     assert 'P' in result['Node'].values
     nan_node_mi = result[result['Node'] == 'P']['Mutual Information'].iloc[0]
     assert nan_node_mi == 0.0
+
+
+def test_mutual_information_accepts_a_list_of_models(snowshoe_rp):
+    alternative = nx.DiGraph(snowshoe_rp)
+    alternative.remove_edge("C", "P")
+    result = mutual_information([snowshoe_rp, alternative], perturb="R:+", n_sim=100, seed=42)
+    assert set(result["Node"]) == {"R", "C", "P"}

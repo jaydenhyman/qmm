@@ -12,11 +12,50 @@ from qmm.core.press import (
     sign_determinacy_matrix,
     numerical_simulations,
 )
+from qmm.core.helper import list_to_digraph
 
 
 # =============================================================================
 # adjoint_matrix()
 # =============================================================================
+
+def test_absolute_feedback_matrix_beyond_63_states():
+    graph = list_to_digraph(-np.eye(65, dtype=int))
+    assert absolute_feedback_matrix(graph, perturb="65") == sp.eye(65)[:, 64]
+
+
+def test_press_results_follow_graph_edits_and_are_independent():
+    graph = list_to_digraph([[-1, 0], [1, -1]], ids=["A", "B"])
+    for function in (adjoint_matrix, absolute_feedback_matrix,
+                     weighted_predictions_matrix, sign_determinacy_matrix):
+        expected = function(graph).copy()
+        function(graph)[0, 0] = 999
+        assert function(graph) == expected
+    assert adjoint_matrix(graph, form="signed")[1, 0] == 1
+    graph["A"]["B"]["sign"] = -1
+    assert adjoint_matrix(graph, form="signed")[1, 0] == -1
+    assert weighted_predictions_matrix(graph)[1, 0] == -1
+
+
+@pytest.mark.parametrize("n_sim", [True, -1, 1.5])
+def test_numerical_simulations_rejects_invalid_counts(snowshoe, n_sim):
+    with pytest.raises(ValueError, match="nonnegative integer"):
+        numerical_simulations(snowshoe, n_sim=n_sim)
+
+
+def test_numerical_simulations_does_not_reuse_mutable_results():
+    graph = list_to_digraph([[-1, 0], [1, -1]], ids=["A", "B"])
+    numerical_simulations(graph, n_sim=2)[0, 0] = 999
+    assert numerical_simulations(graph, n_sim=2)[0, 0] == 1.0
+    graph["A"]["B"]["sign"] = -1
+    assert numerical_simulations(graph, n_sim=2)[1, 0] == -1.0
+
+def test_numerical_simulations_accepts_stable_diagonals_at_different_rates(monkeypatch):
+    monkeypatch.setattr("qmm.core.press._random_sampler", lambda *args: np.array([1, 1e-16]))
+    graph = list_to_digraph(-np.eye(2, dtype=int))
+    result = numerical_simulations(graph, n_sim=1, as_nan=False)
+    assert result == sp.eye(2).evalf()
+
 
 def test_adjoint_matrix_form_signed_snowshoe(snowshoe):
     result = adjoint_matrix(snowshoe, form='signed')
@@ -519,7 +558,6 @@ def test_sign_determinacy_matrix_perturb_P_mesocosm(mesocosm):
 # =============================================================================
 
 def test_numerical_simulations_signed_default_snowshoe(snowshoe):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe, n_sim=100, seed=42)
     expected = sp.Matrix([
         [1.0, -1.0,  1.0],
@@ -529,7 +567,6 @@ def test_numerical_simulations_signed_default_snowshoe(snowshoe):
 
 
 def test_numerical_simulations_signed_default_chain(chain):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(chain, n_sim=100, seed=42)
     expected = sp.Matrix([
         [1.0, -1.0,  1.0, -1.0,  1.0],
@@ -555,7 +592,6 @@ def test_numerical_simulations_signed_default_mesocosm(mesocosm):
 
 
 def test_numerical_simulations_positive_only_true_snowshoe(snowshoe):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe, n_sim=100, seed=42, positive_only=True)
     expected = sp.Matrix([
         [1.0, 0.0, 1.0],
@@ -590,9 +626,7 @@ def test_numerical_simulations_distribution_options_snowshoe_dist(snowshoe, dist
 
 
 def test_numerical_simulations_reproducible_seed_snowshoe(snowshoe):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe, n_sim=100, seed=42)
-    numerical_simulations.cache_clear()
     expected = numerical_simulations(snowshoe, n_sim=100, seed=42)
     assert result == expected
 
@@ -637,7 +671,6 @@ def test_numerical_simulations_missing_paths_positive_only_true_snowshoe_io_na(s
 
 
 def test_numerical_simulations_as_nan_true_as_abs_false_snowshoe_na(snowshoe_na):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, as_abs=False)
     expected = np.array([
         [   1.0,   -1.0, -0.5],
@@ -651,7 +684,6 @@ def test_numerical_simulations_as_nan_true_as_abs_false_snowshoe_na(snowshoe_na)
 
 
 def test_numerical_simulations_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, as_abs=True)
     expected = np.array([
         [   1.0,    1.0, 0.5],
@@ -665,7 +697,6 @@ def test_numerical_simulations_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na):
 
 
 def test_numerical_simulations_as_nan_false_as_abs_false_snowshoe_na(snowshoe_na):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=False, as_abs=False)
     expected = np.array([
         [1.0, -1.0, -0.5],
@@ -676,7 +707,6 @@ def test_numerical_simulations_as_nan_false_as_abs_false_snowshoe_na(snowshoe_na
 
 
 def test_numerical_simulations_positive_only_true_snowshoe_na(snowshoe_na):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, positive_only=True)
     expected = np.array([
         [   1.0,    0.0, 0.5],
@@ -722,7 +752,6 @@ def test_numerical_simulations_no_stable_matrices_snowshoe(snowshoe):
 
 
 def test_numerical_simulations_match_adjoint_mesocosm(mesocosm):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True)
     expected = sp.Matrix([
         [1.0, 0.73, 0.64, 1.0, 0.5, 1.0, 0.68, 0.5],
@@ -737,16 +766,13 @@ def test_numerical_simulations_match_adjoint_mesocosm(mesocosm):
 
 
 def test_numerical_simulations_match_adjoint_as_nan_false_mesocosm(mesocosm):
-    numerical_simulations.cache_clear()
     result = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, as_nan=False)
     result_arr = np.array(result.tolist(), dtype=float)
     assert not np.any(np.isnan(result_arr))
 
 
 def test_numerical_simulations_match_adjoint_does_not_change_default_mesocosm(mesocosm):
-    numerical_simulations.cache_clear()
     result_default = numerical_simulations(mesocosm, n_sim=100, seed=42)
-    numerical_simulations.cache_clear()
     result_explicit = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=False)
     assert result_default == result_explicit
 

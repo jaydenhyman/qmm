@@ -1,14 +1,12 @@
 """Analyse change in life expectancy from press perturbations."""
 
 import sympy as sp
-from functools import cache
 from ..core.structure import create_matrix
 from ..core.press import adjoint_matrix
 from ..core.helper import get_nodes, get_weight
 from typing import Optional, Literal
 import networkx as nx
 
-@cache
 def birth_matrix(
     G: nx.DiGraph,
     form: Literal["symbolic", "signed"] = "symbolic",
@@ -59,7 +57,6 @@ def birth_matrix(
     else:
         return sp.Matrix(n, n, lambda i, j: birth_element(i, j))
 
-@cache
 def death_matrix(
     G: nx.DiGraph,
     form: Literal["symbolic", "signed"] = "symbolic",
@@ -110,7 +107,6 @@ def death_matrix(
     else:
         return sp.Matrix(n, n, lambda i, j: death_element(i, j))
 
-@cache
 def life_expectancy_change(
     G: nx.DiGraph,
     form: Literal["symbolic", "signed"] = "symbolic",
@@ -163,7 +159,6 @@ def life_expectancy_change(
         return result.col(perturb_index)
     return result
 
-@cache
 def net_life_expectancy_change(
     G: nx.DiGraph,
     type: Literal["birth", "death"] = "birth",
@@ -206,7 +201,6 @@ def net_life_expectancy_change(
     else:
         return delta_death
 
-@cache
 def absolute_life_expectancy_change(
     G: nx.DiGraph,
     type: Literal["birth", "death"] = "birth",
@@ -259,7 +253,6 @@ def absolute_life_expectancy_change(
     else:
         return abs_death
 
-@cache
 def weighted_predictions_life_expectancy(
     G: nx.DiGraph,
     type: Literal["birth", "death"] = "birth",

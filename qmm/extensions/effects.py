@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import sympy as sp
 import networkx as nx
-from functools import cache
 from ..core.helper import (
     get_nodes,
     get_weight,
@@ -88,7 +87,6 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = True) -> nx.D
     return G_def
 
 
-@cache
 def direct_effects(
     G: nx.DiGraph,
     form: Literal["net", "absolute", "positive", "negative"] = "net",
@@ -117,7 +115,6 @@ def direct_effects(
     return get_positive(signed, binary) if form == "positive" else get_negative(signed, binary)
 
 
-@cache
 def cumulative_effects(
     G: nx.DiGraph,
     form: Literal["symbolic", "signed", "binary"] = "symbolic",
@@ -187,7 +184,6 @@ def _tabulate_effects(
     return df
 
 
-@cache
 def net_effects(G: nx.DiGraph) -> sp.Matrix:
     """Calculate net cumulative effects from multiple inputs.
 
@@ -212,7 +208,6 @@ def net_effects(G: nx.DiGraph) -> sp.Matrix:
     return cumulative_effects(G, form="signed")
 
 
-@cache
 def absolute_effects(G: nx.DiGraph) -> sp.Matrix:
     """Calculate absolute effects from multiple inputs.
 
@@ -237,7 +232,6 @@ def absolute_effects(G: nx.DiGraph) -> sp.Matrix:
     return cumulative_effects(G, form="binary")
 
 
-@cache
 def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
     """Calculate ratio of net to total terms for predicting cumulative effects.
 
@@ -262,7 +256,6 @@ def weighted_effects(G: nx.DiGraph) -> sp.Matrix:
     return get_weight(net_effects(G), absolute_effects(G))
 
 
-@cache
 def sign_determinacy_effects(
     G: nx.DiGraph,
     method: Literal["average", "95_bound"] = "average",
@@ -300,13 +293,12 @@ def sign_determinacy_effects(
     return sign_determinacy(weighted_effects(G), absolute, method=method)
 
 
-@cache
 def get_simulations(
     G: nx.DiGraph,
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    perturb: Optional[Tuple[str, int]] = None,
+    perturb: Optional[Union[Tuple[str, int], Tuple[Tuple[str, int], ...]]] = None,
     observe: Optional[Tuple[Tuple[str, int], ...]] = None,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
     return_samples: bool = False,
@@ -319,7 +311,9 @@ def get_simulations(
         n_sim: Number of simulations
         dist: Distribution for sampling
         seed: Random seed
-        perturb: Optional perturbations (node, sign)
+        perturb: Optional (node, sign) or tuple of such pairs, applied simultaneously.
+            Signs +1/-1 represent equal unit presses in the model's variable scales.
+            Model variable input strengths with explicit input nodes and their edges.
         observe: Optional observations (node, sign)
         presample: Optional callable that receives the tuple of free symbols and
             returns a mapping of symbol substitutions to apply before sampling.
@@ -338,19 +332,33 @@ def get_simulations(
         ```
     """
 
+    if isinstance(n_sim, (bool, np.bool_)) or not isinstance(n_sim, (int, np.integer)) or n_sim <= 0:
+        raise ValueError("n_sim must be a positive integer.")
     rng = np.random.RandomState(seed)
 
     A_sym, B_sym, C_sym, D_sym = (create_matrix(G, form="symbolic", matrix_type=m) for m in "ABCD")
     symbols_all = {s for m in (A_sym, B_sym, C_sym, D_sym) if m for s in m.free_symbols}
     symbols_all = tuple(sorted(symbols_all, key=str))
     fixed_subs = {}
+    uncertain_symbols = {
+        sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")
+        for u, v, d in G.edges(data=True) if average_uncertain and d.get("dashes")
+    }
+    matrix_subs = {}
 
     if presample and symbols_all and (subs := presample(symbols_all)):
         fixed_subs = {sym: subs[sym] for sym in symbols_all if sym in subs}
-        A_sym, B_sym, C_sym, D_sym = (m.subs(subs) if m else None for m in (A_sym, B_sym, C_sym, D_sym))
+        matrix_subs = {sym: value for sym, value in subs.items() if sym not in uncertain_symbols}
+        A_sym, B_sym, C_sym, D_sym = (m.subs(matrix_subs) if m else None for m in (A_sym, B_sym, C_sym, D_sym))
         symbols_sampled = tuple(sorted({s for m in (A_sym, B_sym, C_sym, D_sym) if m for s in m.free_symbols}, key=str))
     else:
         symbols_sampled = symbols_all
+    fixed_uncertain = {sym: sp.sympify(fixed_subs[sym]).subs(fixed_subs)
+                       for sym in uncertain_symbols if sym in fixed_subs}
+    symbols_sampled = tuple(sorted(set(symbols_sampled) | uncertain_symbols |
+                                   {s for expr in fixed_uncertain.values() for s in expr.free_symbols}, key=str))
+    fixed_indices = [symbols_sampled.index(sym) for sym in fixed_uncertain]
+    fixed_fn = sp.lambdify(symbols_sampled, list(fixed_uncertain.values())) if fixed_uncertain else None
 
     state, inputs, outputs = (get_nodes(G, t) for t in ("state", "input", "output"))
     all_nodes = state + inputs + outputs
@@ -362,9 +370,14 @@ def get_simulations(
         if unknown:
             raise ValueError(f"Unknown observation node(s): {unknown}. Valid response nodes: {list(response_idx)}")
     perturb_nodes = state + inputs
-    if perturb and perturb[0] not in perturb_nodes:
-        raise ValueError(f"Perturbation node '{perturb[0]}' not found.")
-    p_idx, p_sign = (perturb_nodes.index(perturb[0]), perturb[1]) if perturb else (None, 1)
+    presses = (perturb,) if perturb and isinstance(perturb[0], str) else tuple(perturb or ())
+    for node, _ in presses:
+        if node not in perturb_nodes:
+            raise ValueError(f"Perturbation node '{node}' not found.")
+    p_cols = [perturb_nodes.index(node) for node, _ in presses]
+    p_signs = [sign for _, sign in presses]
+    if observe and not p_cols:
+        raise ValueError("Observations require a perturbation.")
 
     tmat = sp.matrix2numpy(absolute_effects(G)).astype(int)
 
@@ -374,7 +387,7 @@ def get_simulations(
     D_fn = sp.lambdify(symbols_sampled, D_sym) if D_sym and D_sym.shape != (0, 0) else None
 
     def compute_sample(values):
-        A = A_fn(*values)
+        A = np.asarray(A_fn(*values), dtype=float).reshape(n_x, n_x)
         if not np.all(np.real(np.linalg.eigvals(A)) < 0):
             return None
         try:
@@ -385,18 +398,10 @@ def get_simulations(
         C = C_fn(*values) if C_fn else np.zeros((0, n_x))
         D = D_fn(*values) if D_fn else np.zeros((n_y, n_u))
         E = np.block([[inv_A, inv_A @ B], [C @ inv_A, C @ inv_A @ B + D]]) if n_x else np.zeros((n_y, n_u))
-        effect = E[:, p_idx] * p_sign if p_idx is not None else E
-        return effect
-
-    def is_valid(effect, tmat_ref):
-        if not observe or tmat_ref is None:
-            return True
-        for node, obs in observe:
-            idx = response_idx[node]
-            expected = tmat_ref[idx, p_idx] != 0
-            if (expected and (obs == 0 or np.sign(effect[idx]) != obs)) or (not expected and obs != 0):
-                return False
-        return True
+        if not np.isfinite(E).all():
+            return None
+        effect = np.sum(E[:, p_cols] * p_signs, axis=1) if p_cols else E
+        return effect if np.isfinite(effect).all() else None
 
     uncertain = [(u, v, symbols_sampled.index(sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")))
                  for u, v, d in G.edges(data=True) if d.get("dashes")] if average_uncertain else []
@@ -406,6 +411,8 @@ def get_simulations(
     while len(effects) < n_sim and attempts < max_attempts:
         attempts += 1
         values = _random_sampler(dist, len(symbols_sampled), rng)
+        if fixed_fn:
+            values[fixed_indices] = fixed_fn(*values)
         if uncertain:
             keep = rng.uniform(size=len(uncertain)) < rng.uniform()
             if (k := tuple(keep)) not in checked:
@@ -418,7 +425,7 @@ def get_simulations(
         if (effect := compute_sample(values)) is None:
             continue
         effects.append(effect)
-        valid_sims.append(is_valid(effect, tmat))
+        valid_sims.append(all(np.sign(effect[response_idx[node]]) == obs for node, obs in observe or ()))
         if return_samples:
             samples.append(values)
 
@@ -443,7 +450,9 @@ def get_simulations(
                 idx = sampled_index[sym]
                 result_samples[str(sym)] = np.array([s[idx] for s in samples])
             elif sym in fixed_subs:
-                result_samples[str(sym)] = np.full(n_samples, fixed_subs[sym])
+                expr = sp.sympify(fixed_subs[sym]).subs(matrix_subs)
+                values = sp.lambdify(symbols_sampled, expr)(*np.asarray(samples).T)
+                result_samples[str(sym)] = np.broadcast_to(values, (n_samples,)).copy()
         result["samples"] = result_samples
     return result
 
@@ -523,7 +532,7 @@ def simulations_table(
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        perturb: Node and sign to perturb (perturbation string)
+        perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed) to filter simulations
         n_sim: Number of simulations
         dist: Distribution for sampling
@@ -551,6 +560,9 @@ def simulations_table(
     rows = []
 
     for model_idx, g in enumerate(variants, start=1):
+        response_nodes = get_nodes(g, "state") + get_nodes(g, "output")
+        if not response_nodes:
+            continue
         graph, pert = _parse_perturbations(g, perturb)
         sims = get_simulations(
             graph,
@@ -562,11 +574,8 @@ def simulations_table(
             presample=presample,
         )
 
-        response_nodes = get_nodes(g, "state") + get_nodes(g, "output")
-        if not response_nodes:
-            continue
         node_count = len(response_nodes)
-        p_idx = sims["all_nodes"].index(pert[0])
+        p_cols = [sims["all_nodes"].index(node) for node, _ in pert]
         tmat = sims["tmat"][:node_count, :]
 
         valid_effects = [effect[:node_count] for effect, valid in zip(sims["effects"], sims["valid_sims"]) if valid]
@@ -576,10 +585,10 @@ def simulations_table(
         else:
             negative = np.zeros(node_count, dtype=int)
             positive = np.zeros(node_count, dtype=int)
-        has_effect = tmat[:, p_idx] != 0
-        no_effect = np.where(has_effect, 0, valid_count).astype(int)
+        has_effect = (tmat[:, p_cols] != 0).any(axis=1)
         negative = np.where(has_effect, negative, 0).astype(int)
         positive = np.where(has_effect, positive, 0).astype(int)
+        no_effect = valid_count - negative - positive
 
         for i, node in enumerate(response_nodes):
             row = {

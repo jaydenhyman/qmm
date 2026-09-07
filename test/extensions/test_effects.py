@@ -7,6 +7,7 @@ import pandas as pd
 import networkx as nx
 
 from qmm.core.helper import get_nodes
+from qmm.core.structure import create_matrix
 from qmm.extensions.effects import define_input_output
 from qmm.extensions.effects import (
     cumulative_effects,
@@ -369,6 +370,37 @@ def test_get_simulations_with_perturb_negative(snowshoe_io):
     expected = True
     assert result == expected
 
+@pytest.mark.parametrize('presses', [
+    (('R', 1), ('C', -1)),
+    (('Inp1', 1), ('Inp2', -1)),
+    (('R', 1), ('Inp2', 1)),
+])
+def test_simultaneous_presses_match_direct_solve(snowshoe_io, presses):
+    sims = get_simulations(snowshoe_io, n_sim=10, perturb=presses, return_samples=True)
+    baseline = get_simulations(snowshoe_io, n_sim=10, return_samples=True)
+    assert sims['attempts'] == baseline['attempts']
+    assert sims['samples'].keys() == baseline['samples'].keys()
+    for symbol, values in sims['samples'].items():
+        np.testing.assert_array_equal(values, baseline['samples'][symbol])
+
+    state, inputs = (get_nodes(snowshoe_io, category) for category in ('state', 'input'))
+    press = dict(presses)
+    p_x = np.array([press.get(node, 0) for node in state])
+    p_u = np.array([press.get(node, 0) for node in inputs])
+    matrices = [create_matrix(snowshoe_io, form='symbolic', matrix_type=m) for m in 'ABC']
+    for i, effect in enumerate(sims['effects']):
+        subs = {sp.Symbol(symbol): values[i] for symbol, values in sims['samples'].items()}
+        A, B, C = [np.array(matrix.subs(subs), dtype=float) for matrix in matrices]
+        x = np.linalg.solve(-A, p_x + B @ p_u)
+        np.testing.assert_allclose(effect, np.concatenate([x, C @ x]))
+
+
+def test_single_press_tuple_remains_compatible(snowshoe_io):
+    old = get_simulations(snowshoe_io, n_sim=10, perturb=('Inp1', -1))
+    nested = get_simulations(snowshoe_io, n_sim=10, perturb=(('Inp1', -1),))
+    np.testing.assert_array_equal(old['effects'], nested['effects'])
+
+
 def test_get_simulations_with_observe(snowshoe_io):
     state_nodes = get_nodes(snowshoe_io, 'state')
     perturb = (state_nodes[0], 1)
@@ -530,7 +562,7 @@ def test_simulation_effects_positive_only_nan_for_no_path(snowshoe_io_na):
 # simulations_table
 # =============================================================================
 
-def test_simulations_table_no_response_nodes():
+def test_simulations_table_no_response_nodes(monkeypatch):
     # all-input graph (hand-built, bypassing define_input_output's layer checks)
     # has no state/output response nodes -> empty table from the defensive guard
     G = nx.DiGraph()
@@ -538,6 +570,8 @@ def test_simulations_table_no_response_nodes():
     G.add_node('B', category='input')
     G.add_edge('A', 'B', sign=1)
     nx.freeze(G)
+    monkeypatch.setattr('qmm.extensions.effects.get_simulations',
+                        lambda *args, **kwargs: pytest.fail('An empty response table needs no simulations.'))
     result = simulations_table(G, perturb="A:+", n_sim=5, seed=42)
     expected_columns = [
         "model",
@@ -720,3 +754,95 @@ def test_simulation_effects_handles_singular_matrices(snowshoe_io):
         result = simulation_effects(snowshoe_io, n_sim=5, seed=42)
         assert isinstance(result, sp.Matrix)
         assert call_count[0] > 5
+
+
+def test_zero_observation_matches_draws_where_uncertain_link_is_absent():
+    G = nx.DiGraph()
+    for n in "AB":
+        G.add_node(n, category="state")
+        G.add_edge(n, n, sign=-1)
+    G.add_edge("A", "B", sign=1, dashes=True)
+    from qmm.extensions.validation import marginal_likelihood
+    averaged = marginal_likelihood(G, "A:+", "B:0", n_sim=400, seed=3, average_uncertain=True)
+    assert 0.3 < averaged < 0.7
+    assert marginal_likelihood(G, "A:+", "B:0", n_sim=100, seed=3) == 0.0
+    H = G.copy()
+    H.remove_edge("A", "B")
+    assert marginal_likelihood(H, "A:+", "B:0", n_sim=100, seed=3) == 1.0
+    with pytest.raises(ValueError, match="require a perturbation"):
+        get_simulations(G, n_sim=10, observe=(("B", 0),))
+
+
+@pytest.mark.parametrize('n_sim', [0, -1, 1.5, True, np.bool_(False)])
+def test_get_simulations_requires_a_positive_integer(snowshoe, n_sim):
+    with pytest.raises(ValueError, match='positive integer'):
+        get_simulations(snowshoe, n_sim=n_sim)
+
+
+def test_fixed_uncertain_strength_is_sampled_in_and_out():
+    G = nx.DiGraph()
+    for node in 'AB':
+        G.add_node(node, category='state')
+        G.add_edge(node, node, sign=-1)
+    G.add_edge('A', 'B', sign=1, dashes=True)
+    sims = get_simulations(
+        G, n_sim=50, seed=42, average_uncertain=True, return_samples=True,
+        presample=lambda symbols: {sp.Symbol('a_B,A'): 0.5},
+    )
+    assert set(sims['samples']['a_B,A']) == {0.0, 0.5}
+    assert np.array_equal(sims['samples']['a_B,A'] > 0,
+                          np.array([effect[1, 0] > 0 for effect in sims['effects']]))
+
+
+def test_tied_presampled_strengths_report_actual_draws(snowshoe):
+    sims = get_simulations(snowshoe, n_sim=10, return_samples=True,
+                           presample=lambda symbols: {sp.Symbol('a_R,R'): sp.Symbol('a_P,P')})
+    assert np.array_equal(sims['samples']['a_R,R'], sims['samples']['a_P,P'])
+
+
+def test_simulations_table_counts_cancelled_presses_as_no_effect():
+    G = nx.DiGraph()
+    for node in 'AB':
+        G.add_node(node, category='state')
+        G.add_edge(node, node, sign=-1)
+    G.add_edge('A', 'B', sign=1)
+    result = simulations_table(G, 'A:+, B:-', n_sim=5,
+                               presample=lambda symbols: {symbol: 1 for symbol in symbols})
+    row = result.set_index('effect_on').loc['B']
+    assert row['no_effect'] == row['valid_sims'] == 5
+    assert result[['negative', 'no_effect', 'positive']].sum(axis=1).equals(result['valid_sims'])
+
+
+def test_simulations_table_combines_existing_input_presses():
+    G = nx.DiGraph()
+    G.add_edge('X', 'X', sign=-1)
+    G.add_edge('I1', 'X', sign=1)
+    G.add_edge('I2', 'X', sign=1)
+    G.add_edge('X', 'Y', sign=1)
+    G = define_input_output(G)
+    result = simulations_table(G, 'I1:+, I2:+', n_sim=5)
+    assert list(result['effect_on']) == ['X', 'Y']
+    assert list(result['positive']) == [5, 5]
+    assert list(result['no_effect']) == [0, 0]
+
+
+def test_nonfinite_responses_are_rejected():
+    G = nx.DiGraph()
+    G.add_node('A', category='state')
+    G.add_edge('A', 'A', sign=-1)
+    with pytest.raises(RuntimeError, match='Maximum iterations'):
+        get_simulations(G, n_sim=1,
+                        presample=lambda symbols: {sp.Symbol('a_A,A'): 1e-320})
+
+
+def test_simulation_results_and_graph_edits_do_not_reuse_stale_cache():
+    G = nx.DiGraph()
+    G.add_node('A', category='state')
+    G.add_edge('A', 'A', sign=-1)
+    sims = get_simulations(G, n_sim=np.int64(1))
+    original = sims['effects'][0].copy()
+    sims['effects'][0][:] = -999
+    assert np.array_equal(get_simulations(G, n_sim=np.int64(1))['effects'][0], original)
+    G.add_node('B', category='state')
+    G.add_edge('B', 'B', sign=-1)
+    assert get_simulations(G, n_sim=np.int64(1))['effects'][0].shape == (2, 2)

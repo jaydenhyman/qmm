@@ -48,6 +48,18 @@ def snowshoe_na():
 
 
 @pytest.fixture
+def omnivory():
+    """Three-node omnivory model."""
+    A = [
+        [-1, -1, -1],
+        [1, 0, -1],
+        [1, 1, 0],
+    ]
+    labels = ['1', '2', '3']
+    return list_to_digraph(A, labels)
+
+
+@pytest.fixture
 def mesocosm():
     """8-node mesocosm model with complex interactions."""
     A = [

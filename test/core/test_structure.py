@@ -44,6 +44,17 @@ def test_create_output_equations_without_external_inputs():
 # import_digraph()
 # =============================================================================
 
+@pytest.mark.parametrize("first, second", [("B", "B"), ("A", "A"), (1, "1")])
+def test_import_digraph_rejects_duplicate_edges(first, second):
+    data = {
+        "nodes": [{"id": "A"}, {"id": "B"}, {"id": "1"}],
+        "edges": [{"from": "A", "to": target, "sign": 1} for target in (first, second)],
+    }
+    expected = f"Duplicate edge: A -> {second}"
+    with pytest.raises(ValueError, match=expected):
+        import_digraph(data, file_path=False)
+
+
 @pytest.mark.parametrize("source, target", [("A", "B"), ("B", "A")])
 def test_import_digraph_rejects_undeclared_endpoints(source, target):
     data = {

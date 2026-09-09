@@ -40,6 +40,8 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
     G = nx.DiGraph()
     G.graph.update({k: v for k, v in data.items() if k not in ("nodes", "edges")})
     for node in data["nodes"]:
+        if str(node["id"]) in G:
+            raise ValueError(f"Duplicate node: {node['id']}")
         att = {k: v for k, v in node.items() if k != "id"}
         if "title" not in att:
             att["title"] = None

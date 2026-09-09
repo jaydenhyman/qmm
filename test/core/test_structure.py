@@ -44,6 +44,14 @@ def test_create_output_equations_without_external_inputs():
 # import_digraph()
 # =============================================================================
 
+@pytest.mark.parametrize("first, second", [("A", "A"), (1, "1")])
+def test_import_digraph_rejects_duplicate_node_ids(first, second):
+    data = {"nodes": [{"id": first}, {"id": second}], "edges": []}
+    expected = f"Duplicate node: {second}"
+    with pytest.raises(ValueError, match=expected):
+        import_digraph(data, file_path=False)
+
+
 @pytest.mark.parametrize("attributes, expected, corrected", [
     ({"sign": 1}, 1, False),
     ({"sign": -1.0}, -1.0, False),

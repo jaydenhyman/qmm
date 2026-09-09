@@ -1,6 +1,7 @@
 """Tests for qmm.core.structure module."""
 
 import json
+import warnings
 import networkx as nx
 import pytest
 import sympy as sp
@@ -14,17 +15,20 @@ from qmm.core.structure import (
 )
 
 
-@pytest.mark.parametrize('arrow', ['to', {'type': 'box'}])
-def test_import_digraph_preserves_explicit_sign_and_metadata_for_other_arrow_forms(arrow):
-    model = {
-        'nodes': [{'id': 1, 'title': 'First'}, {'id': 2, 'title': 'Second'}],
-        'edges': [{'from': 1, 'to': 2, 'arrows': {'to': arrow}, 'sign': -1,
-                   'dashes': True, 'title': 'Uncertain negative link'}],
+@pytest.mark.parametrize("attributes", [
+    {}, {"sign": 0}, {"sign": True}, {"sign": "-1"}, {"sign": None},
+    {"arrows": None}, {"arrows": "to"}, {"arrows": {}},
+    {"arrows": {"to": "to"}, "sign": -1},
+    {"arrows": {"to": {"type": "box"}}, "sign": -1},
+    {"arrows": {"to": {"type": []}}},
+])
+def test_import_digraph_rejects_invalid_signs_and_arrows(attributes):
+    data = {
+        "nodes": [{"id": "A"}],
+        "edges": [{"from": "A", "to": "A", **attributes}],
     }
-    graph = import_digraph(model, file_path=False)
-    assert graph.nodes['1']['title'] == 'First'
-    assert graph['1']['2'] == {'sign': -1, 'dashes': True, 'title': 'Uncertain negative link'}
-    assert nx.is_frozen(graph)
+    with pytest.raises(ValueError, match="A.*A"):
+        import_digraph(data, file_path=False)
 
 
 def test_create_output_equations_without_external_inputs():
@@ -40,18 +44,29 @@ def test_create_output_equations_without_external_inputs():
 # import_digraph()
 # =============================================================================
 
-def test_import_digraph_from_dict_inline_data():
+@pytest.mark.parametrize("attributes, expected, corrected", [
+    ({"sign": 1}, 1, False),
+    ({"sign": -1.0}, -1.0, False),
+    ({"arrows": {"to": {"type": "triangle"}}}, 1, False),
+    ({"arrows": {"to": {"type": "circle"}}, "sign": -1}, -1, False),
+    ({"arrows": {"to": {"type": "triangle"}}, "sign": -1}, 1, True),
+    ({"arrows": {"to": {"type": "circle"}}, "sign": 1}, -1, True),
+])
+def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
     data = {
-        "nodes": [{"id": "A"}, {"id": "B"}],
-        "edges": [
-            {"from": "A", "to": "B", "arrows": {"to": {"type": "triangle"}}},
-        {"from": "B", "to": "A", "arrows": {"to": {"type": "circle"}}}
-    ]
+        "nodes": [{"id": "A"}],
+        "edges": [{"id": "e1", "from": "A", "to": "A", **attributes}],
     }
-    G = import_digraph(data, file_path=False)
-    result = (G['A']['B']['sign'], G['B']['A']['sign'])
-    expected = (1, -1)
-    assert result == expected
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        G = import_digraph(data, file_path=False)
+    result = create_matrix(G, form="signed")
+    assert result == sp.Matrix([[expected]])
+    assert G["A"]["A"] == {**attributes, "id": "e1", "sign": expected,
+                            "dashes": False, "title": None}
+    assert len(caught) == int(corrected)
+    if corrected:
+        assert "A -> A" in str(caught[0].message)
 
 
 def test_import_digraph_from_file_tmp_path(tmp_path):

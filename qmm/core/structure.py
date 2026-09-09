@@ -1,6 +1,7 @@
 """Define model structure in graph, matrix or equation forms."""
 
 import json
+import warnings
 from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
@@ -44,14 +45,17 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
         G.add_node(str(node["id"]), **att)
     for edge in data["edges"]:
         source, target = str(edge["from"]), str(edge["to"])
-        att = {k: v for k, v in edge.items() if k not in ["from", "to", "arrows"]}
-        arr = edge.get("arrows", {}).get("to", {})
-        if isinstance(arr, dict):
-            arr_type = arr.get("type")
-            if arr_type == "triangle":
-                att["sign"] = 1
-            elif arr_type == "circle":
-                att["sign"] = -1
+        att = {k: v for k, v in edge.items() if k not in ["from", "to"]}
+        if "arrows" in edge:
+            try:
+                sign = {"triangle": 1, "circle": -1}[edge["arrows"]["to"]["type"]]
+            except (KeyError, TypeError):
+                raise ValueError(f"Invalid arrow: {source} -> {target}") from None
+            if "sign" in att and att["sign"] != sign:
+                warnings.warn(f"Sign corrected: {source} -> {target}", stacklevel=2)
+            att["sign"] = sign
+        if type(att.get("sign")) not in (int, float) or att["sign"] not in (-1, 1):
+            raise ValueError(f"Invalid sign: {source} -> {target}")
         if "dashes" not in att:
             att["dashes"] = False
         if "title" not in att:

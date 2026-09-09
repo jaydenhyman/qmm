@@ -38,6 +38,7 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
         with open(data, "r") as file:
             data = json.load(file)
     G = nx.DiGraph()
+    G.graph.update({k: v for k, v in data.items() if k not in ("nodes", "edges")})
     for node in data["nodes"]:
         att = {k: v for k, v in node.items() if k != "id"}
         if "title" not in att:

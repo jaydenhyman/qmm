@@ -81,11 +81,21 @@ def test_import_digraph_from_file_tmp_path(tmp_path):
 def test_import_digraph_node_attributes_inline_data():
     data = {
         "nodes": [{"id": "A", "label": "Node A"}, {"id": "B"}],
-        "edges": []
+        "edges": [],
+        "meta": {"title": "Model", "description": "Context"},
+        "references": ["Source"],
+        "custom": {"units": "biomass"},
     }
     G = import_digraph(data, file_path=False)
     result = G.nodes['A']['label']
     expected = 'Node A'
+    assert result == expected
+    result = G.graph
+    expected = {
+        "meta": {"title": "Model", "description": "Context"},
+        "references": ["Source"],
+        "custom": {"units": "biomass"},
+    }
     assert result == expected
 
 # =============================================================================

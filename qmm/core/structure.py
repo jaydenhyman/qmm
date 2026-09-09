@@ -48,6 +48,8 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
         G.add_node(str(node["id"]), **att)
     for edge in data["edges"]:
         source, target = str(edge["from"]), str(edge["to"])
+        if source not in G or target not in G:
+            raise ValueError(f"Unknown node: {source} -> {target}")
         att = {k: v for k, v in edge.items() if k not in ["from", "to"]}
         if "arrows" in edge:
             try:

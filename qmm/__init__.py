@@ -1,4 +1,5 @@
 from .core.structure import (
+    define_input_output,
     import_digraph,
     nodes_table,
     edges_table,
@@ -77,7 +78,6 @@ from .extensions.paths import (
 )
 
 from .extensions.effects import (
-    define_input_output,
     cumulative_effects,
     direct_effects,
     net_effects,
@@ -114,6 +114,7 @@ def configure_pandas_display(max_columns=None, max_rows=None, max_colwidth=None,
 
 
 __all__ = [
+    "define_input_output",
     "import_digraph",
     "nodes_table",
     "edges_table",
@@ -168,7 +169,6 @@ __all__ = [
     "weighted_paths",
     "path_metrics",
     "pathway_effects",
-    "define_input_output",
     "cumulative_effects",
     "direct_effects",
     "net_effects",

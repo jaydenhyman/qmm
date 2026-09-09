@@ -1,6 +1,7 @@
 """Core functions for model development and analysis."""
 
 from .structure import (
+    define_input_output,
     import_digraph,
     nodes_table,
     edges_table,
@@ -51,6 +52,7 @@ from .helper import (
 
 __all__ = [
     # structure.py
+    "define_input_output",
     "import_digraph",
     "nodes_table",
     "edges_table",

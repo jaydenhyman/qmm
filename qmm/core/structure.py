@@ -6,7 +6,7 @@ from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
 import sympy as sp
-from .helper import get_nodes, _edge_prefix, _check_direct_io_edges
+from .helper import get_nodes, _edge_prefix, _check_direct_io_edges, _check_signs
 
 
 def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph:
@@ -68,9 +68,66 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
         if "title" not in att:
             att["title"] = None
         G.add_edge(source, target, **att)
-    nx.set_node_attributes(G, "state", "category")
-    nx.freeze(G)
-    return G
+    return define_input_output(G)
+
+
+def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.DiGraph:
+    """Classify nodes as state, input or output from topology (any pre-set category is overwritten).
+
+    Sources (and source-chains) become inputs, sinks (and sink-chains) outputs; a
+    self-loop or feedback cycle keeps a node as state.
+
+    Args:
+        G: NetworkX DiGraph representing signed digraph model
+        remove_disconnected: Remove all but the largest weakly-connected
+            component (warns about dropped nodes)
+
+    Returns:
+        nx.DiGraph: Model with input, state and output classification
+
+    Examples:
+        ```python
+        from qmm import define_input_output, load_digraph
+        G = load_digraph("snowshoe_io")
+        G_io = define_input_output(G)
+        (G_io.nodes['Inp1']['category'], G_io.nodes['Out1']['category'])
+        # ('input', 'output')
+        ```
+    """
+    if not isinstance(G, nx.DiGraph):
+        raise TypeError("Input must be a networkx.DiGraph.")
+    _check_signs(G)
+    G_def = G.copy()
+    if remove_disconnected:
+        components = list(nx.connected_components(G_def.to_undirected()))
+        if len(components) > 1:
+            largest = max(components, key=lambda c: (len(c), sorted(c)))
+            dropped = sorted(n for c in components if c != largest for n in c)
+            warnings.warn(
+                f"define_input_output: dropping {len(dropped)} node(s) in "
+                f"{len(components) - 1} smaller disconnected component(s): {dropped}"
+            )
+            G_def.remove_nodes_from(dropped)
+    nx.set_node_attributes(G_def, "state", "category")
+
+    # Inputs then outputs, each a fixpoint (order-independent); self-loop/feedback nodes stay state.
+    def classify(role, here, there):
+        changed = True
+        while changed:
+            changed = False
+            for node in G_def.nodes():
+                if G_def.nodes[node]["category"] != "state" or G_def.has_edge(node, node) or not list(there(node)):
+                    continue
+                anchor = list(here(node))
+                if not anchor or all(G_def.nodes[n]["category"] == role for n in anchor):
+                    G_def.nodes[node]["category"] = role
+                    changed = True
+
+    classify("input", G_def.predecessors, G_def.successors)
+    classify("output", G_def.successors, G_def.predecessors)
+
+    nx.freeze(G_def)
+    return G_def
 
 
 def create_matrix(

@@ -44,6 +44,25 @@ def test_create_output_equations_without_external_inputs():
 # import_digraph()
 # =============================================================================
 
+@pytest.mark.parametrize("reverse", [False, True])
+def test_import_digraph_derives_roles_and_preserves_components(reverse):
+    data = {
+        "nodes": [{"id": n, "category": "output", "label": "Same"}
+                  for n in ("I", "S", "O", "Z")],
+        "edges": [{"from": a, "to": b, "sign": -1}
+                  for a, b in [("I", "S"), ("S", "S"), ("S", "O")]],
+    }
+    if reverse:
+        data["nodes"].reverse()
+        data["edges"].reverse()
+    graph = import_digraph(data, file_path=False)
+    result = nx.get_node_attributes(graph, "category")
+    expected = {"I": "input", "S": "state", "O": "output", "Z": "state"}
+    assert result == expected
+    assert nx.is_frozen(graph)
+    assert all(node["category"] == "output" for node in data["nodes"])
+
+
 @pytest.mark.parametrize("first, second", [("B", "B"), ("A", "A"), (1, "1")])
 def test_import_digraph_rejects_duplicate_edges(first, second):
     data = {

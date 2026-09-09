@@ -50,13 +50,15 @@ def test_define_input_output_categories_snowshoe_io(snowshoe_io):
 
 
 def test_define_input_output_remove_disconnected_true_disconnected_graph(disconnected_graph):
-    result = sorted(define_input_output(disconnected_graph, remove_disconnected=True).nodes())
+    with pytest.warns(UserWarning, match="C"):
+        result = sorted(define_input_output(disconnected_graph, remove_disconnected=True).nodes())
     expected = ['A', 'B']
     assert result == expected
 
 
-def test_define_input_output_remove_disconnected_false_disconnected_graph(disconnected_graph):
-    result = sorted(define_input_output(disconnected_graph, remove_disconnected=False).nodes())
+@pytest.mark.parametrize("options", [{}, {"remove_disconnected": False}])
+def test_define_input_output_preserves_disconnected_graph(disconnected_graph, options):
+    result = sorted(define_input_output(disconnected_graph, **options).nodes())
     expected = ['A', 'B', 'C']
     assert result == expected
 
@@ -75,19 +77,27 @@ def test_define_input_output_cyclic_inputs_become_state(cyclic_inputs_graph):
     assert set(get_nodes(G, "state")) >= {"I1", "I2"}
 
 
-def test_define_input_output_rejects_feedthrough(snowshoe_io_with_direct_edge):
+def test_define_input_output_classifies_feedthrough(snowshoe_io_with_direct_edge):
+    graph = define_input_output(snowshoe_io_with_direct_edge)
+    result = nx.get_node_attributes(graph, "category")
+    expected = {
+        "R": "state", "C": "state", "P": "state",
+        "Inp1": "input", "Inp2": "input", "Out1": "output", "Out2": "output",
+    }
+    assert result == expected
     with pytest.raises(ValueError, match="Direct input to output edge"):
-        define_input_output(snowshoe_io_with_direct_edge)
+        create_matrix(graph, matrix_type="D")
 
 
-def test_define_input_output_rejects_feedback_free_chain():
-    # a pure cascade has no dynamic core, so its input->output transition is
-    # feedthrough and is rejected (a QMM model needs a feedback core)
-    G = nx.DiGraph()
-    for a, b in [('A', 'B'), ('B', 'C'), ('C', 'D')]:
-        G.add_edge(a, b, sign=1)
+def test_define_input_output_classifies_feedback_free_chain():
+    graph = nx.DiGraph()
+    graph.add_edges_from([('A', 'B'), ('B', 'C'), ('C', 'D')], sign=1)
+    graph = define_input_output(graph)
+    result = nx.get_node_attributes(graph, "category")
+    expected = {'A': 'input', 'B': 'input', 'C': 'input', 'D': 'output'}
+    assert result == expected
     with pytest.raises(ValueError, match="Direct input to output edge"):
-        define_input_output(G)
+        create_matrix(graph, matrix_type="D")
 
 
 def test_define_input_output_rejects_non_unit_signs():

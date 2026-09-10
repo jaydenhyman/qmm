@@ -12,7 +12,7 @@ from qmm.core.press import (
     sign_determinacy_matrix,
     numerical_simulations,
 )
-from qmm.core.helper import list_to_digraph
+from qmm.core.helper import list_to_digraph, get_positive, get_negative
 
 
 def test_numerical_simulations_rejects_nonfinite_inverse_draws(monkeypatch):
@@ -395,6 +395,30 @@ def test_weighted_predictions_matrix_as_nan_false_as_abs_true_snowshoe_na(snowsh
         [1, 1, 0],
         [1, 1, 1],
         [1, 1, 1]])
+    assert result == expected
+
+
+def test_weighted_predictions_terms_count_adjoint_monomials_omnivory(omnivory):
+    adjoint = adjoint_matrix(omnivory)
+    net = adjoint_matrix(omnivory, form='signed')
+    absolute = absolute_feedback_matrix(omnivory)
+    terms = [[adjoint[i, j].as_ordered_terms() if adjoint[i, j] else [] for j in range(3)] for i in range(3)]
+    positive = sp.Matrix(3, 3, lambda i, j: sum(bool(term.as_coeff_Mul()[0] > 0) for term in terms[i][j]))
+    result = (get_positive(net, absolute), get_negative(net, absolute), absolute, weighted_predictions_matrix(omnivory))
+    expected = (positive, sp.Matrix(3, 3, lambda i, j: len(terms[i][j])) - positive,
+                sp.Matrix(3, 3, lambda i, j: len(terms[i][j])),
+                sp.Matrix(3, 3, lambda i, j: (2 * positive[i, j] - len(terms[i][j])) / sp.Integer(len(terms[i][j]))))
+    assert result == expected
+
+
+def test_weighted_predictions_certify_signs_snowshoe_rp(snowshoe_rp):
+    adjoint = adjoint_matrix(snowshoe_rp)
+    weights = weighted_predictions_matrix(snowshoe_rp)
+    symbols = sorted(adjoint.free_symbols, key=str)
+    strengths = np.random.default_rng(42).uniform(0.01, 1, (200, len(symbols)))
+    result = {(i, j): {int(np.sign(adjoint[i, j].subs(dict(zip(symbols, row))))) for row in strengths}
+              for i in range(3) for j in range(3)}
+    expected = {(i, j): {int(weights[i, j])} if abs(weights[i, j]) == 1 else {-1, 1} for i in range(3) for j in range(3)}
     assert result == expected
 
 

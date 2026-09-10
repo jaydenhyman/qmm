@@ -82,6 +82,11 @@ def test_model_validation_combinations_false(snowshoe_dashed):
     expected = expected_data
     assert result == expected
 
+def test_model_validation_rejects_category_change(dashed_role_change):
+    with pytest.raises(ValueError, match="Node C changes category across model alternatives"):
+        model_validation(dashed_role_change, perturb="A:+", observe="B:+", n_sim=10)
+
+
 def test_model_validation_no_dashed_edges(snowshoe):
     df = model_validation(snowshoe, perturb='R:+', observe='C:+')
     result = (len(df), 'Marginal likelihood' in df.columns)
@@ -239,6 +244,20 @@ def test_bayes_factors_more_observations(mesocosm_alt_models):
     )
     expected = (['Model A/Model B'], True, True, True)
     assert result == expected
+
+def test_bayes_factors_rejects_different_nodes(snowshoe):
+    other = nx.DiGraph(snowshoe)
+    other.remove_node('P')
+    with pytest.raises(ValueError, match=r"Model B has different nodes: \['P'\]"):
+        bayes_factors([snowshoe, other], perturb='R:+', observe='C:+', n_sim=10)
+
+
+def test_bayes_factors_rejects_category_change(snowshoe):
+    other = nx.DiGraph(snowshoe)
+    other.remove_edges_from([('C', 'R'), ('C', 'P')])
+    with pytest.raises(ValueError, match="Model B: node C changes category"):
+        bayes_factors([snowshoe, other], perturb='R:+', observe='C:+', n_sim=10)
+
 
 def test_bayes_factors_custom_names(bayes_models):
     df = bayes_factors(bayes_models, perturb='R:+', observe='P:+', names=['ModA', 'ModB'])

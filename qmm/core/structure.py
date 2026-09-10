@@ -75,7 +75,8 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.
     """Classify nodes as state, input or output from topology (any pre-set category is overwritten).
 
     Sources (and source-chains) become inputs, sinks (and sink-chains) outputs; a
-    self-loop or feedback cycle keeps a node as state.
+    self-loop or feedback cycle keeps a node as state. Nodes outside the largest
+    connected component are labelled disconnected and excluded from analysis.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
@@ -98,17 +99,19 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.
         raise TypeError("Input must be a networkx.DiGraph.")
     _check_signs(G)
     G_def = G.copy()
-    if remove_disconnected:
-        components = list(nx.connected_components(G_def.to_undirected()))
-        if len(components) > 1:
-            largest = max(components, key=lambda c: (len(c), sorted(c)))
-            dropped = sorted(n for c in components if c != largest for n in c)
-            warnings.warn(
-                f"define_input_output: dropping {len(dropped)} node(s) in "
-                f"{len(components) - 1} smaller disconnected component(s): {dropped}"
-            )
-            G_def.remove_nodes_from(dropped)
     nx.set_node_attributes(G_def, "state", "category")
+    components = list(nx.connected_components(G_def.to_undirected()))
+    if len(components) > 1:
+        largest = max(components, key=lambda c: (len(c), sorted(c)))
+        outside = sorted(n for c in components if c != largest for n in c)
+        if remove_disconnected:
+            warnings.warn(
+                f"define_input_output: dropping {len(outside)} node(s) in "
+                f"{len(components) - 1} smaller disconnected component(s): {outside}"
+            )
+            G_def.remove_nodes_from(outside)
+        elif sum(len(c) == len(largest) for c in components) == 1:
+            nx.set_node_attributes(G_def, dict.fromkeys(outside, "disconnected"), "category")
 
     # Inputs then outputs, each a fixpoint (order-independent); self-loop/feedback nodes stay state.
     def classify(role, here, there):
@@ -171,6 +174,10 @@ def create_matrix(
         # [1, 1, 1]])
         ```
     """
+
+    disconnected = get_nodes(G, "disconnected")
+    if disconnected:
+        raise ValueError(f"Disconnected nodes: {disconnected}")
 
     def sym(source: str, target: str, prefix: str) -> sp.Symbol:
         return sp.Symbol(f"{prefix}_{target},{source}")
@@ -290,17 +297,11 @@ def nodes_table(G: nx.DiGraph) -> pd.DataFrame:
             symbol = f"y_{{{node_id}}}"
         else:
             symbol = f"x_{{{node_id}}}"
-        if category == "input":
-            category_label = "Input"
-        elif category == "output":
-            category_label = "Output"
-        else:
-            category_label = "State"
         rows.append(
             {
                 "Node": f"${symbol}$",
                 "Label": data.get("label", str(node_id)),
-                "Category": category_label,
+                "Category": category.capitalize(),
                 "Description": data.get("title"),
             }
         )

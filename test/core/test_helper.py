@@ -160,6 +160,14 @@ def test_get_nodes_state_category_snowshoe(snowshoe):
     assert result == expected
 
 
+def test_get_nodes_defaults_missing_category_to_state():
+    G = nx.DiGraph()
+    G.add_edge('A', 'B', sign=1)
+    result = get_nodes(G, 'state')
+    expected = ['A', 'B']
+    assert result == expected
+
+
 def test_get_nodes_all_categories_snowshoe_chain(snowshoe, chain):
     result = (get_nodes(snowshoe, 'all'), get_nodes(chain, 'all'))
     expected = (['R', 'C', 'P'], ['1', '2', '3', '4', '5'])

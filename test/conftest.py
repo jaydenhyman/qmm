@@ -391,3 +391,15 @@ def cyclic_outputs_graph():
     G.add_edge('O2', 'O1', sign=1)
     G.add_edge('S', 'O1', sign=1)
     return G
+
+
+@pytest.fixture
+def dashed_role_change():
+    """Two self-regulated states feeding C; without the dashed C->B link, C becomes an output."""
+    G = nx.DiGraph()
+    G.add_edge('A', 'A', sign=-1)
+    G.add_edge('B', 'B', sign=-1)
+    G.add_edge('A', 'B', sign=1)
+    G.add_edge('B', 'C', sign=1)
+    G.add_edge('C', 'B', sign=-1, dashes=True)
+    return define_input_output(G)

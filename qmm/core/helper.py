@@ -180,14 +180,15 @@ def digraph_to_list(G: nx.DiGraph) -> str:
 
 def get_nodes(
     G: nx.DiGraph,
-    node_type: Literal["state", "input", "output", "all"] = "state",
+    node_type: Literal["state", "input", "output", "disconnected", "all"] = "state",
     labels: bool = False,
 ) -> List[Union[str, Dict[str, Any]]]:
     """Get nodes of a specific type from a directed graph.
 
     Args:
         G: NetworkX directed graph to extract nodes from.
-        node_type: Type of nodes to extract ('state', 'input', 'output', or 'all').
+        node_type: Type of nodes to extract ('state', 'input', 'output', 'disconnected', or 'all').
+            Nodes without a category count as 'state'.
         labels: If True, return node labels instead of node ids.
 
     Returns:
@@ -206,7 +207,7 @@ def get_nodes(
     if node_type == "all":
         return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True)]
     else:
-        return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True) if d.get("category") == node_type]
+        return [n if not labels else d.get("label", n) for n, d in G.nodes(data=True) if d.get("category", "state") == node_type]
 
 def get_weight(net: sp.Matrix, absolute: sp.Matrix, no_effect: Union[sp.Basic, float] = sp.nan) -> sp.Matrix:
     """Calculate weight matrix by dividing net effect by absolute effect.

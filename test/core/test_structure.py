@@ -8,6 +8,7 @@ import sympy as sp
 
 from qmm.core.structure import (
     import_digraph,
+    define_input_output,
     create_matrix,
     create_equations,
     nodes_table,
@@ -57,7 +58,7 @@ def test_import_digraph_derives_roles_and_preserves_components(reverse):
         data["edges"].reverse()
     graph = import_digraph(data, file_path=False)
     result = nx.get_node_attributes(graph, "category")
-    expected = {"I": "input", "S": "state", "O": "output", "Z": "state"}
+    expected = {"I": "input", "S": "state", "O": "output", "Z": "disconnected"}
     assert result == expected
     assert nx.is_frozen(graph)
     assert all(node["category"] == "output" for node in data["nodes"])
@@ -455,6 +456,11 @@ def test_edges_table_snowshoe_io(snowshoe_io):
     assert 'Dashes' in result.columns
     assert 'Description' in result.columns
     assert '+' in result['Sign'].values or '-' in result['Sign'].values
+
+def test_create_matrix_rejects_disconnected_nodes(disconnected_graph):
+    with pytest.raises(ValueError, match=r"Disconnected nodes: \['C'\]"):
+        create_matrix(define_input_output(disconnected_graph))
+
 
 def test_create_equations_form_invalid_snowshoe(snowshoe):
     with pytest.raises(ValueError, match="form must be either 'state' or 'output'"):

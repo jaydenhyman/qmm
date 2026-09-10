@@ -63,6 +63,19 @@ def test_define_input_output_preserves_disconnected_graph(disconnected_graph, op
     assert result == expected
 
 
+def test_define_input_output_labels_disconnected_nodes(disconnected_graph):
+    result = nx.get_node_attributes(define_input_output(disconnected_graph), "category")
+    expected = {'A': 'state', 'B': 'output', 'C': 'disconnected'}
+    assert result == expected
+
+
+def test_define_input_output_equal_components_keep_state(snowshoe):
+    G = nx.compose(nx.DiGraph(snowshoe), nx.relabel_nodes(nx.DiGraph(snowshoe), {'R': 'X', 'C': 'Y', 'P': 'Z'}))
+    result = set(nx.get_node_attributes(define_input_output(G), "category").values())
+    expected = {'state'}
+    assert result == expected
+
+
 def test_define_input_output_invalid_input_type_no_fixture():
     with pytest.raises(TypeError) as exc_info:
         define_input_output("not a graph")
@@ -634,6 +647,11 @@ def test_simulations_table_counts_match_structure(snowshoe_io_na):
             assert row["no_effect"] == row["valid_sims"]
             assert row["negative"] == 0
             assert row["positive"] == 0
+
+
+def test_simulations_table_rejects_category_change(dashed_role_change):
+    with pytest.raises(ValueError, match="Node C changes category across model alternatives"):
+        simulations_table(dashed_role_change, perturb="A:+", n_sim=10)
 
 
 def test_simulations_table_importable():

@@ -48,14 +48,18 @@ def test_mutual_information_include_null_mesocosm(mesocosm):
     assert result.equals(expected)
 
 
-def test_mutual_information_nan_effects_snowshoe(snowshoe):
-    G1 = snowshoe.copy()
+def test_mutual_information_rejects_different_nodes(snowshoe):
     G2 = snowshoe.copy()
     G2.remove_node('P')
-    result = mutual_information((G1, G2), perturb='R:+', n_sim=100, seed=42)
-    assert 'P' in result['Node'].values
-    nan_node_mi = result[result['Node'] == 'P']['Mutual Information'].iloc[0]
-    assert nan_node_mi == 0.0
+    with pytest.raises(ValueError, match=r"Model B has different nodes: \['P'\]"):
+        mutual_information((snowshoe, G2), perturb='R:+', n_sim=100, seed=42)
+
+
+def test_mutual_information_rejects_category_change(snowshoe):
+    G2 = snowshoe.copy()
+    G2.remove_edges_from([('C', 'R'), ('C', 'P')])
+    with pytest.raises(ValueError, match="Model B: node C changes category"):
+        mutual_information((snowshoe, G2), perturb='R:+', n_sim=100, seed=42)
 
 
 def test_mutual_information_accepts_a_list_of_models(snowshoe_rp):

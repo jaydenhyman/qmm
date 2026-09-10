@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import networkx as nx
 from ..core.helper import get_nodes, _parse_perturbations
+from ..core.structure import define_input_output
 from .effects import get_simulations
 from typing import Union, List, Literal
 
@@ -53,17 +54,22 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         raise ValueError("base must be finite and greater than 1.")
     models = [models] if not isinstance(models, (list, tuple)) else list(models)
     models = [nx.DiGraph(G) if not isinstance(G, nx.DiGraph) else G for G in models]
-    nodes = sorted(set(node for G in models for node in get_nodes(G, "state") + get_nodes(G, "output")))
+    categories = dict(define_input_output(models[0]).nodes(data="category"))
+    for i, G in enumerate(models[1:], start=1):
+        fresh = dict(define_input_output(G).nodes(data="category"))
+        if fresh.keys() != categories.keys():
+            raise ValueError(f"Model {chr(65 + i)} has different nodes: {sorted(fresh.keys() ^ categories.keys())}")
+        changed = [n for n in categories if fresh[n] != categories[n]]
+        if changed:
+            raise ValueError(f"Model {chr(65 + i)}: node {', '.join(changed)} changes category")
+    nodes = sorted(get_nodes(models[0], "state") + get_nodes(models[0], "output"))
     all_effects, model_weights = [], []
     for G in models:
         G_modified, perturb_tuple = _parse_perturbations(G, perturb)
         sims = get_simulations(G_modified, n_sim=n_sim, seed=seed, perturb=perturb_tuple, average_uncertain=average_uncertain)
         response_nodes = get_nodes(G, "state") + get_nodes(G, "output")
         node_map = {node: i for i, node in enumerate(response_nodes)}
-        sim_effects = []
-        for effect in sims["effects"]:
-            sim_effects.append([effect[node_map[n]] if n in node_map and node_map[n] < len(effect) else np.nan for n in nodes])
-        all_effects.append(np.array(sim_effects))
+        all_effects.append(np.array([[effect[node_map[n]] for n in nodes] for effect in sims["effects"]]))
         model_weights.append(sims["prop_stable"])
     if include_null:
         rng = np.random.RandomState(seed)
@@ -73,20 +79,13 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
     n_models = len(all_effects)
     mi_vals = []
     for i, node in enumerate(nodes):
-        node_effects = [effects[:, i] for effects in all_effects]
-        if any(np.all(np.isnan(effects)) for effects in node_effects):
-            mi_vals.append(0)
-            continue
-        node_effects = np.concatenate(node_effects)
+        node_effects = np.concatenate([effects[:, i] for effects in all_effects])
         labels = np.concatenate([np.full(effects.shape[0], i) for i, effects in enumerate(all_effects)])
         sample_weights = (np.concatenate([np.full(len(effects), w / len(effects))
                                           for effects, w in zip(all_effects, model_weights)])
                           if weights == "posterior" else None)
-        valid = ~np.isnan(node_effects)
-        node_effects, labels = node_effects[valid], labels[valid]
         effect_signs = np.sign(node_effects) + 1
-        joint, _, _ = np.histogram2d(labels, effect_signs, bins=(n_models, 3),
-                                    weights=sample_weights[valid] if sample_weights is not None else None)
+        joint, _, _ = np.histogram2d(labels, effect_signs, bins=(n_models, 3), weights=sample_weights)
         joint_p = joint / joint.sum()
         l_p, e_p = joint_p.sum(axis=1), joint_p.sum(axis=0)
         mi = sum(joint_p[i, j] * np.log(joint_p[i, j] / (l_p[i] * e_p[j]))

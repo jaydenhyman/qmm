@@ -4,6 +4,7 @@ import sympy as sp
 import numpy as np
 import pandas as pd
 from .effects import get_simulations
+from ..core.structure import define_input_output
 from ..core.helper import (
     get_nodes,
     _parse_perturbations,
@@ -112,6 +113,11 @@ def model_validation(
         variants.append(G_variant)
         edge_presence.append(presence)
 
+    categories = dict(define_input_output(G).nodes(data="category"))
+    for g in variants:
+        changed = [n for n, c in define_input_output(g).nodes(data="category") if c != categories[n]]
+        if changed:
+            raise ValueError(f"Node {', '.join(changed)} changes category across model alternatives")
     likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in variants]
     edge_cols = [(u, v) for u, v in dashed_edges]
     rows = [
@@ -294,8 +300,16 @@ def bayes_factors(
         ```
     """
     graphs = list(G_list) if isinstance(G_list, tuple) else G_list
-    likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in graphs]
     model_names = names if names and len(names) == len(graphs) else [f"Model {chr(65+i)}" for i in range(len(graphs))]
+    categories = dict(define_input_output(graphs[0]).nodes(data="category"))
+    for name, g in zip(model_names[1:], graphs[1:]):
+        fresh = dict(define_input_output(g).nodes(data="category"))
+        if fresh.keys() != categories.keys():
+            raise ValueError(f"{name} has different nodes: {sorted(fresh.keys() ^ categories.keys())}")
+        changed = [n for n in categories if fresh[n] != categories[n]]
+        if changed:
+            raise ValueError(f"{name}: node {', '.join(changed)} changes category")
+    likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in graphs]
 
     comparisons = [(i, j) for i in range(len(graphs)) for j in range(i + 1, len(graphs))]
     factors = {

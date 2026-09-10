@@ -493,6 +493,11 @@ def simulations_table(
         ```
     """
     variants = get_dashed_alternatives(G, combinations=combinations)
+    categories = dict(define_input_output(G).nodes(data="category"))
+    for g in variants:
+        changed = [n for n, c in define_input_output(g).nodes(data="category") if c != categories[n]]
+        if changed:
+            raise ValueError(f"Node {', '.join(changed)} changes category across model alternatives")
     observations = _parse_observations(observe) if observe else None
     rows = []
 

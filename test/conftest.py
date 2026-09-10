@@ -4,6 +4,7 @@ import pytest
 import networkx as nx
 
 from qmm.core.helper import list_to_digraph
+from qmm.core.structure import create_matrix
 from qmm.extensions.effects import define_input_output
 
 
@@ -403,3 +404,10 @@ def dashed_role_change():
     G.add_edge('B', 'C', sign=1)
     G.add_edge('C', 'B', sign=-1, dashes=True)
     return define_input_output(G)
+
+
+@pytest.fixture
+def snowshoe_io_strengths(snowshoe_io):
+    """Fixed strength for every symbol of snowshoe_io."""
+    symbols = sorted({s for m in "ABCD" for s in create_matrix(snowshoe_io, "symbolic", m).free_symbols}, key=str)
+    return {symbol: 0.2 + 0.05 * i for i, symbol in enumerate(symbols)}

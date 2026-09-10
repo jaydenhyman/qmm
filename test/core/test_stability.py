@@ -636,6 +636,14 @@ def test_simulation_stability_metrics_mesocosm(mesocosm):
 # Additional coverage tests
 # =============================================================================
 
+def test_simulation_stability_unstable_equals_hurwitz_failures(snowshoe_rp):
+    table = simulation_stability(snowshoe_rp, n_sim=500, seed=42)
+    rates = {test: float(value.rstrip('%')) for test, value in zip(table['Test'], table['Result'])}
+    result = rates['Unstable matrices']
+    expected = rates['Hurwitz criterion ii'] + rates['Hurwitz criterion i only']
+    assert result == pytest.approx(expected)
+
+
 def test_simulation_stability_with_presample(snowshoe):
     n_sim = 5
     presample = np.random.uniform(0.01, 1, (n_sim, 3, 3))

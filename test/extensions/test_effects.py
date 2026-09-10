@@ -462,9 +462,35 @@ def test_get_simulations_runtime_error_max_iterations(positive_loop_graph):
 
 
 
+def test_get_simulations_presampled_draw_matches_response_blocks(snowshoe_io, snowshoe_io_strengths):
+    A, B, C, D = (np.array(create_matrix(snowshoe_io, "symbolic", m).subs(snowshoe_io_strengths), dtype=float) for m in "ABCD")
+    inverse = np.linalg.inv(-A)
+    expected = np.block([[inverse, inverse @ B], [C @ inverse, C @ inverse @ B + D]])
+    result = get_simulations(snowshoe_io, n_sim=1, presample=lambda symbols: snowshoe_io_strengths)["effects"][0]
+    assert np.allclose(result, expected, atol=1e-12)
+
+
+def test_get_simulations_simultaneous_presses_sum_signed_columns(snowshoe_io, snowshoe_io_strengths):
+    single = get_simulations(snowshoe_io, n_sim=1, presample=lambda symbols: snowshoe_io_strengths)
+    columns = single["all_nodes"]
+    expected = single["effects"][0][:, columns.index("Inp1")] - single["effects"][0][:, columns.index("Inp2")]
+    result = get_simulations(snowshoe_io, n_sim=1, presample=lambda symbols: snowshoe_io_strengths,
+                             perturb=(("Inp1", 1), ("Inp2", -1)))["effects"][0]
+    assert np.array_equal(result, expected)
+
+
 # =============================================================================
 # simulation_effects
 # =============================================================================
+
+def test_simulation_effects_sign_determined_cells_are_exact(snowshoe_io):
+    weights = weighted_predictions_matrix(snowshoe_io)
+    simulated = simulation_effects(snowshoe_io, n_sim=200, seed=42)
+    determined = [(i, j) for i in range(weights.rows) for j in range(weights.cols) if weights[i, j] in (1, -1)]
+    result = [float(simulated[i, j]) for i, j in determined]
+    expected = [float(weights[i, j]) for i, j in determined]
+    assert result == expected
+
 
 def test_simulation_effects_full_matrix(snowshoe_io):
     result = simulation_effects(snowshoe_io, n_sim=100, seed=42)

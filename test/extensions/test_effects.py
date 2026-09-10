@@ -195,6 +195,30 @@ def test_cumulative_effects_symbolic_matches_adjoint_snowshoe_snowshoe_io(snowsh
     assert result == expected
 
 
+def _scaled_equilibrium_derivative(G):
+    states, inputs, outputs = (get_nodes(G, kind) for kind in ('state', 'input', 'output'))
+    A, B, C, D = (create_matrix(G, 'symbolic', block) for block in 'ABCD')
+    x = sp.Matrix(sp.symbols(' '.join(f'x_{n}' for n in states), seq=True))
+    p = sp.Matrix(sp.symbols(' '.join(f'p_{n}' for n in states), seq=True))
+    u = sp.Matrix(sp.symbols(' '.join(f'u_{n}' for n in inputs), seq=True))
+    equilibrium = sp.solve(list(A * x + B * u + p), list(x))
+    derivative = sp.Matrix.vstack(x, C * x + D * u).subs(equilibrium).jacobian(sp.Matrix.vstack(p, u))
+    return ((-A).det() * derivative).applyfunc(sp.cancel).applyfunc(sp.expand)
+
+
+def test_cumulative_effects_equals_scaled_equilibrium_derivative_snowshoe_io(snowshoe_io):
+    result = cumulative_effects(snowshoe_io)
+    expected = _scaled_equilibrium_derivative(snowshoe_io)
+    assert result == expected
+
+
+def test_absolute_effects_count_numerator_terms_io_chain(io_chain):
+    numerator = _scaled_equilibrium_derivative(io_chain)
+    result = absolute_effects(io_chain)
+    expected = numerator.applyfunc(lambda e: len(e.as_ordered_terms()) if e else 0)
+    assert result == expected
+
+
 def test_cumulative_effects_invalid_form_snowshoe_io(snowshoe_io):
     with pytest.raises(ValueError) as exc_info:
         cumulative_effects(snowshoe_io, form='invalid')

@@ -411,3 +411,12 @@ def snowshoe_io_strengths(snowshoe_io):
     """Fixed strength for every symbol of snowshoe_io."""
     symbols = sorted({s for m in "ABCD" for s in create_matrix(snowshoe_io, "symbolic", m).free_symbols}, key=str)
     return {symbol: 0.2 + 0.05 * i for i, symbol in enumerate(symbols)}
+
+
+@pytest.fixture
+def io_chain():
+    """Two states with an input chain A->B->C plus A->D and an output chain D->E->F plus C->F."""
+    G = nx.DiGraph()
+    G.add_edges_from([('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'E'), ('E', 'F')], sign=1)
+    G.add_edges_from([('A', 'D'), ('C', 'C'), ('D', 'C'), ('D', 'D'), ('C', 'F')], sign=-1)
+    return define_input_output(G)

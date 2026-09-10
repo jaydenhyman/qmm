@@ -1,11 +1,14 @@
 """Tests for qmm.core.stability module."""
 
+import itertools
 import pytest
 import sympy as sp
 import numpy as np
 import pandas as pd
+import networkx as nx
 
-from qmm.core.helper import list_to_digraph
+from qmm.core.helper import list_to_digraph, get_nodes
+from qmm.core.structure import create_matrix
 from qmm.core.stability import (
     sign_stability,
     feedback_metrics,
@@ -227,6 +230,38 @@ def test_system_feedback_form_symbolic_all_levels_snowshoe(snowshoe):
 def test_system_feedback_form_signed_chain_repeat_chain(chain):
     result = system_feedback(chain, level=None, form='signed')
     expected = sp.Matrix([[-1], [-5], [-14], [-22], [-20], [-8]])
+    assert result == expected
+
+
+def _cycle_expansion(G):
+    states = get_nodes(G, 'state')
+    A = create_matrix(G)
+    index = {node: i for i, node in enumerate(states)}
+    cycles = list(nx.simple_cycles(G.subgraph(states)))
+    feedback = [sp.Integer(-1)] + [sp.Integer(0)] * len(states)
+    counts = [1] + [0] * len(states)
+    for m in range(1, len(states) + 1):
+        for combination in itertools.combinations(cycles, m):
+            nodes = [node for cycle in combination for node in cycle]
+            if len(nodes) != len(set(nodes)):
+                continue
+            product = sp.prod([A[index[b], index[a]] for cycle in combination for a, b in zip(cycle, cycle[1:] + cycle[:1])])
+            feedback[len(nodes)] += (-1) ** (m + 1) * product
+            counts[len(nodes)] += 1
+    return sp.Matrix(feedback).applyfunc(sp.expand), sp.Matrix(counts)
+
+
+def test_feedback_matches_disjoint_cycle_expansion_snowshoe_rp(snowshoe_rp):
+    feedback, counts = _cycle_expansion(snowshoe_rp)
+    result = (system_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp, method='polynomial'))
+    expected = (feedback, counts, counts)
+    assert result == expected
+
+
+def test_feedback_counts_cancelled_terms_mutualism_no_fixture():
+    G = list_to_digraph([[-1, 1], [1, -1]], ['1', '2'])
+    result = (net_feedback(G), absolute_feedback(G), weighted_feedback(G))
+    expected = (sp.Matrix([-1, -2, 0]), sp.Matrix([1, 2, 2]), sp.Matrix([-1, -1, 0]))
     assert result == expected
 
 

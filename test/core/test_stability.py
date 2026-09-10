@@ -419,6 +419,80 @@ def test_hurwitz_determinants_form_symbolic_large_graph_large_six_node(large_six
     assert result is None
 
 
+def _hurwitz_from_coefficients(coefficients, level):
+    n = len(coefficients) - 1
+    return sp.Matrix(level, level, lambda i, j: coefficients[2 * j - i + 1] if 0 <= 2 * j - i + 1 <= n else 0)
+
+
+def test_hurwitz_determinants_match_polynomial_coefficients_snowshoe_rp_mesocosm(snowshoe_rp, mesocosm):
+    lam = sp.Symbol('lambda')
+    symbolic = create_matrix(snowshoe_rp)
+    signed = create_matrix(mesocosm, 'signed')
+    result = (hurwitz_determinants(snowshoe_rp).applyfunc(sp.expand), hurwitz_determinants(mesocosm, form='signed'))
+    expected = tuple(
+        sp.Matrix([_hurwitz_from_coefficients(sp.Poly((lam * sp.eye(A.rows) - A).det(), lam).all_coeffs(), k).det()
+                   for k in range(A.rows + 1)]).applyfunc(sp.expand)
+        for A in (symbolic, signed))
+    assert result == expected
+
+
+def test_hurwitz_determinants_certify_stability_per_sample_mesocosm(mesocosm):
+    signed = np.array(create_matrix(mesocosm, 'signed'), dtype=float)
+    strengths = np.random.default_rng(0).uniform(0.05, 1, (500, *signed.shape))
+    result = []
+    expected = []
+    for sample in signed * strengths:
+        a = np.poly(sample)
+        n = len(a) - 1
+        hurwitz = np.array([[a[2 * j - i + 1] if 0 <= 2 * j - i + 1 <= n else 0.0 for j in range(n)] for i in range(n)])
+        result.append(all(np.linalg.det(hurwitz[:k, :k]) > 0 for k in range(1, n + 1)))
+        expected.append(bool(np.all(np.linalg.eigvals(sample).real < 0)))
+    assert result == expected
+
+
+def _jeffries_colouring_exists(signed):
+    n = signed.shape[0]
+    predation = {i: [j for j in range(n) if j != i and signed[i, j] * signed[j, i] < 0] for i in range(n)}
+    candidates = [i for i in range(n) if signed[i, i] >= 0]
+    for bits in itertools.product([0, 1], repeat=len(candidates)):
+        white = {node for node, bit in zip(candidates, bits) if bit}
+        if not white:
+            continue
+        if all(any(j in white for j in predation[v]) for v in white) and \
+                all(sum(j in white for j in predation[b]) != 1 for b in range(n) if b not in white):
+            return True
+    return False
+
+
+def test_colour_test_matches_exhaustive_colouring_no_fixture():
+    rng = np.random.default_rng(3)
+    result = []
+    expected = []
+    for _ in range(300):
+        n = int(rng.integers(2, 7))
+        signed = np.zeros((n, n), dtype=int)
+        for i in range(n):
+            signed[i, i] = -int(rng.uniform() < 0.5)
+            for j in range(i + 1, n):
+                if rng.uniform() < 0.5:
+                    signed[i, j] = int(rng.choice([-1, 1]))
+                    signed[j, i] = -signed[i, j]
+        G = list_to_digraph(signed.tolist(), [str(i) for i in range(n)])
+        result.append(_colour_test(G) == 'Pass')
+        expected.append(_jeffries_colouring_exists(signed))
+    assert result == expected
+
+
+def test_sign_stability_neutral_chain_has_imaginary_eigenvalues_no_fixture():
+    A = [[0, 1, 0, 0, 0], [-1, 0, 1, 0, 0], [0, -1, -1, 1, 0], [0, 0, -1, 0, 1], [0, 0, 0, -1, 0]]
+    G = list_to_digraph(A, ['1', '2', '3', '4', '5'])
+    df = sign_stability(G)
+    result = (dict(zip(df['Test'], df['Result'])), sp.I in sp.Matrix(A).eigenvals())
+    expected = ({'Condition i': True, 'Condition ii': True, 'Condition iii': True, 'Condition iv': True,
+                 'Condition v': True, 'Colour test': False, 'Sign stable': False}, True)
+    assert result == expected
+
+
 # =============================================================================
 # net_determinants()
 # =============================================================================

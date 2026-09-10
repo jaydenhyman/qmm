@@ -26,6 +26,7 @@ from qmm.core.stability import (
     weighted_determinants,
     _hurwitz_matrix,
     _colour_test,
+    _create_model_c,
 )
 
 
@@ -639,6 +640,14 @@ def test_determinants_metrics_values_snowshoe(snowshoe):
 # =============================================================================
 # conditional_stability()
 # =============================================================================
+
+def test_create_model_c_is_the_dambacher_chain_no_fixture():
+    chain = [[0, 1, 0, 0, 0], [-1, 0, 1, 0, 0], [0, -1, 0, 1, 0], [0, 0, -1, 0, 1], [0, 0, 0, -1, -1]]
+    result = nx.is_isomorphic(_create_model_c(5), list_to_digraph(chain, ['1', '2', '3', '4', '5']),
+                              edge_match=lambda a, b: a['sign'] == b['sign'])
+    expected = True
+    assert result == expected
+
 
 def test_conditional_stability_sign_class_snowshoe(snowshoe):
     df = conditional_stability(snowshoe)

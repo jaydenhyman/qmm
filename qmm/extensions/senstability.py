@@ -36,7 +36,7 @@ def structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Mat
         level: Feedback level (None for highest level)
 
     Returns:
-        sp.Matrix: Ratio of net to total feedback terms for each direct effect
+        sp.Matrix: Feedback terms at the level that contain each direct effect
 
     References:
         - Hosack, G.R., Li, H.W., Rossignol, P.A. (2009). Sensitivity of system stability to model structure. Ecological Modelling 220, 1054–1062.

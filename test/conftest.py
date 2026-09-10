@@ -420,3 +420,15 @@ def io_chain():
     G.add_edges_from([('A', 'B'), ('B', 'C'), ('C', 'D'), ('D', 'E'), ('E', 'F')], sign=1)
     G.add_edges_from([('A', 'D'), ('C', 'C'), ('D', 'C'), ('D', 'D'), ('C', 'F')], sign=-1)
     return define_input_output(G)
+
+
+@pytest.fixture
+def keystone_predator():
+    """Hosack et al. (2009) Fig. 2: two competing, self-regulated prey and a generalist predator."""
+    A = [
+        [-1, -1, -1],
+        [-1, -1, -1],
+        [1, 1, 0],
+    ]
+    labels = ['Sp1', 'Sp2', 'Sp3']
+    return list_to_digraph(A, labels)

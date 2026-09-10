@@ -4,6 +4,8 @@ import pytest
 import sympy as sp
 
 from qmm.core.helper import get_nodes
+from qmm.core.structure import create_matrix
+from qmm.core.stability import system_feedback
 from qmm.extensions.senstability import (
     structural_sensitivity,
     net_structural_sensitivity,
@@ -135,6 +137,42 @@ def test_weighted_structural_sensitivity_form_symbolic_chain(chain):
 # =============================================================================
 # Additional coverage tests
 # =============================================================================
+
+def test_structural_sensitivity_collects_feedback_terms_with_each_link_snowshoe_rp(snowshoe_rp):
+    A = create_matrix(snowshoe_rp)
+    feedback = system_feedback(snowshoe_rp)
+    result = []
+    expected = []
+    for level in range(1, A.rows + 1):
+        terms = sp.expand(feedback[level]).as_ordered_terms()
+        result.append((structural_sensitivity(snowshoe_rp, level=level).applyfunc(sp.expand),
+                       net_structural_sensitivity(snowshoe_rp, level=level),
+                       absolute_structural_sensitivity(snowshoe_rp, level=level)))
+        symbolic = sp.zeros(A.rows, A.cols)
+        net = sp.zeros(A.rows, A.cols)
+        absolute = sp.zeros(A.rows, A.cols)
+        for i in range(A.rows):
+            for j in range(A.cols):
+                if A[i, j] == 0:
+                    continue
+                symbol = next(iter(A[i, j].free_symbols))
+                with_link = [term for term in terms if symbol in term.free_symbols]
+                symbolic[i, j] = sp.expand(sum(with_link))
+                net[i, j] = sum(term.as_coeff_Mul()[0] for term in with_link)
+                absolute[i, j] = len(with_link)
+        expected.append((symbolic, net, absolute))
+    assert result == expected
+
+
+def test_weighted_structural_sensitivity_keystone_predator(keystone_predator):
+    result = [weighted_structural_sensitivity(keystone_predator, level=level) for level in (1, 2, 3)]
+    expected = [
+        sp.Matrix([[-1, sp.nan, sp.nan], [sp.nan, -1, sp.nan], [sp.nan, sp.nan, sp.nan]]),
+        sp.Matrix([[-1, 1, -1], [1, -1, -1], [-1, -1, sp.nan]]),
+        sp.Matrix([[-1, 1, 0], [1, -1, 0], [0, 0, sp.nan]]),
+    ]
+    assert result == expected
+
 
 def test_structural_sensitivity_invalid_level_low(snowshoe):
     with pytest.raises(ValueError, match="Level must be between"):

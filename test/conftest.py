@@ -2,8 +2,9 @@
 
 import pytest
 import networkx as nx
+import sympy as sp
 
-from qmm.core.helper import list_to_digraph
+from qmm.core.helper import _edge_prefix, get_nodes, list_to_digraph
 from qmm.core.structure import create_matrix
 from qmm.extensions.effects import define_input_output
 
@@ -456,3 +457,41 @@ def keystone_predator():
     ]
     labels = ['Sp1', 'Sp2', 'Sp3']
     return list_to_digraph(A, labels)
+
+
+@pytest.fixture
+def io_long_chain():
+    """Four-step input chain and four-step output chain, each with skip links."""
+    G = nx.DiGraph()
+    G.add_edges_from([('X1', 'X2'), ('V1', 'V2'), ('V2', 'V3'), ('V3', 'V4'), ('V4', 'X1'),
+                      ('X2', 'Z1'), ('Z1', 'Z2'), ('Z2', 'Z3'), ('Z2', 'Z4')], sign=1)
+    G.add_edges_from([('X1', 'X1'), ('X2', 'X2'), ('X2', 'X1'), ('V1', 'V3'), ('V2', 'V4'),
+                      ('Z1', 'Z3'), ('Z3', 'Z4')], sign=-1)
+    return define_input_output(G)
+
+
+@pytest.fixture
+def io_branched():
+    """Three states whose input and output webs both branch and reconverge."""
+    G = nx.DiGraph()
+    G.add_edges_from([('S1', 'S2'), ('S2', 'S3'), ('U1', 'U2'), ('U2', 'U3'), ('U3', 'S1'),
+                      ('U2', 'U4'), ('U4', 'U3'), ('U5', 'S3'), ('U3', 'S2'), ('S2', 'Y1'),
+                      ('Y2', 'Y3'), ('S3', 'Y2'), ('Y1', 'Y3'), ('Y4', 'Y3')], sign=1)
+    G.add_edges_from([('S1', 'S1'), ('S3', 'S3'), ('S2', 'S1'), ('S3', 'S2'), ('U1', 'U3'),
+                      ('U4', 'S2'), ('Y1', 'Y2'), ('S1', 'Y4')], sign=-1)
+    return define_input_output(G)
+
+
+@pytest.fixture
+def io_and_state_model(request):
+    """Input-output model, the same model with self-limited input and output states, and their symbol map."""
+    G = request.getfixturevalue(request.param)
+    H = nx.DiGraph()
+    H.add_nodes_from((node, {**data, "category": "state"}) for node, data in G.nodes(data=True))
+    H.add_edges_from(G.edges(data=True))
+    H.add_edges_from((node, node, {"sign": -1}) for node in get_nodes(G, "input") + get_nodes(G, "output"))
+    symbols = {sp.Symbol(f"a_{v},{u}"): sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")
+               for u, v in G.edges() if _edge_prefix(G, u, v) != "a"}
+    symbols.update({sp.Symbol(f"a_{node},{node}"): sp.Integer(1)
+                    for node in get_nodes(G, "input") + get_nodes(G, "output")})
+    return G, H, symbols

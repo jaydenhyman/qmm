@@ -4,10 +4,12 @@ import pytest
 import pandas as pd
 import numpy as np
 import networkx as nx
+from qmm.extensions.effects import get_simulations
+from qmm.core.structure import define_input_output
 import sympy as sp
 from qmm.extensions.validation import (
     marginal_likelihood,
-    model_validation,
+    compare_model_alternatives,
     posterior_predictions,
     diagnose_observations,
     bayes_factors,
@@ -45,9 +47,11 @@ def test_marginal_likelihood_invalid_perturbation(mesocosm):
 def test_marginal_likelihood_zero_observation_dashed_edge(snowshoe_io_na):
     G = snowshoe_io_na.copy()
     G.add_edge('R', 'N', sign=1, dashes=True)
-    result = marginal_likelihood(G, perturb='P:+', observe='N:0', n_sim=100, dist='uniform', seed=42)
-    expected = 0.0
-    assert np.allclose(result, expected)
+    sampled = marginal_likelihood(G, perturb='P:+', observe='N:0', n_sim=100, dist='uniform', seed=42)
+    G['R']['N']['dashes'] = False
+    result = (0.0 < sampled < 1.0, marginal_likelihood(G, perturb='P:+', observe='N:0', n_sim=100, dist='uniform', seed=42))
+    expected = (True, 0.0)
+    assert result == expected
 
 def test_marginal_likelihood_zero_observation_no_edge(snowshoe_io_na):
     result = marginal_likelihood(snowshoe_io_na, perturb='P:+', observe='N:0', n_sim=100, dist='uniform', seed=42)
@@ -55,23 +59,23 @@ def test_marginal_likelihood_zero_observation_no_edge(snowshoe_io_na):
     assert np.allclose(result, expected)
 
 # =============================================================================
-# model_validation
+# compare_model_alternatives
 # =============================================================================
 
-def test_model_validation_alternative_structure(snowshoe_dashed):
-    df = model_validation(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=True)
+def test_compare_model_alternatives_alternative_structure(snowshoe_dashed):
+    df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=True)
     expected_data = {
-        'Marginal likelihood': ['0.520', '0.470', '0.340', '0.330', '0.000', '0.000', '0.000', '0.000'],
-        ('R', 'P'): ['\u2713', '\u2713', '\u2713', '\u2713', '', '', '', ''],
-        ('C', 'C'): ['\u2713', '', '', '\u2713', '', '\u2713', '', '\u2713'],
-        ('P', 'R'): ['\u2713', '\u2713', '', '', '', '', '\u2713', '\u2713']
+        'Marginal likelihood': ['0.520', '0.470', '0.000', '0.000'],
+        ('R', 'P'): ['\u2713', '\u2713', '', ''],
+        ('P', 'R'): ['\u2713', '\u2713', '', ''],
+        ('C', 'C'): ['\u2713', '', '', '\u2713']
     }
     result = df.to_dict('list')
     expected = expected_data
     assert result == expected
 
-def test_model_validation_combinations_false(snowshoe_dashed):
-    df = model_validation(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=False)
+def test_compare_model_alternatives_combinations_false(snowshoe_dashed):
+    df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=False)
     expected_data = {
         'Marginal likelihood': ['0.520', '0.000'],
         ('R', 'P'): ['\u2713', ''],
@@ -82,13 +86,13 @@ def test_model_validation_combinations_false(snowshoe_dashed):
     expected = expected_data
     assert result == expected
 
-def test_model_validation_rejects_category_change(dashed_role_change):
+def test_compare_model_alternatives_rejects_category_change(dashed_role_change):
     with pytest.raises(ValueError, match="Node C changes category across model alternatives"):
-        model_validation(dashed_role_change, perturb="A:+", observe="B:+", n_sim=10)
+        compare_model_alternatives(dashed_role_change, perturb="A:+", observe="B:+", n_sim=10)
 
 
-def test_model_validation_no_dashed_edges(snowshoe):
-    df = model_validation(snowshoe, perturb='R:+', observe='C:+')
+def test_compare_model_alternatives_no_dashed_edges(snowshoe):
+    df = compare_model_alternatives(snowshoe, perturb='R:+', observe='C:+')
     result = (len(df), 'Marginal likelihood' in df.columns)
     expected = (1, True)
     assert result == expected
@@ -104,12 +108,12 @@ def test_posterior_predictions(mesocosm):
     expected = [
         1.0,
         1.0,
-        -0.551863623230280,
+        -0.5574,
         1.0,
-        0.983819705287489,
+        0.9835,
         1.0,
-        0.587113550996822,
-        0.983819705287489,
+        0.5942,
+        0.9835,
     ]
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
 
@@ -117,12 +121,12 @@ def test_posterior_predictions_complex_observations(mesocosm):
     result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', dist='uniform', seed=42)
     expected = [
         1.0,
-        -0.508771929824561,
-        0.824561403508772,
+        0.57,
+        0.72,
         1.0,
         1.0,
         1.0,
-        -0.701754385964912,
+        -0.62,
         1.0,
     ]
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
@@ -131,19 +135,19 @@ def test_posterior_predictions_positive_only(mesocosm):
     result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42, positive_only=True)
     expected = [
         1.0,
-        0.382978723404255,
+        0.38,
         1.0,
         1.0,
         1.0,
         1.0,
-        0.191489361702128,
+        0.21,
         1.0,
     ]
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
 
 
 def test_posterior_predictions_no_matching_simulations_raises(mesocosm):
-    with pytest.raises(ValueError, match="No simulations matched"):
+    with pytest.raises(RuntimeError, match="Maximum iterations reached"):
         posterior_predictions(mesocosm, perturb='P:+', observe='A1:-, A2:-, AP:-, H1:-, H2:-, C1:-, C2:-', n_sim=100, seed=42)
 
 
@@ -152,8 +156,10 @@ def test_posterior_predictions_structural_no_path_stays_nan():
     for n in "AB":
         G.add_node(n, category="state")
         G.add_edge(n, n, sign=-1)
-    result = posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, seed=1)
+    result = posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, seed=1, max_attempts=20)
     assert float(result[0]) == 1.0 and result[1] is sp.nan
+    with pytest.raises(RuntimeError, match="Matched 19/20 draws"):
+        posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, max_attempts=19)
 
 def test_posterior_predictions_simultaneous_cancellation_matches_zero_observation():
     G = nx.DiGraph()
@@ -287,3 +293,104 @@ def test_diagnose_observations_accepts_an_explicit_node_list(snowshoe):
     assert result['Input'].tolist() == ['R', 'R']
     assert result['Sign'].tolist() == ['+', '-']
     assert result['Marginal likelihood'].tolist() == [1.0, 0.0]
+
+
+def test_marginal_likelihood_structural_zero_cell(structural_zero_chain):
+    result = tuple(marginal_likelihood(structural_zero_chain, 'A:+', observe, n_sim=200, seed=42) for observe in ('B:0', 'B:+', 'C:+'))
+    expected = (1.0, 0.0, 1.0)
+    assert result == expected
+
+
+def test_marginal_likelihood_fork_is_half_by_symmetry(fork):
+    result = marginal_likelihood(fork, 'A:+', 'B:+', n_sim=4000, seed=42)
+    expected = 0.5
+    assert abs(result - expected) <= 3 * (0.25 / 4000) ** 0.5
+
+
+def test_marginal_likelihood_fork_certain_response_is_exactly_one(fork):
+    result = marginal_likelihood(fork, 'A:+', 'C:+', n_sim=200, seed=42)
+    expected = 1.0
+    assert result == expected
+
+
+def test_marginal_likelihood_divides_by_stable_draws(mesocosm):
+    result = marginal_likelihood(mesocosm, 'P:+', 'P:+', n_sim=200, seed=42)
+    expected = 1.0
+    assert result == expected
+
+
+def test_compare_model_alternatives_fork_dashed_route(fork):
+    G = fork.copy()
+    G['C']['B']['dashes'] = True
+    df = compare_model_alternatives(G, 'A:+', 'B:+', n_sim=4000, seed=42, combinations=False)
+    result = (df['Marginal likelihood'][0], df[('C', 'B')][0], df[('C', 'B')][1])
+    expected = ('1.000', '', '✓')
+    assert result == expected
+    assert abs(float(df['Marginal likelihood'][1]) - 0.5) <= 3 * (0.25 / 4000) ** 0.5
+
+
+def test_posterior_predictions_fork_conditioned_on_observation(fork):
+    result = [posterior_predictions(fork, 'A:+', observe, n_sim=200, seed=42).tolist() for observe in ('B:+', 'B:-')]
+    expected = [[[1.0], [1.0], [1.0]], [[1.0], [-1.0], [1.0]]]
+    assert result == expected
+
+
+def test_diagnose_observations_fork_ranks_the_certain_press_first(fork):
+    df = diagnose_observations(fork, 'B:-', perturb_nodes=['A', 'C'], n_sim=4000, seed=42)
+    result = (df['Input'][0], df['Sign'][0], df['Marginal likelihood'][0], df['Marginal likelihood'][3])
+    expected = ('C', '+', 1.0, 0.0)
+    assert result == expected
+    assert all(abs(x - 0.5) <= 3 * (0.25 / 4000) ** 0.5 for x in df.loc[df['Input'] == 'A', 'Marginal likelihood'])
+
+
+def test_bayes_factors_fork_against_single_route(fork):
+    other = fork.copy()
+    other.remove_edge('C', 'B')
+    df = bayes_factors([fork, other], 'A:+', 'B:+', n_sim=4000, seed=42)
+    result = (df['Likelihood 2'][0], df['Bayes factor'][0])
+    expected = (1.0, df['Likelihood 1'][0])
+    assert result == expected
+    assert abs(df['Likelihood 1'][0] - 0.5) <= 3 * (0.25 / 4000) ** 0.5
+
+
+def test_bayes_factors_align_models_by_node_identity(mesocosm_alt_models):
+    G, G_alt = mesocosm_alt_models
+    reordered = nx.DiGraph()
+    reordered.add_nodes_from(reversed(list(G_alt.nodes(data=True))))
+    reordered.add_edges_from(G_alt.edges(data=True))
+    result = bayes_factors([G, reordered], 'P:+', 'AP:+, C2:+', n_sim=100, seed=42)
+    expected = bayes_factors([G, G_alt], 'P:+', 'AP:+, C2:+', n_sim=100, seed=42)
+    assert result.equals(expected)
+
+
+def test_bayes_factors_accepts_alternative_that_isolates_a_self_limited_node(snowshoe):
+    joined = nx.DiGraph(snowshoe)
+    joined.add_edge('Z', 'Z', sign=-1)
+    apart = nx.DiGraph(joined)
+    joined.add_edge('Z', 'R', sign=-1)
+    table = bayes_factors([define_input_output(joined), define_input_output(apart)], perturb='R:+', observe='C:+', n_sim=50, seed=1)
+    result = (len(table), table["Likelihood 2"][0])
+    expected = (1, 1.0)
+    assert result == expected
+
+
+def test_posterior_predictions_enumerate_averages_structures_equally(fork):
+    G = nx.DiGraph(fork)
+    G['A']['C']['dashes'] = True
+    G['C']['B']['dashes'] = True
+    G = define_input_output(G)
+    sims = get_simulations(G, n_sim=100, seed=1, perturb=('A', 1), observe=(('B', 1),), uncertain_interactions="enumerate")
+    valid = np.array(sims["valid_sims"])
+    pooled = np.mean(np.array(sims["effects"])[valid][:, 2] > 0)
+    predictions = posterior_predictions(G, 'A:+', 'B:+', n_sim=100, seed=1, positive_only=True, uncertain_interactions="enumerate")
+    counts = [sum(v for v, c in zip(sims["valid_sims"], sims["structures"]) if c == code) for code in range(4)]
+    result = ([float(x) for x in predictions], pooled, counts)
+    expected = ([1.0, 1.0, 0.5], 0.5, [100] * 4)
+    assert result == expected
+
+
+def test_compare_model_alternatives_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowshoe_dashed):
+    df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=50, seed=1)
+    result = (len(df), all((row[('R', 'P')] == "\u2713") == (row[('P', 'R')] == "\u2713") for _, row in df.iterrows()))
+    expected = (4, True)
+    assert result == expected

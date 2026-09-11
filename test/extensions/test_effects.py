@@ -16,6 +16,7 @@ from qmm.extensions.effects import (
     weighted_effects,
     sign_determinacy_effects,
     get_simulations,
+    iter_simulations,
     simulation_effects,
     simulations_table,
     direct_effects,
@@ -49,24 +50,12 @@ def test_define_input_output_categories_snowshoe_io(snowshoe_io):
     assert result == expected
 
 
-def test_define_input_output_remove_disconnected_true_disconnected_graph(disconnected_graph):
-    with pytest.warns(UserWarning, match="C"):
-        result = sorted(define_input_output(disconnected_graph, remove_disconnected=True).nodes())
-    expected = ['A', 'B']
-    assert result == expected
-
-
-@pytest.mark.parametrize("options", [{}, {"remove_disconnected": False}])
-def test_define_input_output_preserves_disconnected_graph(disconnected_graph, options):
-    result = sorted(define_input_output(disconnected_graph, **options).nodes())
-    expected = ['A', 'B', 'C']
-    assert result == expected
-
-
-def test_define_input_output_labels_disconnected_nodes(disconnected_graph):
-    result = nx.get_node_attributes(define_input_output(disconnected_graph), "category")
-    expected = {'A': 'state', 'B': 'output', 'C': 'disconnected'}
-    assert result == expected
+def test_define_input_output_rejects_invalid_nodes(disconnected_graph):
+    disconnected_graph.add_edge('D', 'E', sign=1)
+    disconnected_graph.add_node('F')
+    with pytest.raises(ValueError, match=r"Invalid nodes: \['C', 'D', 'E', 'F'\]"):
+        define_input_output(disconnected_graph)
+    assert list(disconnected_graph) == ['A', 'B', 'C', 'D', 'E', 'F']
 
 
 def test_define_input_output_equal_components_keep_state(snowshoe):
@@ -102,15 +91,16 @@ def test_define_input_output_classifies_feedthrough(snowshoe_io_with_direct_edge
         create_matrix(graph, matrix_type="D")
 
 
-def test_define_input_output_classifies_feedback_free_chain():
+@pytest.mark.parametrize("nodes", ['A', 'AB', 'ABCD'])
+def test_define_input_output_rejects_feedback_free_chain(nodes):
     graph = nx.DiGraph()
-    graph.add_edges_from([('A', 'B'), ('B', 'C'), ('C', 'D')], sign=1)
-    graph = define_input_output(graph)
-    result = nx.get_node_attributes(graph, "category")
-    expected = {'A': 'input', 'B': 'input', 'C': 'input', 'D': 'output'}
+    graph.add_nodes_from(nodes)
+    graph.add_edges_from(zip(nodes, nodes[1:]), sign=1)
+    with pytest.raises(ValueError) as error:
+        define_input_output(graph)
+    result = str(error.value)
+    expected = f"Invalid nodes: {list(nodes)}"
     assert result == expected
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        create_matrix(graph, matrix_type="D")
 
 
 def test_define_input_output_rejects_non_unit_signs():
@@ -329,7 +319,7 @@ def test_sign_determinacy_effects_nan_for_missing_paths(snowshoe_io_na):
 
 def test_get_simulations(snowshoe_io):
     result = set(get_simulations(snowshoe_io, n_sim=100, seed=42).keys())
-    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable'}
+    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable', 'structures'}
     assert result == expected
 
 def test_get_simulations_effects_length(snowshoe_io):
@@ -368,13 +358,27 @@ def test_get_simulations_uniform_two_oom(snowshoe_io):
     assert len(sims["effects"]) == 50
 
 
-def test_get_simulations_presample_applied_before_sampling(snowshoe):
-    def presample(symbols):
-        return {sp.Symbol('a_R,R'): 1}
-
-    sims = get_simulations(snowshoe, n_sim=100, seed=42, presample=presample, return_samples=True)
-    assert 'a_R,R' in sims['samples']
-    assert np.all(sims['samples']['a_R,R'] == 1)
+@pytest.mark.parametrize('dashed', [False, True])
+@pytest.mark.parametrize('strength', [sp.Integer(1), sp.Symbol('a_R,R') / 2 + sp.Rational(1, 4)])
+def test_get_simulations_presample_applied_before_sampling(snowshoe, dashed, strength):
+    G = nx.DiGraph(snowshoe)
+    G['R']['R']['dashes'] = dashed
+    a_rr = sp.Symbol('a_R,R')
+    sims = get_simulations(G, n_sim=10, seed=42, return_samples=True,
+                           presample=lambda symbols: {a_rr: strength})
+    baseline = get_simulations(G, n_sim=10, seed=42, return_samples=True)
+    raw = baseline['samples']['a_R,R']
+    expected = np.where(raw == 0, 0, sp.lambdify(a_rr, strength)(raw))
+    result = sims['samples']['a_R,R']
+    assert np.array_equal(result, expected)
+    matrix = create_matrix(G, form='symbolic')
+    for i, effect in enumerate(sims['effects']):
+        samples = {sp.Symbol(name): values[i] for name, values in sims['samples'].items()}
+        expected = np.linalg.inv(-np.asarray(matrix.subs(samples), dtype=float))
+        result = effect
+        assert np.allclose(result, expected)
+    present = sims['samples']['a_R,R'][sims['samples']['a_R,R'] != 0]
+    assert np.all((present >= 0.25) & (present <= 1))
 
 
 def test_get_simulations_presample_symbols_available(snowshoe_io):
@@ -449,12 +453,12 @@ def test_single_press_tuple_remains_compatible(snowshoe_io):
 
 
 def test_get_simulations_with_observe(snowshoe_io):
-    state_nodes = get_nodes(snowshoe_io, 'state')
-    perturb = (state_nodes[0], 1)
-    observe = ((state_nodes[1], 1),)
-    result = 'valid_sims' in get_simulations(snowshoe_io, n_sim=100, seed=42, perturb=perturb, observe=observe)
-    expected = True
+    sims = get_simulations(snowshoe_io, n_sim=100, seed=42,
+                           perturb=('Inp1', 1), observe=(('Out1', 1),))
+    result = (sum(sims['valid_sims']), sims['n_stable'] > 100)
+    expected = (100, True)
     assert result == expected
+
 
 def test_get_simulations_all_nodes_includes_all(snowshoe_io):
     sim_data = get_simulations(snowshoe_io, n_sim=100, seed=42)
@@ -476,13 +480,11 @@ def test_get_simulations_no_state_variables(io_only_graph):
         get_simulations(io_only_graph, n_sim=50, perturb=('I', 1), seed=42)
 
 
-def test_get_simulations_runtime_error_max_iterations(positive_loop_graph):
+@pytest.mark.parametrize('max_attempts', [None, 1])
+def test_get_simulations_runtime_error_max_iterations(positive_loop_graph, max_attempts):
     with pytest.raises(RuntimeError) as exc_info:
-        get_simulations(positive_loop_graph, n_sim=100, seed=42)
-    message = str(exc_info.value)
-    result = message.split(' Stable')[0]
-    expected = "Maximum iterations reached."
-    assert result == expected
+        get_simulations(positive_loop_graph, n_sim=100, seed=42, max_attempts=max_attempts)
+    assert str(exc_info.value).startswith('Maximum iterations reached.')
 
 
 
@@ -635,29 +637,13 @@ def test_simulation_effects_positive_only_nan_for_no_path(snowshoe_io_na):
 # simulations_table
 # =============================================================================
 
-def test_simulations_table_no_response_nodes(monkeypatch):
-    # all-input graph (hand-built, bypassing define_input_output's layer checks)
-    # has no state/output response nodes -> empty table from the defensive guard
+def test_simulations_table_rejects_invalid_nodes():
     G = nx.DiGraph()
     G.add_node('A', category='input')
     G.add_node('B', category='input')
     G.add_edge('A', 'B', sign=1)
-    nx.freeze(G)
-    monkeypatch.setattr('qmm.extensions.effects.get_simulations',
-                        lambda *args, **kwargs: pytest.fail('An empty response table needs no simulations.'))
-    result = simulations_table(G, perturb="A:+", n_sim=5, seed=42)
-    expected_columns = [
-        "model",
-        "effect_on",
-        "negative",
-        "no_effect",
-        "positive",
-        "valid_sims",
-        "stable_sims",
-        "attempts",
-    ]
-    assert result.columns.tolist() == expected_columns
-    assert result.empty
+    with pytest.raises(ValueError, match=r"Invalid nodes: \['A', 'B'\]"):
+        simulations_table(G, perturb="A:+", n_sim=5, seed=42)
 
 
 def test_simulations_table_no_valid_sims(snowshoe_io):
@@ -841,9 +827,11 @@ def test_zero_observation_matches_draws_where_uncertain_link_is_absent():
         G.add_edge(n, n, sign=-1)
     G.add_edge("A", "B", sign=1, dashes=True)
     from qmm.extensions.validation import marginal_likelihood
-    averaged = marginal_likelihood(G, "A:+", "B:0", n_sim=400, seed=3, average_uncertain=True)
+    averaged = marginal_likelihood(G, "A:+", "B:0", n_sim=400, seed=3, uncertain_interactions="sample")
     assert 0.3 < averaged < 0.7
-    assert marginal_likelihood(G, "A:+", "B:0", n_sim=100, seed=3) == 0.0
+    certain = G.copy()
+    certain["A"]["B"]["dashes"] = False
+    assert marginal_likelihood(certain, "A:+", "B:0", n_sim=100, seed=3) == 0.0
     H = G.copy()
     H.remove_edge("A", "B")
     assert marginal_likelihood(H, "A:+", "B:0", n_sim=100, seed=3) == 1.0
@@ -851,10 +839,11 @@ def test_zero_observation_matches_draws_where_uncertain_link_is_absent():
         get_simulations(G, n_sim=10, observe=(("B", 0),))
 
 
-@pytest.mark.parametrize('n_sim', [0, -1, 1.5, True, np.bool_(False)])
-def test_get_simulations_requires_a_positive_integer(snowshoe, n_sim):
+@pytest.mark.parametrize('option', ['n_sim', 'max_attempts'])
+@pytest.mark.parametrize('value', [0, -1, 1.5, True, np.bool_(False)])
+def test_get_simulations_requires_a_positive_integer(snowshoe, option, value):
     with pytest.raises(ValueError, match='positive integer'):
-        get_simulations(snowshoe, n_sim=n_sim)
+        get_simulations(snowshoe, **{option: value})
 
 
 def test_fixed_uncertain_strength_is_sampled_in_and_out():
@@ -864,7 +853,7 @@ def test_fixed_uncertain_strength_is_sampled_in_and_out():
         G.add_edge(node, node, sign=-1)
     G.add_edge('A', 'B', sign=1, dashes=True)
     sims = get_simulations(
-        G, n_sim=50, seed=42, average_uncertain=True, return_samples=True,
+        G, n_sim=50, seed=42, uncertain_interactions="sample", return_samples=True,
         presample=lambda symbols: {sp.Symbol('a_B,A'): 0.5},
     )
     assert set(sims['samples']['a_B,A']) == {0.0, 0.5}
@@ -933,8 +922,8 @@ def test_structure_averaging_rejects_changes_to_node_roles():
     graph.add_edge('A', 'A', sign=-1, dashes=True)
     graph.add_edge('A', 'B', sign=1)
     graph.add_edge('B', 'B', sign=-1)
-    with pytest.raises(ValueError, match='re-classifies a node'):
-        get_simulations(graph, n_sim=20, average_uncertain=True, seed=42)
+    with pytest.raises(ValueError, match=r"Nodes change category: \['A'\]"):
+        get_simulations(graph, n_sim=20, uncertain_interactions="sample", seed=42)
 
 
 def test_zero_presampled_output_link_disconnects_the_whole_output_chain():
@@ -950,3 +939,95 @@ def test_zero_presampled_output_link_disconnects_the_whole_output_chain():
     assert all(np.array_equal(effect[1:], np.zeros((2, 1))) for effect in result['effects'])
     assert np.array_equal(result['samples']['c_Y0,X'], np.zeros(3))
     assert 'c_Y1,Y0' not in result['samples']
+
+
+def test_get_simulations_structural_zero_cell(structural_zero_chain):
+    sims = get_simulations(structural_zero_chain, n_sim=200, seed=42, perturb=('A', 1))
+    result = np.array(sims['effects'])[:, sims['all_nodes'].index('B')]
+    expected = np.zeros(200)
+    assert np.array_equal(result, expected)
+
+
+def test_get_simulations_fork_is_always_stable(fork):
+    sims = get_simulations(fork, n_sim=200, seed=42, perturb=('A', 1))
+    result = (sims['prop_stable'], sims['attempts'], sims['n_stable'])
+    expected = (1.0, 200, 200)
+    assert result == expected
+
+
+def test_get_simulations_sample_allows_isolating_a_self_limited_node(snowshoe):
+    G = nx.DiGraph(snowshoe)
+    G.add_edge('Z', 'Z', sign=-1)
+    G.add_edge('Z', 'R', sign=-1, dashes=True)
+    sims = get_simulations(define_input_output(G), n_sim=50, seed=1, uncertain_interactions="sample", return_samples=True)
+    result = (sims["samples"]["a_R,Z"] == 0.0).any(), len(sims["effects"])
+    expected = (True, 50)
+    assert result == expected
+
+
+def test_get_simulations_rejects_unknown_uncertain_mode_snowshoe_dashed(snowshoe_dashed):
+    with pytest.raises(ValueError, match="uncertain_interactions must be 'sample' or 'enumerate'"):
+        get_simulations(snowshoe_dashed, n_sim=10, uncertain_interactions="unknown")
+
+
+def test_iter_simulations_enumerate_yields_each_structure_snowshoe_dashed(snowshoe_dashed):
+    strengths = {symbol: 0.5 for symbol in create_matrix(snowshoe_dashed, "symbolic").free_symbols}
+    batches = list(iter_simulations(snowshoe_dashed, n_sim=10, seed=1, uncertain_interactions="enumerate",
+                                    max_attempts=np.int64(10), presample=lambda symbols: strengths))
+    result = [(len(batch["effects"]), len(set(batch["structures"]))) for batch in batches]
+    expected = [(10, 1)] * 4
+    assert result == expected
+    assert len({batch["structures"][0] for batch in batches}) == 4
+    assert all(batch["attempts"] == 10 for batch in batches)
+    with pytest.raises(RuntimeError, match="Matched 9/10 draws"):
+        get_simulations(snowshoe_dashed, n_sim=10, uncertain_interactions="enumerate", max_attempts=9,
+                        presample=lambda symbols: strengths)
+
+
+def test_get_simulations_enumerate_with_individual_edges_has_eight_structures_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=5, seed=1, uncertain_interactions="enumerate", pair_reciprocal=False)
+    result = (len(sims["effects"]), len(set(sims["structures"])))
+    expected = (40, 8)
+    assert result == expected
+
+
+def test_get_simulations_sample_drops_reciprocal_dashed_edges_together_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=200, seed=1, return_samples=True)
+    dropped_rp, dropped_pr = sims["samples"]["a_P,R"] == 0.0, sims["samples"]["a_R,P"] == 0.0
+    result = (np.array_equal(dropped_rp, dropped_pr), dropped_rp.any(), (~dropped_rp).any())
+    expected = (True, True, True)
+    assert result == expected
+
+
+def test_get_simulations_sample_can_drop_reciprocal_dashed_edges_separately_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=200, seed=1, return_samples=True, pair_reciprocal=False)
+    result = np.array_equal(sims["samples"]["a_P,R"] == 0.0, sims["samples"]["a_R,P"] == 0.0)
+    expected = False
+    assert result == expected
+
+
+@pytest.mark.parametrize('uncertain_interactions', ['sample', 'enumerate'])
+@pytest.mark.parametrize('perturb', [None, ('A', 1)])
+def test_get_simulations_zeroes_cells_after_dropping_a_self_effect(structural_zero_chain, uncertain_interactions, perturb):
+    G = nx.DiGraph(structural_zero_chain)
+    G.add_edge('C', 'C', sign=-1, dashes=True)
+    sims = get_simulations(define_input_output(G), n_sim=100, seed=1,
+                           perturb=perturb, uncertain_interactions=uncertain_interactions, return_samples=True)
+    dropped = sims['samples']['a_C,C'] == 0.0
+    responses = np.asarray(sims['effects'])
+    b = responses[:, 1] if perturb else responses[:, 1, 0]
+    result = (dropped.any(), (~dropped).any(), np.all(b[dropped] == 0.0), np.all(b[~dropped] > 0.0))
+    expected = (True, True, True, True)
+    assert result == expected
+
+
+def test_simulations_table_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowshoe_dashed):
+    result = simulations_table(snowshoe_dashed, perturb="C:+", n_sim=20, seed=1)["model"].nunique()
+    expected = 4
+    assert result == expected
+
+
+def test_simulation_effects_enumerate_divides_by_all_stable_draws_snowshoe_dashed(snowshoe_dashed):
+    result = simulation_effects(snowshoe_dashed, n_sim=50, seed=1, positive_only=True, uncertain_interactions="enumerate")[0, 0]
+    expected = 1.0
+    assert result == expected

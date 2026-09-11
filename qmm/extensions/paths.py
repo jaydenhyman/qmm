@@ -437,14 +437,15 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     )
     return paths_df
 
-def _pathway_terms(
+def _simulate_pathway_effects(
     G: nx.DiGraph,
     source: str,
     target: str,
     n_sim: int,
     dist: str,
     seed: int,
-    average_uncertain: bool,
+    uncertain_interactions: str,
+    pair_reciprocal: bool,
     observe: Optional[str] = None,
 ) -> Tuple[list, np.ndarray, dict]:
     """Pathways from source to target and their effect in each stable simulation."""
@@ -460,7 +461,8 @@ def _pathway_terms(
         perturb=(source, 1),
         observe=_parse_observations(observe) if observe else None,
         return_samples=True,
-        average_uncertain=average_uncertain,
+        uncertain_interactions=uncertain_interactions,
+        pair_reciprocal=pair_reciprocal,
     )
     samples = sims["samples"]
     n_stable = sims["n_stable"]
@@ -487,7 +489,8 @@ def pathway_effects(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    average_uncertain: bool = False,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
     observe: str = "",
 ) -> pd.DataFrame:
     """Simulate the effect transmitted along each causal pathway from source to target.
@@ -496,10 +499,11 @@ def pathway_effects(
         G: NetworkX DiGraph representing signed digraph model
         source: Source node (state or input)
         target: Target node (state or output)
-        n_sim: Number of stable simulations
+        n_sim: Stable draws matching observe, per structure when uncertain_interactions='enumerate'.
         dist: Distribution for sampling interaction strengths
         seed: Random seed
-        average_uncertain: If True, sample edges marked dashes=True in/out each draw
+        uncertain_interactions: Sample uncertain interactions, or average every structure equally.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
         observe: Observation string (node:sign, comma-separated allowed) to condition on
 
     Returns:
@@ -523,11 +527,9 @@ def pathway_effects(
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
         return pd.DataFrame(columns=["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"])
-    path_nodes, terms, sims = _pathway_terms(G, source, target, n_sim, dist, seed, average_uncertain, observe)
+    path_nodes, terms, sims = _simulate_pathway_effects(G, source, target, n_sim, dist, seed, uncertain_interactions, pair_reciprocal, observe)
     if observe:
         mask = np.asarray(sims["valid_sims"], dtype=bool)
-        if not mask.any():
-            raise ValueError("No simulations matched the observations.")
         terms = terms[mask]
     size = np.abs(terms)
     tiny = np.finfo(float).tiny
@@ -546,4 +548,3 @@ def pathway_effects(
         }
     )
     return paths_df.sort_values("Contribution", ascending=False, kind="stable").reset_index(drop=True)
-

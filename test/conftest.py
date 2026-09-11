@@ -168,7 +168,7 @@ def colour_pass():
 
 @pytest.fixture
 def disconnected_graph():
-    """Disconnected components: a self-regulating A->B (feedback core) plus isolated C."""
+    """Self-limited A->B subnetwork and isolated C."""
     G = nx.DiGraph()
     G.add_edge('A', 'A', sign=-1)
     G.add_edge('A', 'B', sign=1)
@@ -260,6 +260,30 @@ def simple_ab_positive():
 
 
 @pytest.fixture
+def structural_zero_chain():
+    """Chain A->B->C with self-effects on A and B only."""
+    G = nx.DiGraph()
+    G.add_edge('A', 'A', sign=-1)
+    G.add_edge('B', 'B', sign=-1)
+    G.add_edge('A', 'B', sign=1)
+    G.add_edge('B', 'C', sign=1)
+    G.add_edge('C', 'B', sign=-1)
+    return G
+
+
+@pytest.fixture
+def fork():
+    """A->B positive, A->C positive, C->B negative, every node self-limited."""
+    G = nx.DiGraph()
+    for node in 'ABC':
+        G.add_edge(node, node, sign=-1)
+    G.add_edge('A', 'B', sign=1)
+    G.add_edge('A', 'C', sign=1)
+    G.add_edge('C', 'B', sign=-1)
+    return G
+
+
+@pytest.fixture
 def simple_xy_negative():
     """Simple graph with X->Y negative edge."""
     G = nx.DiGraph()
@@ -316,7 +340,7 @@ def feedback_test_graph():
 
 @pytest.fixture
 def nan_feedback_graph():
-    """Graph with disconnected components for NaN feedback test."""
+    """Separate subnetworks for NaN feedback tests."""
     G = nx.DiGraph()
     G.add_node('A', category='state')
     G.add_node('B', category='state')

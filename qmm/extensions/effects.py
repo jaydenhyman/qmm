@@ -3,8 +3,11 @@
 import numpy as np
 import pandas as pd
 import sympy as sp
+import itertools
 import networkx as nx
 from ..core.helper import (
+    _build_model_variant,
+    _group_uncertain_edges,
     get_nodes,
     get_weight,
     get_positive,
@@ -21,7 +24,7 @@ from ..core.press import (
     adjoint_matrix,
     absolute_feedback_matrix,
 )
-from typing import Callable, Dict, Optional, Any, Tuple, Literal, Union
+from typing import Callable, Dict, Optional, Any, Tuple, Literal, Union, Iterator
 
 
 def direct_effects(
@@ -239,48 +242,98 @@ def get_simulations(
     observe: Optional[Tuple[Tuple[str, int], ...]] = None,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
     return_samples: bool = False,
-    average_uncertain: bool = False,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
+    max_attempts: Optional[int] = None,
 ) -> Dict[str, Any]:
-    """Calculate average proportion of positive and negative effects from stable numerical simulations.
+    """Collect numerical simulations; see iter_simulations for sampling options.
+
+    n_sim counts stable draws matching observe, per structure when uncertain_interactions='enumerate'.
+    The result also includes rejected observations among stable draws in effects,
+    with valid_sims identifying matches. return_samples includes their strengths.
+    For large enumerations, use iter_simulations to process one structure at a time.
+    """
+    batches = iter_simulations(G, n_sim, dist, seed, perturb, observe, presample,
+                               return_samples, uncertain_interactions, pair_reciprocal, max_attempts=max_attempts)
+    result = next(batches)
+    samples = [result["samples"]] if return_samples else []
+    for batch in batches:
+        for key in ("effects", "valid_sims", "structures"):
+            result[key].extend(batch[key])
+        result["attempts"] += batch["attempts"]
+        result["n_stable"] += batch["n_stable"]
+        if return_samples:
+            samples.append(batch["samples"])
+    result["prop_stable"] = result["n_stable"] / result["attempts"]
+    if return_samples:
+        result["samples"] = {name: np.concatenate([sample[name] for sample in samples])
+                             for name in result["samples"]}
+    return result
+
+
+def iter_simulations(
+    G: nx.DiGraph,
+    n_sim: int = 10000,
+    dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
+    seed: int = 42,
+    perturb: Optional[Union[Tuple[str, int], Tuple[Tuple[str, int], ...]]] = None,
+    observe: Optional[Tuple[Tuple[str, int], ...]] = None,
+    presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
+    return_samples: bool = False,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
+    condition: bool = True,
+    max_attempts: Optional[int] = None,
+) -> Iterator[Dict[str, Any]]:
+    """Yield stable simulations, one batch per enumerated structure or one sampled batch.
 
     Args:
-        G: NetworkX DiGraph representing signed digraph model
-        n_sim: Number of simulations
-        dist: Distribution for sampling
-        seed: Random seed
-        perturb: Optional (node, sign) or tuple of such pairs, applied simultaneously.
-            Signs +1/-1 represent equal unit presses in the model's variable scales.
-            Model variable input strengths with explicit input nodes and their edges.
-        observe: Optional observations (node, sign)
-        presample: Optional callable that receives the tuple of free symbols and
-            returns a mapping of symbol substitutions to apply before sampling.
-        return_samples: If True, include dict mapping symbol names to arrays of sampled values
-        average_uncertain: If True, sample edges marked dashes=True in/out each draw (structure averaging)
+        G: Signed digraph with state, input and output categories.
+        n_sim: Target stable draws matching observe. With condition=False, target
+            stable draws regardless of observations. The target applies to each batch.
+        dist: Distribution of interaction strengths.
+        seed: Random seed.
+        perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
+        observe: Optional (node, sign) pairs; signs are -1, 0 or 1.
+        presample: Callable receiving coefficient symbols and returning substitutions.
+        return_samples: Include the actual coefficient strengths for each stable draw.
+        uncertain_interactions: 'sample' draws a probability uniformly from 0 to 1 for each attempt,
+            then keeps each uncertain interaction independently with that probability.
+            'enumerate' visits every combination and collects n_sim draws for each.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
+        condition: Require observation matches to reach n_sim. Use False to estimate
+            likelihoods from a fixed number of stable draws.
+        max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
 
-    Returns:
-        Dict containing effects, valid_sims, all_nodes, tmat, prop_stable, attempts, and optionally samples.
+    Yields:
+        Dictionaries with effects, valid_sims, all_nodes, tmat, prop_stable,
+        attempts, n_stable, structures, and optionally samples. All stable draws
+        are retained; valid_sims flags observation matches. structures identifies
+        each draw by a bit mask of present uncertain interactions. tmat contains
+        term counts for G; effects use each draw's structure to set cells without
+        terms to exact zero before combining perturbations.
 
-    Examples:
-        ```python
-        from qmm import get_simulations, load_digraph
-        result = get_simulations(load_digraph("snowshoe_io"), n_sim=1000, perturb=('Inp1', 1))
-        result['effects'][0]
-        # array([ 1.29385476,  2.55918625,  3.12917778, -1.74767706,  2.48217995])
-        ```
+    Raises:
+        ValueError: A draw limit is invalid, or a structure has invalid nodes or
+            changes node categories.
+        RuntimeError: A batch cannot reach n_sim within max_attempts.
     """
-
     if isinstance(n_sim, (bool, np.bool_)) or not isinstance(n_sim, (int, np.integer)) or n_sim <= 0:
         raise ValueError("n_sim must be a positive integer.")
+    if max_attempts is None:
+        max_attempts = 100 * int(n_sim)
+    if isinstance(max_attempts, (bool, np.bool_)) or not isinstance(max_attempts, (int, np.integer)) or max_attempts <= 0:
+        raise ValueError("max_attempts must be a positive integer.")
     rng = np.random.RandomState(seed)
 
     A_sym, B_sym, C_sym, D_sym = (create_matrix(G, form="symbolic", matrix_type=m) for m in "ABCD")
     symbols_all = {s for m in (A_sym, B_sym, C_sym, D_sym) if m for s in m.free_symbols}
     symbols_all = tuple(sorted(symbols_all, key=str))
     fixed_subs = {}
-    uncertain_symbols = {
-        sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")
-        for u, v, d in G.edges(data=True) if average_uncertain and d.get("dashes")
-    }
+    if uncertain_interactions not in ("sample", "enumerate"):
+        raise ValueError("uncertain_interactions must be 'sample' or 'enumerate'.")
+    interactions = _group_uncertain_edges(G, pair_reciprocal)
+    uncertain_symbols = {sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}") for group in interactions for u, v in group}
     matrix_subs = {}
 
     if presample and symbols_all and (subs := presample(symbols_all)):
@@ -290,7 +343,7 @@ def get_simulations(
         symbols_sampled = tuple(sorted({s for m in (A_sym, B_sym, C_sym, D_sym) if m for s in m.free_symbols}, key=str))
     else:
         symbols_sampled = symbols_all
-    fixed_uncertain = {sym: sp.sympify(fixed_subs[sym]).subs(fixed_subs)
+    fixed_uncertain = {sym: sym.subs(fixed_subs)
                        for sym in uncertain_symbols if sym in fixed_subs}
     symbols_sampled = tuple(sorted(set(symbols_sampled) | uncertain_symbols |
                                    {s for expr in fixed_uncertain.values() for s in expr.free_symbols}, key=str))
@@ -316,14 +369,18 @@ def get_simulations(
     if observe and not p_cols:
         raise ValueError("Observations require a perturbation.")
 
+    def no_effect_cells(counts):
+        return counts[:, p_cols] == 0 if p_cols else counts == 0
+
     tmat = sp.matrix2numpy(absolute_effects(G)).astype(int)
+    no_effect = no_effect_cells(tmat)
 
     A_fn = sp.lambdify(symbols_sampled, A_sym)
     B_fn = sp.lambdify(symbols_sampled, B_sym) if n_u and B_sym else None
     C_fn = sp.lambdify(symbols_sampled, C_sym) if n_y and C_sym else None
     D_fn = sp.lambdify(symbols_sampled, D_sym) if D_sym and D_sym.shape != (0, 0) else None
 
-    def compute_sample(values):
+    def evaluate_sample(values, mask):
         A = np.asarray(A_fn(*values), dtype=float).reshape(n_x, n_x)
         if not np.all(np.real(np.linalg.eigvals(A)) < 0):
             return None
@@ -334,64 +391,100 @@ def get_simulations(
         B = B_fn(*values) if B_fn else np.zeros((n_x, 0))
         C = C_fn(*values) if C_fn else np.zeros((0, n_x))
         D = D_fn(*values) if D_fn else np.zeros((n_y, n_u))
-        E = np.block([[inv_A, inv_A @ B], [C @ inv_A, C @ inv_A @ B + D]]) if n_x else np.zeros((n_y, n_u))
+        E = np.block([[inv_A, inv_A @ B], [C @ inv_A, C @ inv_A @ B + D]]) if n_u or n_y else inv_A
         if not np.isfinite(E).all():
             return None
-        effect = np.sum(E[:, p_cols] * p_signs, axis=1) if p_cols else E
+        effect = np.where(mask, 0.0, E[:, p_cols] if p_cols else E)
+        if p_cols:
+            effect = np.sum(effect * p_signs, axis=1)
         return effect if np.isfinite(effect).all() else None
 
-    uncertain = [(u, v, symbols_sampled.index(sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")))
-                 for u, v, d in G.edges(data=True) if d.get("dashes")] if average_uncertain else []
-    base_cls, checked = {n: d.get("category", "state") for n, d in G.nodes(data=True)}, set()
-    effects, valid_sims, samples = [], [], []
-    attempts, max_attempts = 0, n_sim * 100
-    while len(effects) < n_sim and attempts < max_attempts:
-        attempts += 1
+    group_idx = [[symbols_sampled.index(sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")) for u, v in group]
+                 for group in interactions]
+    base_cls = {n: d.get("category", "state") for n, d in G.nodes(data=True)}
+    masks: Dict[int, np.ndarray] = {}
+
+    def get_zero_effect_mask(present):
+        code = sum(int(keep) << i for i, keep in enumerate(present))
+        if code not in masks:
+            masks[code] = no_effect
+            if interactions:
+                variant = define_input_output(_build_model_variant(G, interactions, present))
+                changed = [n for n, category in variant.nodes(data="category") if category != base_cls[n]]
+                if changed:
+                    raise ValueError(f"Nodes change category: {changed}")
+                if not n_u and not n_y and all(variant.has_edge(node, node) for node in state):
+                    reachable = [nx.descendants(variant, node) | {node}
+                                 for node in ([node for node, _ in presses] if p_cols else state)]
+                    masks[code] = np.array([[node not in reached for reached in reachable] for node in state])
+                elif p_cols and not n_u and not n_y:
+                    masks[code] = np.column_stack([
+                        np.asarray(absolute_feedback_matrix(variant, node), dtype=int).ravel() == 0
+                        for node, _ in presses
+                    ])
+                else:
+                    masks[code] = no_effect_cells(np.asarray(absolute_effects(variant), dtype=int))
+        return code, masks[code]
+
+    def draw(present=None):
         values = _random_sampler(dist, len(symbols_sampled), rng)
         if fixed_fn:
             values[fixed_indices] = fixed_fn(*values)
-        if uncertain:
-            keep = rng.uniform(size=len(uncertain)) < rng.uniform()
-            if (k := tuple(keep)) not in checked:
-                variant = nx.DiGraph(G)
-                variant.remove_edges_from([(u, v) for ke, (u, v, _) in zip(keep, uncertain) if not ke])
-                if {n: d.get("category", "state") for n, d in define_input_output(variant, remove_disconnected=False).nodes(data=True)} != base_cls:
-                    raise ValueError("Excluding an uncertain edge re-classifies a node; structure averaging halted.")
-                checked.add(k)
-            values[[i for ke, (_, _, i) in zip(keep, uncertain) if not ke]] = 0.0
-        if (effect := compute_sample(values)) is None:
-            continue
-        effects.append(effect)
-        valid_sims.append(all(np.sign(effect[response_idx[node]]) == obs for node, obs in observe or ()))
-        if return_samples:
-            samples.append(values)
+        if present is None:
+            present = tuple(rng.uniform(size=len(interactions)) < rng.uniform()) if interactions else ()
+        code, mask = get_zero_effect_mask(present)
+        values[[i for keep, idx in zip(present, group_idx) if not keep for i in idx]] = 0.0
+        effect = evaluate_sample(values, mask)
+        if effect is not None:
+            effects.append(effect)
+            structure_ids.append(code)
+            valid_sims.append(all(np.sign(effect[response_idx[node]]) == obs for node, obs in observe or ()))
+            if return_samples:
+                samples.append(values)
+        return effect is not None and (not condition or valid_sims[-1])
 
-    if len(effects) < n_sim:
-        raise RuntimeError(f"Maximum iterations reached. Stable proportion: {len(effects) / max_attempts:.4f}")
-
-    result = {
-        "effects": effects,
-        "valid_sims": valid_sims,
-        "all_nodes": all_nodes,
-        "tmat": tmat,
-        "prop_stable": len(effects) / attempts,
-        "attempts": attempts,
-        "n_stable": len(effects),
+    sampled_index = {sym: i for i, sym in enumerate(symbols_sampled)}
+    sample_functions = {
+        sym: sp.lambdify(symbols_sampled, sym.subs(matrix_subs))
+        for sym in fixed_subs if return_samples and sym not in uncertain_symbols
     }
-    if return_samples:
-        n_samples = len(samples)
-        sampled_index = {sym: i for i, sym in enumerate(symbols_sampled)}
-        result_samples = {}
-        for sym in symbols_all:
-            if sym in sampled_index:
-                idx = sampled_index[sym]
-                result_samples[str(sym)] = np.array([s[idx] for s in samples])
-            elif sym in fixed_subs:
-                expr = sp.sympify(fixed_subs[sym]).subs(matrix_subs)
-                values = sp.lambdify(symbols_sampled, expr)(*np.asarray(samples).T)
-                result_samples[str(sym)] = np.broadcast_to(values, (n_samples,)).copy()
-        result["samples"] = result_samples
-    return result
+
+    variants = itertools.product((False, True), repeat=len(interactions)) if uncertain_interactions == "enumerate" else (None,)
+    for present in variants:
+        effects, valid_sims, samples, structure_ids = [], [], [], []
+        attempts, drawn = 0, 0
+        if uncertain_interactions == "enumerate":
+            masks.clear()
+        while drawn < n_sim and attempts < max_attempts:
+            attempts += 1
+            drawn += draw(present)
+        if drawn < n_sim:
+            label = f" for structure {get_zero_effect_mask(present)[0]}" if present is not None else ""
+            raise RuntimeError(f"Maximum iterations reached{label}. Matched {drawn}/{n_sim} draws.")
+
+        result = {
+            "effects": effects,
+            "valid_sims": valid_sims,
+            "all_nodes": all_nodes,
+            "tmat": tmat,
+            "prop_stable": len(effects) / attempts,
+            "attempts": attempts,
+            "n_stable": len(effects),
+            "structures": structure_ids,
+        }
+        if return_samples:
+            n_samples = len(samples)
+            sample_array = np.asarray(samples)
+            result_samples = {}
+            for sym in symbols_all:
+                if sym in sample_functions:
+                    values = sample_functions[sym](*sample_array.T)
+                    result_samples[str(sym)] = np.broadcast_to(values, (n_samples,)).copy()
+                elif sym in sampled_index:
+                    idx = sampled_index[sym]
+                    result_samples[str(sym)] = sample_array[:, idx].copy()
+            result["samples"] = result_samples
+        yield result
 
 
 def _sign_counts(effects) -> Tuple[np.ndarray, np.ndarray]:
@@ -406,18 +499,20 @@ def simulation_effects(
     seed: int = 42,
     positive_only: bool = False,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
-    average_uncertain: bool = False,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
 ) -> sp.Matrix:
     """Performs numerical simulations of cumulative effects using random interaction strengths.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        n_sim: Number of simulations
+        n_sim: Stable draws per structure.
         dist: Distribution for sampling ("uniform", "weak", "moderate", "strong")
         seed: Random seed
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
         presample: Optional callable passed through to get_simulations
-        average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
+        uncertain_interactions: Sample uncertain interactions, or average every structure equally.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
 
     Returns:
         SymPy Matrix containing simulation results
@@ -442,15 +537,17 @@ def simulation_effects(
         # [  1.0,   1.0, 0.0, 0.487, 1.0]])
         ```
     """
-    sims = get_simulations(G, n_sim, dist, seed, presample=presample, average_uncertain=average_uncertain)
+    positive, negative, count = 0, 0, 0
+    for sims in iter_simulations(G, n_sim, dist, seed, presample=presample,
+                                 uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
+        pos, neg = _sign_counts(sims["effects"])
+        positive += pos / sims["n_stable"]
+        negative += neg / sims["n_stable"]
+        count += 1
+    positive, negative = positive / count, negative / count
     tmat = sims["tmat"]
     n_rows, n_cols = tmat.shape
-
-    positive, negative = _sign_counts(sims["effects"])
-
-    smat = positive / n_sim if positive_only else np.where(
-        negative > positive, -negative / n_sim, positive / n_sim
-    )
+    smat = positive if positive_only else np.where(negative > positive, -negative, positive)
     smat = [[sp.nan if not tmat[i, j] else smat[i, j] for j in range(n_cols)] for i in range(n_rows)]
     return sp.Matrix(smat)
 
@@ -464,6 +561,7 @@ def simulations_table(
     seed: int = 42,
     combinations: bool = True,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
+    pair_reciprocal: bool = True,
 ) -> pd.DataFrame:
     """Summarise simulation effects across model variants for each response node.
 
@@ -471,11 +569,12 @@ def simulations_table(
         G: NetworkX DiGraph representing signed digraph model
         perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed) to filter simulations
-        n_sim: Number of simulations
+        n_sim: Stable draws per structure.
         dist: Distribution for sampling
         seed: Random seed
         combinations: If True, evaluate every combination of dashed edges
         presample: Optional callable passed through to get_simulations
+        pair_reciprocal: If True, a reciprocal pair of dashed edges is one uncertain interaction kept or dropped together
 
     Returns:
         pd.DataFrame: Table of counts for negative, no effect, and positive responses
@@ -492,7 +591,7 @@ def simulations_table(
         # 4      1      Out2       513          0       487        1000         1000      1000
         ```
     """
-    variants = get_dashed_alternatives(G, combinations=combinations)
+    variants = get_dashed_alternatives(G, combinations=combinations, pair_reciprocal=pair_reciprocal)
     categories = dict(define_input_output(G).nodes(data="category"))
     for g in variants:
         changed = [n for n, c in define_input_output(g).nodes(data="category") if c != categories[n]]
@@ -506,7 +605,7 @@ def simulations_table(
         if not response_nodes:
             continue
         graph, pert = _parse_perturbations(g, perturb)
-        sims = get_simulations(
+        sims = next(iter_simulations(
             graph,
             n_sim=n_sim,
             dist=dist,
@@ -514,22 +613,17 @@ def simulations_table(
             perturb=pert,
             observe=observations,
             presample=presample,
-        )
+            condition=False,
+        ))
 
         node_count = len(response_nodes)
-        p_cols = [sims["all_nodes"].index(node) for node, _ in pert]
-        tmat = sims["tmat"][:node_count, :]
-
         valid_effects = [effect[:node_count] for effect, valid in zip(sims["effects"], sims["valid_sims"]) if valid]
         valid_count = len(valid_effects)
         if valid_count:
-            positive, negative = (c.astype(int) for c in _sign_counts(valid_effects))
+            positive, negative = _sign_counts(valid_effects)
         else:
             negative = np.zeros(node_count, dtype=int)
             positive = np.zeros(node_count, dtype=int)
-        has_effect = (tmat[:, p_cols] != 0).any(axis=1)
-        negative = np.where(has_effect, negative, 0).astype(int)
-        positive = np.where(has_effect, positive, 0).astype(int)
         no_effect = valid_count - negative - positive
 
         for i, node in enumerate(response_nodes):

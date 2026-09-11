@@ -5,6 +5,7 @@ import networkx as nx
 import numpy as np
 import pytest
 
+from qmm.core.structure import define_input_output
 from qmm.extensions.indicators import mutual_information
 
 
@@ -69,18 +70,21 @@ def test_mutual_information_accepts_a_list_of_models(snowshoe_rp):
     assert set(result["Node"]) == {"R", "C", "P"}
 
 
-def test_mutual_information_posterior_weights_and_bits(monkeypatch):
+@pytest.mark.parametrize('uncertain_interactions', ['sample', 'enumerate'])
+@pytest.mark.parametrize('weights', ['equal', 'posterior'])
+def test_mutual_information_posterior_weights_and_bits(monkeypatch, uncertain_interactions, weights):
     models = [nx.DiGraph(), nx.DiGraph()]
     for model in models:
         model.add_node('X', category='state')
+        model.add_edge('X', 'X', sign=-1)
     draws = iter([
-        {'effects': [np.array([1.0])] * 4, 'prop_stable': 0.25},
-        {'effects': [np.array([-1.0])] * 4, 'prop_stable': 0.75},
+        [{'effects': [np.array([1.0])] * 4, 'prop_stable': 0.25}],
+        [{'effects': [np.array([-1.0])] * 4, 'prop_stable': stability}
+         for stability in ((0.5, 1.0) if uncertain_interactions == 'enumerate' else (0.75,))],
     ])
-    monkeypatch.setattr('qmm.extensions.indicators.get_simulations', lambda *args, **kwargs: next(draws))
-    result = mutual_information(models, 'X:+', n_sim=4, weights='posterior', base=2)
-    # The sign identifies the model perfectly, so MI equals the model entropy.
-    expected = -(0.25 * np.log2(0.25) + 0.75 * np.log2(0.75))
+    monkeypatch.setattr('qmm.extensions.indicators.iter_simulations', lambda *args, **kwargs: iter(next(draws)))
+    result = mutual_information(models, 'X:+', n_sim=4, uncertain_interactions=uncertain_interactions, weights=weights, base=2)
+    expected = -(0.25 * np.log2(0.25) + 0.75 * np.log2(0.75)) if weights == 'posterior' else 1.0
     assert result['Mutual Information'].iloc[0] == pytest.approx(expected)
 
 
@@ -115,3 +119,45 @@ def test_mutual_information_melbourne_thomas_2012_table_1(mesocosm_alt_models):
 def test_mutual_information_rejects_invalid_weight_or_base(snowshoe, kwargs):
     with pytest.raises(ValueError):
         mutual_information(snowshoe, 'R:+', n_sim=1, **kwargs)
+
+
+@pytest.mark.parametrize('weights', ['equal', 'posterior'])
+def test_mutual_information_opposite_signs_is_one_bit_no_fixture(weights):
+    models = []
+    for sign in (1, -1):
+        G = nx.DiGraph()
+        G.add_edge('A', 'A', sign=-1)
+        G.add_edge('B', 'B', sign=-1)
+        G.add_edge('A', 'B', sign=sign)
+        models.append(G)
+    result = mutual_information(models, 'A:+', n_sim=100, seed=42, weights=weights, base=2)
+    expected = pd.DataFrame({'Node': ['B', 'A'], 'Mutual Information': [1.0, 0.0]})
+    assert result.equals(expected)
+
+
+def test_mutual_information_aligns_models_by_node_identity(mesocosm_alt_models):
+    G, G_alt = mesocosm_alt_models
+    reordered = nx.DiGraph()
+    reordered.add_nodes_from(reversed(list(G_alt.nodes(data=True))))
+    reordered.add_edges_from(G_alt.edges(data=True))
+    result = mutual_information([G, reordered], 'P:+', n_sim=100, seed=42)
+    expected = mutual_information([G, G_alt], 'P:+', n_sim=100, seed=42)
+    assert result.equals(expected)
+
+
+def test_mutual_information_accepts_alternative_that_isolates_a_self_limited_node(snowshoe):
+    joined = nx.DiGraph(snowshoe)
+    joined.add_edge('Z', 'Z', sign=-1)
+    apart = nx.DiGraph(joined)
+    joined.add_edge('Z', 'R', sign=-1)
+    table = mutual_information([define_input_output(joined), define_input_output(apart)], perturb='Z:-', n_sim=50, seed=1)
+    result = dict(zip(table["Node"], table["Mutual Information"]))["Z"]
+    expected = 0.0
+    assert result == expected
+
+
+def test_mutual_information_enumerate_runs_every_structure_snowshoe_dashed(snowshoe_dashed):
+    table = mutual_information([snowshoe_dashed, snowshoe_dashed], perturb='C:+', n_sim=25, seed=1, uncertain_interactions="enumerate")
+    result = (len(table), table["Mutual Information"].max())
+    expected = (3, 0.0)
+    assert result == expected

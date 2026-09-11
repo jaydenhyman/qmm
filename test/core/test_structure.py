@@ -51,14 +51,14 @@ def test_import_digraph_derives_roles_and_preserves_components(reverse):
         "nodes": [{"id": n, "category": "output", "label": "Same"}
                   for n in ("I", "S", "O", "Z")],
         "edges": [{"from": a, "to": b, "sign": -1}
-                  for a, b in [("I", "S"), ("S", "S"), ("S", "O")]],
+                  for a, b in [("I", "S"), ("S", "S"), ("S", "O"), ("Z", "Z")]],
     }
     if reverse:
         data["nodes"].reverse()
         data["edges"].reverse()
     graph = import_digraph(data, file_path=False)
     result = nx.get_node_attributes(graph, "category")
-    expected = {"I": "input", "S": "state", "O": "output", "Z": "disconnected"}
+    expected = {"I": "input", "S": "state", "O": "output", "Z": "state"}
     assert result == expected
     assert nx.is_frozen(graph)
     assert all(node["category"] == "output" for node in data["nodes"])
@@ -121,7 +121,7 @@ def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
 
 def test_import_digraph_from_file_tmp_path(tmp_path):
     path = tmp_path / "model.json"
-    path.write_text(json.dumps({"nodes": [{"id": "X"}], "edges": []}))
+    path.write_text(json.dumps({"nodes": [{"id": "X"}], "edges": [{"from": "X", "to": "X", "sign": -1}]}))
     G = import_digraph(str(path), file_path=True)
     result = G.number_of_nodes()
     expected = 1
@@ -131,7 +131,7 @@ def test_import_digraph_from_file_tmp_path(tmp_path):
 def test_import_digraph_node_attributes_inline_data():
     data = {
         "nodes": [{"id": "A", "label": "Node A"}, {"id": "B"}],
-        "edges": [],
+        "edges": [{"from": "A", "to": "A", "sign": -1}, {"from": "A", "to": "B", "sign": 1}],
         "meta": {"title": "Model", "description": "Context"},
         "references": ["Source"],
         "custom": {"units": "biomass"},
@@ -457,9 +457,10 @@ def test_edges_table_snowshoe_io(snowshoe_io):
     assert 'Description' in result.columns
     assert '+' in result['Sign'].values or '-' in result['Sign'].values
 
-def test_create_matrix_rejects_disconnected_nodes(disconnected_graph):
-    with pytest.raises(ValueError, match=r"Disconnected nodes: \['C'\]"):
-        create_matrix(define_input_output(disconnected_graph))
+def test_create_matrix_rejects_invalid_nodes(disconnected_graph):
+    disconnected_graph.nodes['C']['category'] = 'invalid'
+    with pytest.raises(ValueError, match=r"Invalid nodes: \['C'\]"):
+        create_matrix(disconnected_graph)
 
 
 def test_create_equations_form_invalid_snowshoe(snowshoe):
@@ -480,3 +481,11 @@ def test_edges_table_input_to_output_edge(direct_input_output_graph):
 def test_edges_table_non_standard_sign(non_standard_sign_graph):
     result = edges_table(non_standard_sign_graph)
     assert '0.5' in result['Sign'].values
+
+
+def test_define_input_output_classifies_components_independently(snowshoe):
+    G = nx.DiGraph(snowshoe)
+    G.add_edge('Z', 'Z', sign=-1)
+    result = nx.get_node_attributes(define_input_output(G), "category")
+    expected = {'R': 'state', 'C': 'state', 'P': 'state', 'Z': 'state'}
+    assert result == expected

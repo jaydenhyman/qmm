@@ -24,14 +24,17 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
         from qmm import import_digraph
         model_dict = {
         "nodes": [{"id": "A"}, {"id": "B"}],
-        "edges": [{"from": "A", "to": "B", "arrows": {"to": {"type": "triangle"}}}]
+        "edges": [
+            {"from": "A", "to": "A", "sign": -1},
+            {"from": "A", "to": "B", "arrows": {"to": {"type": "triangle"}}}
+        ]
         }
         list(import_digraph(model_dict, file_path=False).nodes())
         # ['A', 'B']
 
         G = import_digraph(model_dict, file_path=False)
         list(G.edges(data='sign'))
-        # [('A', 'B', 1)]
+        # [('A', 'A', -1), ('A', 'B', 1)]
         ```
     """
     if file_path:
@@ -71,20 +74,21 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
     return define_input_output(G)
 
 
-def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.DiGraph:
+def define_input_output(G: nx.DiGraph) -> nx.DiGraph:
     """Classify nodes as state, input or output from topology (any pre-set category is overwritten).
 
     Sources (and source-chains) become inputs, sinks (and sink-chains) outputs; a
-    self-loop or feedback cycle keeps a node as state. Nodes outside the largest
-    connected component are labelled disconnected and excluded from analysis.
+    self-loop or feedback cycle keeps a node as state. Each separate subnetwork
+    must contain a feedback cycle or self-loop; otherwise its nodes are invalid.
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
-        remove_disconnected: Remove all but the largest weakly-connected
-            component (warns about dropped nodes)
 
     Returns:
         nx.DiGraph: Model with input, state and output classification
+
+    Raises:
+        ValueError: Lists invalid node IDs when a subnetwork has no feedback.
 
     Examples:
         ```python
@@ -100,18 +104,10 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.
     _check_signs(G)
     G_def = G.copy()
     nx.set_node_attributes(G_def, "state", "category")
-    components = list(nx.connected_components(G_def.to_undirected()))
-    if len(components) > 1:
-        largest = max(components, key=lambda c: (len(c), sorted(c)))
-        outside = sorted(n for c in components if c != largest for n in c)
-        if remove_disconnected:
-            warnings.warn(
-                f"define_input_output: dropping {len(outside)} node(s) in "
-                f"{len(components) - 1} smaller disconnected component(s): {outside}"
-            )
-            G_def.remove_nodes_from(outside)
-        elif sum(len(c) == len(largest) for c in components) == 1:
-            nx.set_node_attributes(G_def, dict.fromkeys(outside, "disconnected"), "category")
+    invalid = [n for nodes in nx.weakly_connected_components(G_def)
+               if nx.is_directed_acyclic_graph(G_def.subgraph(nodes)) for n in nodes]
+    if invalid:
+        raise ValueError(f"Invalid nodes: {sorted(invalid, key=str)}")
 
     # Inputs then outputs, each a fixpoint (order-independent); self-loop/feedback nodes stay state.
     def classify(role, here, there):
@@ -175,9 +171,9 @@ def create_matrix(
         ```
     """
 
-    disconnected = get_nodes(G, "disconnected")
-    if disconnected:
-        raise ValueError(f"Disconnected nodes: {disconnected}")
+    invalid = get_nodes(G, "invalid")
+    if invalid:
+        raise ValueError(f"Invalid nodes: {invalid}")
 
     def sym(source: str, target: str, prefix: str) -> sp.Symbol:
         return sp.Symbol(f"{prefix}_{target},{source}")

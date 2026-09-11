@@ -561,14 +561,14 @@ def test_get_dashed_alternatives_no_dashed_edges_snowshoe(snowshoe):
 
 
 def test_get_dashed_alternatives_combinations_true_snowshoe_dashed(snowshoe_dashed):
-    result = get_dashed_alternatives(snowshoe_dashed, combinations=True)
+    result = get_dashed_alternatives(snowshoe_dashed, combinations=True, pair_reciprocal=False)
     assert len(result) == 8
     assert result[0].number_of_edges() == 6
     assert result[7].number_of_edges() == 9
 
 
 def test_get_dashed_alternatives_combinations_false_snowshoe_dashed(snowshoe_dashed):
-    result = get_dashed_alternatives(snowshoe_dashed, combinations=False)
+    result = get_dashed_alternatives(snowshoe_dashed, combinations=False, pair_reciprocal=False)
     assert len(result) == 4 
     assert result[0].number_of_edges() == 6
     assert result[1].number_of_edges() == 7
@@ -831,3 +831,16 @@ def test_parse_perturbations_preserves_graph_with_existing_press_node_name():
     assert modified.nodes["_P"]["category"] == "state"
     assert modified["_P"]["_P"]["sign"] == -1
     assert "_P_" not in G
+
+
+def test_get_dashed_alternatives_keeps_reciprocal_dashed_edges_together_snowshoe_dashed(snowshoe_dashed):
+    variants = get_dashed_alternatives(snowshoe_dashed)
+    result = (len(variants), sum(g.has_edge('R', 'P') == g.has_edge('P', 'R') for g in variants), len(get_dashed_alternatives(snowshoe_dashed, combinations=False)))
+    expected = (4, 4, 3)
+    assert result == expected
+
+
+def test_get_dashed_alternatives_variants_carry_no_dashes_snowshoe_dashed(snowshoe_dashed):
+    result = any(d.get("dashes") for g in get_dashed_alternatives(snowshoe_dashed) for _, _, d in g.edges(data=True))
+    expected = False
+    assert result == expected

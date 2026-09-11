@@ -3,9 +3,12 @@
 import sympy as sp
 import numpy as np
 import pandas as pd
-from .effects import get_simulations
+from .effects import iter_simulations
 from ..core.structure import define_input_output
 from ..core.helper import (
+    _build_model_variant,
+    _group_uncertain_edges,
+    get_dashed_alternatives,
     get_nodes,
     _parse_perturbations,
     _parse_observations,
@@ -22,7 +25,8 @@ def marginal_likelihood(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    average_uncertain: bool = False,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
 ) -> float:
     """Calculate proportion of simulations matching qualitative observations.
 
@@ -30,10 +34,11 @@ def marginal_likelihood(
         G: NetworkX DiGraph representing signed digraph model
         perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
-        n_sim: Number of simulations
+        n_sim: Stable draws per structure, or pooled stable draws when uncertain_interactions='sample'.
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
         seed: Random seed
-        average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
+        uncertain_interactions: Sample uncertain interactions, or average every structure equally.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
 
     Returns:
         float: Marginal likelihood
@@ -50,13 +55,18 @@ def marginal_likelihood(
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
-    sims = get_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
-                          perturb=pert,
-                          observe=_parse_observations(observe) if observe else None,
-                          average_uncertain=average_uncertain)
-    return sum(sims["valid_sims"]) / n_sim
+    likelihood, count = 0.0, 0
+    for sims in iter_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
+                                 perturb=pert,
+                                 observe=_parse_observations(observe) if observe else None,
+                                 uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
+                                 condition=False):
+        likelihood += sum(sims["valid_sims"]) / sims["n_stable"]
+        count += 1
+    return likelihood / count
 
-def model_validation(
+
+def compare_model_alternatives(
     G: nx.DiGraph,
     perturb: str,
     observe: str,
@@ -64,6 +74,7 @@ def model_validation(
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
     combinations: bool = True,
+    pair_reciprocal: bool = True,
 ) -> pd.DataFrame:
     """Compare marginal likelihoods from alternative model structures.
 
@@ -71,10 +82,11 @@ def model_validation(
         G: NetworkX DiGraph representing signed digraph model
         perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
-        n_sim: Number of simulations
+        n_sim: Stable draws per structure.
         dist: Distribution for sampling
         seed: Random seed
-        combinations: If True, evaluate every combination of dashed edges. If False, only compare the full model vs. all dashed edges removed.
+        combinations: If True, evaluate every combination of uncertain interactions. If False, only compare the full model vs. all dashed edges removed.
+        pair_reciprocal: If True, a reciprocal pair of dashed edges is one uncertain interaction kept or dropped together.
 
     Returns:
         pd.DataFrame: Marginal likelihood comparison for requested dashed-edge configurations.
@@ -85,33 +97,25 @@ def model_validation(
 
     Examples:
         ```python
-        from qmm import model_validation, load_digraph
+        from qmm import compare_model_alternatives, load_digraph
         import networkx as nx
         G = nx.DiGraph(load_digraph("snowshoe_io"))
         G.add_edge('R', 'P', sign=1, dashes=True)
-        model_validation(G, perturb='Inp1:+', observe='Out1:+', n_sim=1000, combinations=False)
+        compare_model_alternatives(G, perturb='Inp1:+', observe='Out1:+', n_sim=1000, combinations=False)
         #   Marginal likelihood (R, P)
         # 0               0.815      ✓
         # 1               0.526
         ```
     """
-    dashed_edges = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
-    if not dashed_edges:
-        mask_values = [0]
+    interactions = _group_uncertain_edges(G, pair_reciprocal)
+    dashed_edges = [edge for group in interactions for edge in group]
+    if not interactions:
+        variants = [G]
     elif combinations:
-        mask_values = range(2 ** len(dashed_edges))
+        variants = get_dashed_alternatives(G, combinations=True, pair_reciprocal=pair_reciprocal)
     else:
-        mask_values = [(1 << len(dashed_edges)) - 1, 0]
-
-    variants, edge_presence = [], []
-    for mask in mask_values:
-        G_variant = G.copy()
-        presence = [bool(mask & (1 << j)) for j in range(len(dashed_edges))]
-        for j, (u, v) in enumerate(dashed_edges):
-            if not presence[j]:
-                G_variant.remove_edge(u, v)
-        variants.append(G_variant)
-        edge_presence.append(presence)
+        variants = [_build_model_variant(G, interactions, [True] * len(interactions)), _build_model_variant(G, interactions, [False] * len(interactions))]
+    edge_presence = [[g.has_edge(u, v) for u, v in dashed_edges] for g in variants]
 
     categories = dict(define_input_output(G).nodes(data="category"))
     for g in variants:
@@ -138,7 +142,9 @@ def posterior_predictions(
     seed: int = 42,
     positive_only: bool = False,
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
-    average_uncertain: bool = False,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
+    max_attempts: Optional[int] = None,
 ) -> sp.Matrix:
     """Calculate model predictions conditioned on observations.
 
@@ -146,18 +152,20 @@ def posterior_predictions(
         G: NetworkX DiGraph representing signed digraph model
         perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
-        n_sim: Number of simulations
+        n_sim: Stable draws matching observe, per structure when uncertain_interactions='enumerate'.
         dist: Distribution for sampling
         seed: Random seed
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
         presample: Optional callable passed through to get_simulations
-        average_uncertain: Passed through to get_simulations (structure averaging over uncertain links)
+        uncertain_interactions: Sample uncertain interactions, or average every structure equally.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
+        max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
 
     Returns:
         sp.Matrix: Predictions conditioned on observations
 
     Raises:
-        ValueError: If no simulations match the supplied observations.
+        RuntimeError: If a batch cannot collect enough matching stable draws.
 
     References:
         - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
@@ -168,34 +176,29 @@ def posterior_predictions(
         from qmm import posterior_predictions, load_digraph
         posterior_predictions(load_digraph("snowshoe_io"), perturb='Inp1:+', observe='Out1:+', n_sim=1000)
         # Matrix([
-        # [              1.0],
-        # [-0.52851711026616],
-        # [-0.52851711026616],
-        # [              1.0],
-        # [-0.52851711026616]])
+        # [   1.0],
+        # [-0.511],
+        # [-0.511],
+        # [   1.0],
+        # [-0.511]])
         ```
     """
     graph, pert = _parse_perturbations(G, perturb)
     observations = _parse_observations(observe) if observe else None
-    sims = get_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
-                          perturb=pert, observe=observations, presample=presample,
-                          average_uncertain=average_uncertain)
+    n_total = len(get_nodes(G, "state")) + len(get_nodes(G, "output"))
+    positive, negative, count = np.zeros(n_total), np.zeros(n_total), 0
+    for sims in iter_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
+                                 perturb=pert, observe=observations, presample=presample,
+                                 uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
+                                 max_attempts=max_attempts):
+        effects = np.asarray(sims["effects"])[sims["valid_sims"], :n_total]
+        positive += np.mean(effects > 0, axis=0)
+        negative += np.mean(effects < 0, axis=0)
+        count += 1
+    positive /= count
+    negative /= count
 
-    state, outputs = get_nodes(G, "state"), get_nodes(G, "output")
-    n_total = len(state) + len(outputs)
-    valid_indices = [i for i, v in enumerate(sims["valid_sims"]) if v]
-    valid_count = len(valid_indices)
-
-    if valid_count == 0:
-        raise ValueError(f"No simulations matched the observations '{observe}' under perturbation '{perturb}'.")
-
-    effects = np.array([sims["effects"][i][:n_total] for i in valid_indices])
-    positive = np.sum(effects > 0, axis=0)
-    negative = np.sum(effects < 0, axis=0)
-
-    smat = positive / valid_count if positive_only else np.where(
-        negative > positive, -negative / valid_count, positive / valid_count
-    )
+    smat = positive if positive_only else np.where(negative > positive, -negative, positive)
 
     p_cols = [sims["all_nodes"].index(node) for node, _ in pert]
     tmat = sims["tmat"]
@@ -210,6 +213,8 @@ def diagnose_observations(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
 ) -> pd.DataFrame:
     """Identify possible perturbations from marginal likelihoods.
 
@@ -217,9 +222,11 @@ def diagnose_observations(
         G: NetworkX DiGraph representing signed digraph model
         observe: Observation string (node:sign, comma-separated allowed)
         perturb_nodes: Node subset to test - comma-separated string, 'state', 'input', or list of nodes
-        n_sim: Number of simulations
+        n_sim: Stable draws per structure, or pooled stable draws when uncertain_interactions='sample'.
         dist: Distribution for sampling
         seed: Random seed
+        uncertain_interactions: Sample uncertain interactions, or average every structure equally.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
 
     Returns:
         pd.DataFrame: Ranked perturbations matching observations
@@ -249,7 +256,7 @@ def diagnose_observations(
     for node in perturb_nodes:
         for sign in ["+", "-"]:
             try:
-                likelihood = marginal_likelihood(G, f"{node}:{sign}", observe, n_sim, dist, seed)
+                likelihood = marginal_likelihood(G, f"{node}:{sign}", observe, n_sim, dist, seed, uncertain_interactions, pair_reciprocal)
             except RuntimeError:
                 likelihood = np.nan
             results.append({"Input": node, "Sign": sign, "Marginal likelihood": likelihood})
@@ -269,6 +276,8 @@ def bayes_factors(
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
     names: Optional[List[str]] = None,
+    uncertain_interactions: Literal["sample", "enumerate"] = "sample",
+    pair_reciprocal: bool = True,
 ) -> pd.DataFrame:
     """Calculate Bayes factors from the ratio of marginal likelihoods of alternative models.
 
@@ -276,10 +285,12 @@ def bayes_factors(
         G_list: List or tuple of NetworkX DiGraphs representing alternative models
         perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         observe: Observation string (node:sign, comma-separated allowed)
-        n_sim: Number of simulations
+        n_sim: Stable draws per structure, or pooled stable draws when uncertain_interactions='sample'.
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong', 'uniform_two_oom')
         seed: Random seed
         names: Optional list of model names
+        uncertain_interactions: Sample uncertain interactions, or average every structure equally.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
 
     Returns:
         pd.DataFrame: DataFrame containing Bayes factors
@@ -309,7 +320,7 @@ def bayes_factors(
         changed = [n for n in categories if fresh[n] != categories[n]]
         if changed:
             raise ValueError(f"{name}: node {', '.join(changed)} changes category")
-    likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in graphs]
+    likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed, uncertain_interactions, pair_reciprocal) for g in graphs]
 
     comparisons = [(i, j) for i in range(len(graphs)) for j in range(i + 1, len(graphs))]
     factors = {

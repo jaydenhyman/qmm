@@ -37,6 +37,7 @@ from .effects import (
     weighted_effects,
     sign_determinacy_effects,
     get_simulations,
+    iter_simulations,
     simulation_effects,
     simulations_table,
     table_of_direct_effects,
@@ -49,7 +50,7 @@ from .indicators import (
 
 from .validation import (
     marginal_likelihood,
-    model_validation,
+    compare_model_alternatives,
     posterior_predictions,
     diagnose_observations,
     bayes_factors,
@@ -87,6 +88,7 @@ __all__ = [
     "weighted_effects",
     "sign_determinacy_effects",
     "get_simulations",
+    "iter_simulations",
     "simulation_effects",
     "simulations_table",
     "table_of_direct_effects",
@@ -95,7 +97,7 @@ __all__ = [
     "mutual_information",
     # validation.py
     "marginal_likelihood",
-    "model_validation",
+    "compare_model_alternatives",
     "posterior_predictions",
     "diagnose_observations",
     "bayes_factors",

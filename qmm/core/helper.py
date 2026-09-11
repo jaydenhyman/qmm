@@ -180,14 +180,14 @@ def digraph_to_list(G: nx.DiGraph) -> str:
 
 def get_nodes(
     G: nx.DiGraph,
-    node_type: Literal["state", "input", "output", "disconnected", "all"] = "state",
+    node_type: Literal["state", "input", "output", "invalid", "all"] = "state",
     labels: bool = False,
 ) -> List[Union[str, Dict[str, Any]]]:
     """Get nodes of a specific type from a directed graph.
 
     Args:
         G: NetworkX directed graph to extract nodes from.
-        node_type: Type of nodes to extract ('state', 'input', 'output', 'disconnected', or 'all').
+        node_type: Type of nodes to extract ('state', 'input', 'output', 'invalid', or 'all').
             Nodes without a category count as 'state'.
         labels: If True, return node labels instead of node ids.
 
@@ -640,17 +640,38 @@ def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "unif
     return samplers[dist]()
 
 
-def get_dashed_alternatives(G: nx.DiGraph, combinations: bool = True) -> List[nx.DiGraph]:
+def _group_uncertain_edges(G: nx.DiGraph, pair_reciprocal: bool = True) -> List[List[Tuple[str, str]]]:
+    """Dashed edges grouped into uncertain interactions; a reciprocal dashed pair is one interaction when pair_reciprocal."""
+    dashed = [(u, v) for u, v, d in G.edges(data=True) if d.get("dashes", False)]
+    if not pair_reciprocal:
+        return [[edge] for edge in dashed]
+    groups: Dict[frozenset, List[Tuple[str, str]]] = {}
+    for u, v in dashed:
+        groups.setdefault(frozenset((u, v)), []).append((u, v))
+    return list(groups.values())
+
+
+def _build_model_variant(G: nx.DiGraph, interactions: List[List[Tuple[str, str]]], present) -> nx.DiGraph:
+    """Copy of G keeping the uncertain interactions flagged present, with no dashed edges left."""
+    H = nx.DiGraph(G)
+    H.remove_edges_from([edge for keep, group in zip(present, interactions) if not keep for edge in group])
+    for _, _, data in H.edges(data=True):
+        data.pop("dashes", None)
+    return H
+
+
+def get_dashed_alternatives(G: nx.DiGraph, combinations: bool = True, pair_reciprocal: bool = True) -> List[nx.DiGraph]:
     """Generate all alternative model structures based on dashed edges.
 
     Args:
         G: NetworkX DiGraph with potentially dashed edges (edges with dashes=True attribute)
-        combinations: If True, return all 2^n combinations of dashed edges.
-                     If False, return base graph (no dashed edges) plus variants with each single dashed edge added.
+        combinations: If True, return all 2^n combinations of uncertain interactions.
+                     If False, return base graph (no dashed edges) plus variants with each single interaction added.
+        pair_reciprocal: If True, a reciprocal pair of dashed edges is one uncertain interaction kept or dropped together.
 
     Returns:
-        List[nx.DiGraph]: List of graph variants with different dashed edge configurations.
-                         If no dashed edges exist, returns a list containing only the original graph.
+        List[nx.DiGraph]: List of graph variants with different dashed edge configurations; no variant carries
+                         the dashes attribute. If no dashed edges exist, returns a list containing only the original graph.
 
     References:
         - Raymond, B., McInnes, J., Dambacher, J.M., Way, S., Bergstrom, D.M. (2011). Qualitative modelling of invasive species eradication on subantarctic Macquarie Island. Journal of Applied Ecology 48, 181–191.
@@ -668,31 +689,12 @@ def get_dashed_alternatives(G: nx.DiGraph, combinations: bool = True) -> List[nx
         # 2
         ```
     """
-    dashed_edges = [(j, i, d) for j, i, d in G.edges(data=True) if d.get("dashes", False)]
-
-    if not dashed_edges:
+    interactions = _group_uncertain_edges(G, pair_reciprocal)
+    if not interactions:
         return [G]
-
     if combinations:
-        mask_values = range(2 ** len(dashed_edges))
-        variants = []
-        for mask in mask_values:
-            G_variant = G.copy()
-            for idx, (j, i, _) in enumerate(dashed_edges):
-                include_edge = bool(mask & (1 << idx))
-                if not include_edge:
-                    G_variant.remove_edge(j, i)
-            variants.append(G_variant)
-    else:
-        G_base = G.copy()
-        for j, i, _ in dashed_edges:
-            G_base.remove_edge(j, i)
-
-        variants = [G_base]
-
-        for j, i, edge_data in dashed_edges:
-            G_variant = G_base.copy()
-            G_variant.add_edge(j, i, **edge_data)
-            variants.append(G_variant)
-
-    return variants
+        return [_build_model_variant(G, interactions, [bool(mask & (1 << i)) for i in range(len(interactions))])
+                for mask in range(2 ** len(interactions))]
+    none = [False] * len(interactions)
+    return [_build_model_variant(G, interactions, none)] + [
+        _build_model_variant(G, interactions, [j == i for j in range(len(interactions))]) for i in range(len(interactions))]

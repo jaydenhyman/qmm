@@ -21,7 +21,7 @@ from qmm.extensions.paths import (
     weighted_paths,
     path_metrics,
     pathway_effects,
-    _pathway_terms,
+    _simulate_pathway_effects,
 )
 
 
@@ -437,7 +437,7 @@ def test_system_paths_matches_cumulative_effects(snowshoe_io_na, form):
 def test_pathway_effects_terms_sum_mesocosm(mesocosm):
     responders = get_nodes(mesocosm, "state") + get_nodes(mesocosm, "output")
     for target in ["P", "A1", "C2"]:
-        paths, terms, sims = _pathway_terms(mesocosm, "P", target, 200, "uniform", 3, False)
+        paths, terms, sims = _simulate_pathway_effects(mesocosm, "P", target, 200, "uniform", 3, "sample", True)
         result = (terms.shape, terms.sum(axis=1))
         expected = ((200, len(paths)), np.array([effect[responders.index(target)] for effect in sims["effects"]]))
         assert result[0] == expected[0]
@@ -446,7 +446,7 @@ def test_pathway_effects_terms_sum_mesocosm(mesocosm):
 
 def test_pathway_effects_terms_sum_inp1_r_snowshoe_io(snowshoe_io):
     responders = get_nodes(snowshoe_io, "state") + get_nodes(snowshoe_io, "output")
-    paths, terms, sims = _pathway_terms(snowshoe_io, "Inp1", "R", 150, "uniform", 5, False)
+    paths, terms, sims = _simulate_pathway_effects(snowshoe_io, "Inp1", "R", 150, "uniform", 5, "sample", True)
     result = terms.sum(axis=1)
     expected = np.array([effect[responders.index("R")] for effect in sims["effects"]])
     assert len(paths) > 0
@@ -455,7 +455,7 @@ def test_pathway_effects_terms_sum_inp1_r_snowshoe_io(snowshoe_io):
 
 def test_pathway_effects_terms_sum_inp1_out1_snowshoe_io(snowshoe_io):
     responders = get_nodes(snowshoe_io, "state") + get_nodes(snowshoe_io, "output")
-    paths, terms, sims = _pathway_terms(snowshoe_io, "Inp1", "Out1", 150, "uniform", 5, False)
+    paths, terms, sims = _simulate_pathway_effects(snowshoe_io, "Inp1", "Out1", 150, "uniform", 5, "sample", True)
     result = (len(paths), terms.sum(axis=1))
     expected = (4, np.array([effect[responders.index("Out1")] for effect in sims["effects"]]))
     assert result[0] == expected[0]
@@ -489,7 +489,7 @@ def test_pathway_effects_self_response_snowshoe(snowshoe):
 
 
 def test_pathway_effects_uncertain_edges_snowshoe_dashed(snowshoe_dashed):
-    result = pathway_effects(snowshoe_dashed, "R", "P", n_sim=300, seed=2, average_uncertain=True)
+    result = pathway_effects(snowshoe_dashed, "R", "P", n_sim=300, seed=2, uncertain_interactions="sample")
     direct = result[result["Length"] == 1].iloc[0]
     assert direct["Zero"] > 0.2
     assert direct["Positive"] + direct["Zero"] == pytest.approx(1.0)
@@ -534,7 +534,7 @@ def test_pathway_effects_observe_out1_positive_raises_positive_share_snowshoe_io
 
 
 def test_pathway_effects_observe_no_matches_snowshoe_io(snowshoe_io):
-    with pytest.raises(ValueError, match="No simulations matched the observations"):
+    with pytest.raises(RuntimeError, match="Maximum iterations reached"):
         pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=50, seed=1, observe="Out1:0")
 
 
@@ -607,7 +607,7 @@ def test_system_paths_sum_to_adjoint_with_cycle_expansion_complements_snowshoe_r
 def test_pathway_effects_terms_match_system_paths_numerators_snowshoe_rp(snowshoe_rp):
     A = create_matrix(snowshoe_rp)
     symbols = sorted(A.free_symbols, key=str)
-    paths, terms, sims = _pathway_terms(snowshoe_rp, 'R', 'P', 5, 'uniform', 1, False)
+    paths, terms, sims = _simulate_pathway_effects(snowshoe_rp, 'R', 'P', 5, 'uniform', 1, "sample", True)
     numerators = system_paths(snowshoe_rp, 'R', 'P')['Effect']
     expected = []
     for draw in range(5):
@@ -615,3 +615,10 @@ def test_pathway_effects_terms_match_system_paths_numerators_snowshoe_rp(snowsho
         determinant = float((-A).det().subs(values))
         expected.append([float(numerator.subs(values)) / determinant for numerator in numerators])
     assert np.allclose(terms, expected, rtol=1e-9, atol=1e-12)
+
+
+def test_pathway_effects_enumerate_snowshoe_dashed(snowshoe_dashed):
+    result = pathway_effects(snowshoe_dashed, "R", "P", n_sim=50, seed=2, uncertain_interactions="enumerate")
+    direct = result[result["Length"] == 1].iloc[0]
+    assert direct["Zero"] == 0.75
+    assert result["Contribution"].sum() == pytest.approx(1.0)

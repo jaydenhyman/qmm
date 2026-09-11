@@ -122,7 +122,7 @@ def life_expectancy_change(
         perturb: Node to perturb (None for full matrix)
 
     Returns:
-        sp.Matrix: Change in life expectancy for each component
+        sp.Matrix: Change in life expectancy for each state variable
 
     References:
         - Dambacher, J.M., Levins, R., Rossignol, P.A. (2005). Life expectancy change in perturbed communities: Derivation and qualitative analysis. Mathematical Biosciences 197, 1–14.
@@ -170,7 +170,7 @@ def net_life_expectancy_change(
         type: Change in birth or death rate ('birth' or 'death')
 
     Returns:
-        sp.Matrix: Net life expectancy change for each component
+        sp.Matrix: Net life expectancy change for each state variable
 
     References:
         - Dambacher, J.M., Levins, R., Rossignol, P.A. (2005). Life expectancy change in perturbed communities: Derivation and qualitative analysis. Mathematical Biosciences 197, 1–14.
@@ -212,7 +212,7 @@ def absolute_life_expectancy_change(
         type: Change in birth or death rate ('birth' or 'death')
 
     Returns:
-        sp.Matrix: Absolute life expectancy change for each component
+        sp.Matrix: Absolute life expectancy change for each state variable
 
     References:
         - Dambacher, J.M., Levins, R., Rossignol, P.A. (2005). Life expectancy change in perturbed communities: Derivation and qualitative analysis. Mathematical Biosciences 197, 1–14.

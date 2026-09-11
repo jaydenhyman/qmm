@@ -135,7 +135,8 @@ def test_mutual_information_opposite_signs_is_one_bit_no_fixture(weights):
     assert result.equals(expected)
 
 
-def test_mutual_information_aligns_models_by_node_identity(mesocosm_alt_models):
+@pytest.mark.parametrize('stale_first', [False, True])
+def test_mutual_information_aligns_models_by_node_identity(mesocosm_alt_models, snowshoe_io, stale_first):
     G, G_alt = mesocosm_alt_models
     reordered = nx.DiGraph()
     reordered.add_nodes_from(reversed(list(G_alt.nodes(data=True))))
@@ -143,6 +144,15 @@ def test_mutual_information_aligns_models_by_node_identity(mesocosm_alt_models):
     result = mutual_information([G, reordered], 'P:+', n_sim=100, seed=42)
     expected = mutual_information([G, G_alt], 'P:+', n_sim=100, seed=42)
     assert result.equals(expected)
+
+    stale = snowshoe_io.copy()
+    stale.nodes['Out2']['category'] = 'input'
+    original = stale.copy()
+    models = [stale, snowshoe_io] if stale_first else [snowshoe_io, stale]
+    result = mutual_information(models, 'R:+', n_sim=10, seed=42)
+    expected = pd.DataFrame({'Node': ['C', 'Out1', 'Out2', 'P', 'R'], 'Mutual Information': [0] * 5})
+    assert result.equals(expected)
+    assert nx.utils.graphs_equal(stale, original)
 
 
 def test_mutual_information_accepts_alternative_that_isolates_a_self_limited_node(snowshoe):
@@ -157,7 +167,11 @@ def test_mutual_information_accepts_alternative_that_isolates_a_self_limited_nod
 
 
 def test_mutual_information_enumerate_runs_every_structure_snowshoe_dashed(snowshoe_dashed):
-    table = mutual_information([snowshoe_dashed, snowshoe_dashed], perturb='C:+', n_sim=25, seed=1, uncertain_interactions="enumerate")
+    stale = snowshoe_dashed.copy()
+    stale.nodes['C']['category'] = 'input'
+    original = stale.copy()
+    table = mutual_information([stale, snowshoe_dashed], perturb='C:+', n_sim=25, seed=1, uncertain_interactions="enumerate")
     result = (len(table), table["Mutual Information"].max())
     expected = (3, 0.0)
     assert result == expected
+    assert nx.utils.graphs_equal(stale, original)

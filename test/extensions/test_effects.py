@@ -880,17 +880,21 @@ def test_simulations_table_counts_cancelled_presses_as_no_effect():
     assert result[['negative', 'no_effect', 'positive']].sum(axis=1).equals(result['valid_sims'])
 
 
-def test_simulations_table_combines_existing_input_presses():
+@pytest.mark.parametrize('category', ['output', 'input', 'state'])
+def test_simulations_table_combines_existing_input_presses(category):
     G = nx.DiGraph()
     G.add_edge('X', 'X', sign=-1)
     G.add_edge('I1', 'X', sign=1)
     G.add_edge('I2', 'X', sign=1)
     G.add_edge('X', 'Y', sign=1)
     G = define_input_output(G)
+    G.nodes['Y']['category'] = category
+    original = G.copy()
     result = simulations_table(G, 'I1:+, I2:+', n_sim=5)
     assert list(result['effect_on']) == ['X', 'Y']
     assert list(result['positive']) == [5, 5]
     assert list(result['no_effect']) == [0, 0]
+    assert nx.utils.graphs_equal(G, original)
 
 
 def test_nonfinite_responses_are_rejected():

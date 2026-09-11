@@ -92,10 +92,13 @@ def test_compare_model_alternatives_rejects_category_change(dashed_role_change):
 
 
 def test_compare_model_alternatives_no_dashed_edges(snowshoe):
-    df = compare_model_alternatives(snowshoe, perturb='R:+', observe='C:+')
-    result = (len(df), 'Marginal likelihood' in df.columns)
-    expected = (1, True)
-    assert result == expected
+    G = snowshoe.copy()
+    G.nodes['C']['category'] = 'input'
+    original = G.copy()
+    result = compare_model_alternatives(G, perturb='R:+', observe='C:+', n_sim=5)
+    expected = pd.DataFrame({'Marginal likelihood': ['1.000']})
+    assert result.equals(expected)
+    assert nx.utils.graphs_equal(G, original)
 
 
 
@@ -322,11 +325,14 @@ def test_marginal_likelihood_divides_by_stable_draws(mesocosm):
 def test_compare_model_alternatives_fork_dashed_route(fork):
     G = fork.copy()
     G['C']['B']['dashes'] = True
+    G.nodes['B']['category'] = 'input'
+    original = G.copy()
     df = compare_model_alternatives(G, 'A:+', 'B:+', n_sim=4000, seed=42, combinations=False)
     result = (df['Marginal likelihood'][0], df[('C', 'B')][0], df[('C', 'B')][1])
     expected = ('1.000', '', '✓')
     assert result == expected
     assert abs(float(df['Marginal likelihood'][1]) - 0.5) <= 3 * (0.25 / 4000) ** 0.5
+    assert nx.utils.graphs_equal(G, original)
 
 
 def test_posterior_predictions_fork_conditioned_on_observation(fork):
@@ -353,7 +359,9 @@ def test_bayes_factors_fork_against_single_route(fork):
     assert abs(df['Likelihood 1'][0] - 0.5) <= 3 * (0.25 / 4000) ** 0.5
 
 
-def test_bayes_factors_align_models_by_node_identity(mesocosm_alt_models):
+@pytest.mark.parametrize('uncertain_interactions', ['sample', 'enumerate'])
+@pytest.mark.parametrize('stale_first', [False, True])
+def test_bayes_factors_align_models_by_node_identity(mesocosm_alt_models, snowshoe_io, uncertain_interactions, stale_first):
     G, G_alt = mesocosm_alt_models
     reordered = nx.DiGraph()
     reordered.add_nodes_from(reversed(list(G_alt.nodes(data=True))))
@@ -361,6 +369,18 @@ def test_bayes_factors_align_models_by_node_identity(mesocosm_alt_models):
     result = bayes_factors([G, reordered], 'P:+', 'AP:+, C2:+', n_sim=100, seed=42)
     expected = bayes_factors([G, G_alt], 'P:+', 'AP:+, C2:+', n_sim=100, seed=42)
     assert result.equals(expected)
+
+    G = nx.DiGraph(snowshoe_io)
+    G.add_edge('C', 'C', sign=-1, dashes=True)
+    stale = G.copy()
+    stale.nodes['Out2']['category'] = 'input'
+    original = stale.copy()
+    models = [stale, G] if stale_first else [G, stale]
+    result = bayes_factors(models, 'R:+', 'Out2:+', n_sim=10, seed=42, uncertain_interactions=uncertain_interactions)
+    expected = pd.DataFrame({'Model comparison': ['Model A/Model B'], 'Likelihood 1': [1.0], 'Likelihood 2': [1.0], 'Bayes factor': [1.0]})
+    assert result.equals(expected)
+    assert nx.utils.graphs_equal(stale, original)
+    assert stale in models
 
 
 def test_bayes_factors_accepts_alternative_that_isolates_a_self_limited_node(snowshoe):

@@ -54,10 +54,10 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
     if not np.isfinite(base) or base <= 1:
         raise ValueError("base must be finite and greater than 1.")
     models = [models] if not isinstance(models, (list, tuple)) else list(models)
-    models = [nx.DiGraph(G) if not isinstance(G, nx.DiGraph) else G for G in models]
-    categories = dict(define_input_output(models[0]).nodes(data="category"))
+    models = [define_input_output(G if isinstance(G, nx.DiGraph) else nx.DiGraph(G)) for G in models]
+    categories = dict(models[0].nodes(data="category"))
     for i, G in enumerate(models[1:], start=1):
-        fresh = dict(define_input_output(G).nodes(data="category"))
+        fresh = dict(G.nodes(data="category"))
         if fresh.keys() != categories.keys():
             raise ValueError(f"Model {chr(65 + i)} has different nodes: {sorted(fresh.keys() ^ categories.keys())}")
         changed = [n for n in categories if fresh[n] != categories[n]]

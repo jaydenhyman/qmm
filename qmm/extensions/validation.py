@@ -107,6 +107,7 @@ def compare_model_alternatives(
         # 1               0.526
         ```
     """
+    G = define_input_output(G)
     interactions = _group_uncertain_edges(G, pair_reciprocal)
     dashed_edges = [edge for group in interactions for edge in group]
     if not interactions:
@@ -117,9 +118,10 @@ def compare_model_alternatives(
         variants = [_build_model_variant(G, interactions, [True] * len(interactions)), _build_model_variant(G, interactions, [False] * len(interactions))]
     edge_presence = [[g.has_edge(u, v) for u, v in dashed_edges] for g in variants]
 
-    categories = dict(define_input_output(G).nodes(data="category"))
+    variants = [define_input_output(g) for g in variants]
+    categories = dict(G.nodes(data="category"))
     for g in variants:
-        changed = [n for n, c in define_input_output(g).nodes(data="category") if c != categories[n]]
+        changed = [n for n, c in g.nodes(data="category") if c != categories[n]]
         if changed:
             raise ValueError(f"Node {', '.join(changed)} changes category across model alternatives")
     likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in variants]
@@ -310,11 +312,11 @@ def bayes_factors(
         # 0  Model A/Model B         0.526         0.474      1.109705
         ```
     """
-    graphs = list(G_list) if isinstance(G_list, tuple) else G_list
+    graphs = [define_input_output(g) for g in G_list]
     model_names = names if names and len(names) == len(graphs) else [f"Model {chr(65+i)}" for i in range(len(graphs))]
-    categories = dict(define_input_output(graphs[0]).nodes(data="category"))
+    categories = dict(graphs[0].nodes(data="category"))
     for name, g in zip(model_names[1:], graphs[1:]):
-        fresh = dict(define_input_output(g).nodes(data="category"))
+        fresh = dict(g.nodes(data="category"))
         if fresh.keys() != categories.keys():
             raise ValueError(f"{name} has different nodes: {sorted(fresh.keys() ^ categories.keys())}")
         changed = [n for n in categories if fresh[n] != categories[n]]

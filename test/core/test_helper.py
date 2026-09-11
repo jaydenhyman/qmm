@@ -368,6 +368,29 @@ def test_sign_determinacy_overflow_guard_inline_scalars():
     assert result[0, 0] == expected
 
 
+def test_sign_determinacy_hosack_2008_constants_inline_matrices():
+    weights = sp.Matrix([[sp.Rational(1, 2), sp.Rational(-1, 4)], [sp.Rational(3, 4), sp.Rational(1, 10)]])
+    totals = sp.Matrix([[4, 8], [20, 100]])
+    result = [sign_determinacy(weights, totals, method=method) for method in ("average", "95_bound")]
+
+    def average(w, t):
+        x = 3.45962 * w + 0.03417 * w * t
+        return max(0.5, np.exp(x) / (1 + np.exp(x)))
+
+    def bound(w, t):
+        x = 9.766 * w + 0.139 * w * t
+        return max(0.5, np.exp(x) / (1253.992 + np.exp(x)))
+
+    expected = [
+        sp.Matrix(2, 2, lambda i, j: sp.sign(weights[i, j]) * fit(abs(float(weights[i, j])), float(totals[i, j])))
+        for fit in (average, bound)
+    ]
+    assert all(
+        abs(float(result[k][i, j]) - float(expected[k][i, j])) < 1e-12
+        for k in range(2) for i in range(2) for j in range(2)
+    )
+
+
 def test_sign_determinacy_overflow_guard_95_bound_inline_scalars():
     w = sp.Matrix([[0.7]])
     t = sp.Matrix([[2000]])

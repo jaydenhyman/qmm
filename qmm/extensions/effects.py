@@ -7,6 +7,7 @@ import itertools
 import networkx as nx
 from ..core.helper import (
     _build_model_variant,
+    _check_direct_io_edges,
     _group_uncertain_edges,
     get_nodes,
     get_weight,
@@ -95,9 +96,9 @@ def cumulative_effects(
         raise ValueError("Invalid form. Choose 'symbolic', 'signed', 'binary'.")
     B = create_matrix(G, form=form, matrix_type="B")
     C = create_matrix(G, form=form, matrix_type="C")
-    D = create_matrix(G, form=form, matrix_type="D")
+    _check_direct_io_edges(G)
     effects = absolute_feedback_matrix(G) if form == "binary" else adjoint_matrix(G, form=form)
-    cemat = sp.BlockMatrix([[effects, effects * B], [C * effects, C * effects * B + D]]).as_explicit()
+    cemat = sp.BlockMatrix([[effects, effects * B], [C * effects, C * effects * B]]).as_explicit()
     if form != "symbolic":
         cemat = cemat.subs({sym: 1 for sym in cemat.free_symbols})
     return sp.expand(cemat)

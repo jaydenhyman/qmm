@@ -216,6 +216,12 @@ def test_cumulative_effects_invalid_form_snowshoe_io(snowshoe_io):
     expected = "Invalid form. Choose 'symbolic', 'signed', 'binary'."
     assert result == expected
 
+
+@pytest.mark.parametrize('form', ['symbolic', 'signed', 'binary'])
+def test_cumulative_effects_rejects_direct_io_edge(snowshoe_io_with_direct_edge, form):
+    with pytest.raises(ValueError, match="Direct input to output edge"):
+        cumulative_effects(snowshoe_io_with_direct_edge, form=form)
+
 # =============================================================================
 # absolute_effects
 # =============================================================================

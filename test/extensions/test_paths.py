@@ -1,5 +1,6 @@
 """Tests for qmm.extensions.paths module using snowshoe_io fixture."""
 
+import itertools
 import numpy as np
 import pytest
 import pandas as pd
@@ -7,6 +8,7 @@ import sympy as sp
 import networkx as nx
 
 from qmm.core.helper import get_nodes
+from qmm.core.structure import create_matrix
 from qmm.core.stability import system_feedback
 from qmm.extensions.effects import cumulative_effects
 from qmm.extensions.paths import (
@@ -569,3 +571,47 @@ def test_pathway_effects_reflects_changed_edge_sign():
     result = pathway_effects(G, "A", "B", n_sim=10)
     assert result.loc[0, "Sign"] == "−"
     assert result.loc[0, "Negative"] == 1
+
+
+def _subsystem_feedback(G, nodes):
+    A = create_matrix(G)
+    index = {node: i for i, node in enumerate(get_nodes(G, 'state'))}
+    cycles = list(nx.simple_cycles(G.subgraph(nodes)))
+    feedback = sp.Integer(-1) if not nodes else sp.Integer(0)
+    for m in range(1, len(nodes) + 1):
+        for combination in itertools.combinations(cycles, m):
+            covered = [node for cycle in combination for node in cycle]
+            if len(covered) != len(set(covered)) or len(covered) != len(nodes):
+                continue
+            links = [(a, b) for cycle in combination for a, b in zip(cycle, cycle[1:] + cycle[:1])]
+            feedback += (-1) ** (m + 1) * sp.prod([A[index[b], index[a]] for a, b in links])
+    return sp.expand(feedback)
+
+
+def test_system_paths_sum_to_adjoint_with_cycle_expansion_complements_snowshoe_rp(snowshoe_rp):
+    states = get_nodes(snowshoe_rp, 'state')
+    adjoint = cumulative_effects(snowshoe_rp)
+    result = []
+    expected = []
+    for source in states:
+        for target in states:
+            paths = system_paths(snowshoe_rp, source, target)
+            complements = complementary_feedback(snowshoe_rp, source, target)
+            result.append((sp.expand(sum(paths['Effect'])), [sp.expand(f) for f in complements['Feedback']]))
+            remaining = [[n for n in states if n not in path] for path in complements['Path']]
+            expected.append((sp.expand(adjoint[states.index(target), states.index(source)]),
+                             [_subsystem_feedback(snowshoe_rp, nodes) for nodes in remaining]))
+    assert result == expected
+
+
+def test_pathway_effects_terms_match_system_paths_numerators_snowshoe_rp(snowshoe_rp):
+    A = create_matrix(snowshoe_rp)
+    symbols = sorted(A.free_symbols, key=str)
+    paths, terms, sims = _pathway_terms(snowshoe_rp, 'R', 'P', 5, 'uniform', 1, False)
+    numerators = system_paths(snowshoe_rp, 'R', 'P')['Effect']
+    expected = []
+    for draw in range(5):
+        values = {symbol: float(sims['samples'][str(symbol)][draw]) for symbol in symbols}
+        determinant = float((-A).det().subs(values))
+        expected.append([float(numerator.subs(values)) / determinant for numerator in numerators])
+    assert np.allclose(terms, expected, rtol=1e-9, atol=1e-12)

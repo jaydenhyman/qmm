@@ -3,7 +3,8 @@
 import pytest
 import sympy as sp
 
-from qmm.core.helper import get_nodes
+from qmm.core.helper import get_nodes, list_to_digraph
+from qmm.core.structure import create_matrix
 from qmm.extensions.life import (
     birth_matrix,
     death_matrix,
@@ -482,3 +483,18 @@ def test_weighted_predictions_life_expectancy_invalid_type_coverage(snowshoe):
     with pytest.raises(ValueError, match="type must be either 'birth' or 'death'"):
         weighted_predictions_life_expectancy(snowshoe, type="invalid")
 
+
+def test_life_expectancy_change_death_input_equals_birth_input_plus_determinant_snowshoe_rp(snowshoe_rp):
+    A = create_matrix(snowshoe_rp)
+    result = sp.expand(life_expectancy_change(snowshoe_rp, type='death') - life_expectancy_change(snowshoe_rp, type='birth'))
+    expected = (-A).det() * sp.eye(A.rows)
+    assert result == expected
+
+
+def test_life_expectancy_counts_match_supplement_example_no_fixture():
+    G = list_to_digraph([[-1, -1, 0], [1, -1, -1], [0, 1, -1]], ['1', '2', '3'])
+    result = (net_life_expectancy_change(G, type='birth'), absolute_life_expectancy_change(G, type='birth'),
+              net_life_expectancy_change(G, type='death'), absolute_life_expectancy_change(G, type='death'))
+    expected = (sp.Matrix([[-3, 0, 0], [-2, -2, -1], [-1, -1, -2]]), sp.Matrix([[3, 0, 0], [2, 2, 1], [1, 1, 2]]),
+                sp.Matrix([[0, 0, 0], [-2, 1, -1], [-1, -1, 1]]), sp.Matrix([[0, 0, 0], [2, 1, 1], [1, 1, 1]]))
+    assert result == expected

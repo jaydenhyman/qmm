@@ -730,6 +730,9 @@ def stability_analysis(
 ) -> pd.DataFrame:
     """Append sign, conditional and simulation stability results into one table.
 
+    When conditional stability cannot be computed, its rows are kept and marked
+    unavailable with the reason; the other sections are unaffected.
+
     Args:
         G: NetworkX DiGraph representing signed digraph model
         n_sim: Number of simulations (default 10000)
@@ -740,10 +743,23 @@ def stability_analysis(
     Returns:
         pd.DataFrame: Combined Test, Definition and Result columns
     """
+    sign = sign_stability(G)
+    try:
+        conditional = conditional_stability(G)
+    except ValueError as error:
+        conditional = pd.DataFrame({
+            "Test": ["Weighted feedback", "Weighted determinant",
+                     "Ratio to model-c system", "Model class"],
+            "Definition": ["Maximum weighted feedback",
+                           "Weighted determinant at level n-1",
+                           "Ratio to a 'model-c' type system",
+                           "Class of the model based on conditional stability metrics"],
+            "Result": f"Unavailable: {error}",
+        })
     return pd.concat(
         [
-            sign_stability(G),
-            conditional_stability(G),
+            sign,
+            conditional,
             simulation_stability(G, n_sim=n_sim, dist=dist, seed=seed, presample=presample),
         ],
         ignore_index=True,

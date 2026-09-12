@@ -814,6 +814,17 @@ def test_conditional_stability_missing_feedback_raises():
         conditional_stability(list_to_digraph([[0, -1], [1, 0]], ["A", "B"]))
 
 
+def test_stability_analysis_keeps_available_sections_when_conditional_is_unavailable():
+    G = list_to_digraph([[0, -1], [1, 0]], ["A", "B"])
+    presample = np.ones((2, 2, 2))
+    result = stability_analysis(G, n_sim=2, presample=presample).set_index("Test")["Result"]
+    expected = simulation_stability(G, n_sim=2, presample=presample).set_index("Test")["Result"]
+    assert result["Sign stable"] == sign_stability(G)["Result"].iloc[-1]
+    assert result["Stable matrices"] == expected["Stable matrices"]
+    assert result["Weighted feedback"] == "Unavailable: No feedback terms at level 1"
+    assert result["Model class"] == "Unavailable: No feedback terms at level 1"
+
+
 def test_sign_stability_and_level_zero_feedback_beyond_63_states():
     G = list_to_digraph((-np.eye(64)).astype(int).tolist(), [f"n{i}" for i in range(64)])
     assert sign_stability(G)["Result"].iloc[-1]

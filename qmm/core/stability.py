@@ -533,7 +533,7 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
         conditional_stability(load_digraph("snowshoe_rp"))
         #                       Test                                                 Definition   Result
         # 0        Weighted feedback                        Maximum weighted feedback (level 3)    -0.33
-        # 1     Weighted determinant                          n-1 weighted determinant at level     0.56
+        # 1     Weighted determinant                            Weighted determinant at level 2     0.56
         # 2  Ratio to model-c system                           Ratio to a 'model-c' type system      1.7
         # 3              Model class  Class of the model based on conditional stability metrics  Class I
         ```
@@ -601,7 +601,9 @@ def simulation_stability(
             - "strong": Beta(3, 1) - strong interactions predominate
             - "uniform_two_oom": Uniform(0.01, 1)
         seed: Random seed
-        presample: Optional finite nonnegative strengths of shape (n_sim, n, n) to use instead of random sampling
+        presample: Optional finite nonnegative strengths of shape (n_sim, n, n)
+            instead of random sampling. Axes are simulation, affected state and
+            affecting state, in get_nodes(G, "state") order. The graph supplies signs.
 
     Returns:
         pd.DataFrame: Proportion of stable matrices and proportion that fail Hurwitz criteria
@@ -738,7 +740,7 @@ def stability_analysis(
         n_sim: Number of simulations (default 10000)
         dist: Interaction-strength distribution, as in simulation_stability
         seed: Random seed (default 42)
-        presample: Optional strengths to pass to simulation_stability
+        presample: Optional strengths array of shape (n_sim, n, n), as in simulation_stability
 
     Returns:
         pd.DataFrame: Combined Test, Definition and Result columns

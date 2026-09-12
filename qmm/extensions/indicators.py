@@ -44,8 +44,8 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         G2.remove_edge('C', 'P')
         mutual_information((G1, G2), perturb='R:+', n_sim=1000)
         #   Node  Mutual Information
-        # 0    R            0.513827
-        # 1    P            0.456516
+        # 0    P            0.693147
+        # 1    R            0.693147
         # 2    C            0.153711
         ```
     """

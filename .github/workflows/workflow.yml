@@ -36,6 +36,7 @@ jobs:
     - name: Run tests
       run: |
         uv run pytest test/
+        uv run pytest docs/getting-started.md --doctest-glob='*.md' -o doctest_optionflags=NORMALIZE_WHITESPACE
       env:
         PYTHONPATH: ${{ github.workspace }}
 

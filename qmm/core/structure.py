@@ -171,6 +171,8 @@ def create_matrix(
         ```
     """
 
+    if form not in ("symbolic", "signed", "binary"):
+        raise ValueError("Invalid form. Choose 'symbolic', 'signed', 'binary'.")
     invalid = get_nodes(G, "invalid")
     if invalid:
         raise ValueError(f"Invalid nodes: {invalid}")
@@ -201,6 +203,8 @@ def create_matrix(
         "C": (output_n, state_n, "c", "output"),
         "D": (output_n, input_n, "d", "input"),
     }
+    if matrix_type not in matrix_configs:
+        raise ValueError("Invalid matrix type. Choose 'A', 'B', 'C', 'D'.")
     rows, cols, prefix, category = matrix_configs[matrix_type]
     matrix = sp.zeros(len(rows), len(cols))
     if matrix_type == "D":

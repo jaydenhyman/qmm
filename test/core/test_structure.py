@@ -5,6 +5,8 @@ import warnings
 import networkx as nx
 import pytest
 import sympy as sp
+from qmm.core.press import adjoint_matrix
+from qmm.extensions.life import life_expectancy_change
 
 from qmm.core.structure import (
     import_digraph,
@@ -15,6 +17,10 @@ from qmm.core.structure import (
     edges_table,
 )
 
+
+# =============================================================================
+# import_digraph()
+# =============================================================================
 
 @pytest.mark.parametrize("attributes", [
     {}, {"sign": 0}, {"sign": True}, {"sign": "-1"}, {"sign": None},
@@ -31,19 +37,6 @@ def test_import_digraph_rejects_invalid_signs_and_arrows(attributes):
     with pytest.raises(ValueError, match="A.*A"):
         import_digraph(data, file_path=False)
 
-
-def test_create_output_equations_without_external_inputs():
-    graph = nx.DiGraph()
-    graph.add_node('X', category='state')
-    graph.add_node('Y', category='output')
-    graph.add_edge('X', 'X', sign=-1)
-    graph.add_edge('X', 'Y', sign=1)
-    assert create_equations(graph, form='output') == sp.Matrix([
-        sp.Symbol('c_Y,X') * sp.Symbol('x_X')])
-
-# =============================================================================
-# import_digraph()
-# =============================================================================
 
 @pytest.mark.parametrize("reverse", [False, True])
 def test_import_digraph_derives_roles_and_preserves_components(reverse):
@@ -151,6 +144,16 @@ def test_import_digraph_node_attributes_inline_data():
 # =============================================================================
 # create_matrix()
 # =============================================================================
+
+@pytest.mark.parametrize("function", [create_matrix, adjoint_matrix, life_expectancy_change])
+def test_create_matrix_invalid_form_snowshoe(snowshoe, function):
+    with pytest.raises(ValueError, match="^Invalid form"):
+        function(snowshoe, form="invalid")
+
+
+def test_create_matrix_invalid_matrix_type_snowshoe(snowshoe):
+    with pytest.raises(ValueError, match="^Invalid matrix type. Choose 'A', 'B', 'C', 'D'.$"):
+        create_matrix(snowshoe, matrix_type="invalid")
 
 def test_create_matrix_form_signed_snowshoe(snowshoe):
     A = create_matrix(snowshoe, form='signed')
@@ -336,6 +339,16 @@ def test_create_matrix_form_symbolic_mesocosm(mesocosm):
 # =============================================================================
 # create_equations()
 # =============================================================================
+
+def test_create_output_equations_without_external_inputs():
+    graph = nx.DiGraph()
+    graph.add_node('X', category='state')
+    graph.add_node('Y', category='output')
+    graph.add_edge('X', 'X', sign=-1)
+    graph.add_edge('X', 'Y', sign=1)
+    assert create_equations(graph, form='output') == sp.Matrix([
+        sp.Symbol('c_Y,X') * sp.Symbol('x_X')])
+
 
 def test_create_equations_form_state_snowshoe(snowshoe):
     result = create_equations(snowshoe, form='state')

@@ -1,6 +1,6 @@
 """Tests for qmm.extensions.paths module using snowshoe_io fixture."""
 
-import itertools
+from test.feedback import cycle_expansion
 import numpy as np
 import pytest
 import pandas as pd
@@ -552,40 +552,20 @@ def test_tables_are_fresh_objects_snowshoe_io(snowshoe_io):
     assert list(paths_table(snowshoe_io, "Inp1", "Out1")["Path"]) != ["edited"] * len(paths)
 
 
-def test_pathway_effects_no_route_returns_empty_table():
-    G = nx.DiGraph()
-    for n in "AB":
-        G.add_node(n, category="state")
-        G.add_edge(n, n, sign=-1)
+def test_pathway_effects_no_route_returns_empty_table(self_limited_pair):
+    G = self_limited_pair
     result = pathway_effects(G, "A", "B", n_sim=10)
     assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"]
 
 
-def test_pathway_effects_reflects_changed_edge_sign():
-    G = nx.DiGraph()
-    G.add_nodes_from("AB", category="state")
-    G.add_edges_from([("A", "A"), ("B", "B")], sign=-1)
+def test_pathway_effects_reflects_changed_edge_sign(self_limited_pair):
+    G = self_limited_pair
     G.add_edge("A", "B", sign=1)
     assert pathway_effects(G, "A", "B", n_sim=10).loc[0, "Positive"] == 1
     G["A"]["B"]["sign"] = -1
     result = pathway_effects(G, "A", "B", n_sim=10)
     assert result.loc[0, "Sign"] == "−"
     assert result.loc[0, "Negative"] == 1
-
-
-def _subsystem_feedback(G, nodes):
-    A = create_matrix(G)
-    index = {node: i for i, node in enumerate(get_nodes(G, 'state'))}
-    cycles = list(nx.simple_cycles(G.subgraph(nodes)))
-    feedback = sp.Integer(-1) if not nodes else sp.Integer(0)
-    for m in range(1, len(nodes) + 1):
-        for combination in itertools.combinations(cycles, m):
-            covered = [node for cycle in combination for node in cycle]
-            if len(covered) != len(set(covered)) or len(covered) != len(nodes):
-                continue
-            links = [(a, b) for cycle in combination for a, b in zip(cycle, cycle[1:] + cycle[:1])]
-            feedback += (-1) ** (m + 1) * sp.prod([A[index[b], index[a]] for a, b in links])
-    return sp.expand(feedback)
 
 
 def test_system_paths_sum_to_adjoint_with_cycle_expansion_complements_snowshoe_rp(snowshoe_rp):
@@ -600,7 +580,7 @@ def test_system_paths_sum_to_adjoint_with_cycle_expansion_complements_snowshoe_r
             result.append((sp.expand(sum(paths['Effect'])), [sp.expand(f) for f in complements['Feedback']]))
             remaining = [[n for n in states if n not in path] for path in complements['Path']]
             expected.append((sp.expand(adjoint[states.index(target), states.index(source)]),
-                             [_subsystem_feedback(snowshoe_rp, nodes) for nodes in remaining]))
+                             [cycle_expansion(snowshoe_rp.subgraph(nodes))[0][-1] for nodes in remaining]))
     assert result == expected
 
 

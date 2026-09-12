@@ -123,9 +123,9 @@ def compare_model_alternatives(
     for g in variants:
         changed = [n for n, c in g.nodes(data="category") if c != categories[n]]
         if changed:
-            raise ValueError(f"Node {', '.join(changed)} changes category across model alternatives")
+            raise ValueError(f"Nodes change category: {', '.join(map(str, changed))}")
     likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed) for g in variants]
-    edge_cols = [(u, v) for u, v in dashed_edges]
+    edge_cols = dashed_edges
     rows = [
         {"Marginal likelihood": likelihoods[i], **{edge_cols[j]: "\u2713" if edge_presence[i][j] else "" for j in range(len(dashed_edges))}}
         for i in range(len(variants))
@@ -158,7 +158,7 @@ def posterior_predictions(
         dist: Distribution for sampling
         seed: Random seed
         positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
-        presample: Optional callable passed through to get_simulations
+        presample: Optional callable passed through to iter_simulations
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
@@ -321,7 +321,7 @@ def bayes_factors(
             raise ValueError(f"{name} has different nodes: {sorted(fresh.keys() ^ categories.keys())}")
         changed = [n for n in categories if fresh[n] != categories[n]]
         if changed:
-            raise ValueError(f"{name}: node {', '.join(changed)} changes category")
+            raise ValueError(f"{name}: Nodes change category: {', '.join(map(str, changed))}")
     likelihoods = [marginal_likelihood(g, perturb, observe, n_sim, dist, seed, uncertain_interactions, pair_reciprocal) for g in graphs]
 
     comparisons = [(i, j) for i in range(len(graphs)) for j in range(i + 1, len(graphs))]

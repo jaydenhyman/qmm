@@ -249,10 +249,38 @@ def get_simulations(
 ) -> Dict[str, Any]:
     """Collect numerical simulations; see iter_simulations for sampling options.
 
-    n_sim counts stable draws matching observe, per structure when uncertain_interactions='enumerate'.
-    The result also includes rejected observations among stable draws in effects,
-    with valid_sims identifying matches. return_samples includes their strengths.
-    For large enumerations, use iter_simulations to process one structure at a time.
+    Args:
+        G: Signed digraph with state, input and output categories.
+        n_sim: Stable draws matching observe, per enumerated structure or sampled batch.
+        dist: Distribution of interaction strengths.
+        seed: Random seed.
+        perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
+        observe: Optional (node, sign) pairs; signs are -1, 0 or 1.
+        presample: Callable receiving coefficient symbols and returning substitutions.
+        return_samples: Include coefficient strengths for each stable draw.
+        uncertain_interactions: Sample uncertain interactions or enumerate every structure.
+        pair_reciprocal: Keep or drop reciprocal dashed edges together.
+        max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
+
+    Returns:
+        Dictionary with effects, valid_sims, all_nodes, tmat, prop_stable,
+        attempts, n_stable, structures, and optionally samples. All stable draws
+        are retained; valid_sims flags observation matches. structures contains
+        the bit mask of present uncertain interactions for each draw.
+
+    Raises:
+        ValueError: Invalid sampling options or incompatible node categories.
+        RuntimeError: A batch cannot reach n_sim within max_attempts.
+
+    Examples:
+        ```python
+        from qmm import get_simulations, load_digraph
+        result = get_simulations(load_digraph("snowshoe"), n_sim=10, seed=42)
+        len(result["effects"])
+        # 10
+        result["effects"][0].shape
+        # (3, 3)
+        ```
     """
     batches = iter_simulations(G, n_sim, dist, seed, perturb, observe, presample,
                                return_samples, uncertain_interactions, pair_reciprocal, max_attempts=max_attempts)
@@ -413,7 +441,7 @@ def iter_simulations(
                 variant = define_input_output(_build_model_variant(G, interactions, present))
                 changed = [n for n, category in variant.nodes(data="category") if category != base_cls[n]]
                 if changed:
-                    raise ValueError(f"Nodes change category: {changed}")
+                    raise ValueError(f"Nodes change category: {', '.join(map(str, changed))}")
                 if not n_u and not n_y and all(variant.has_edge(node, node) for node in state):
                     reachable = [nx.descendants(variant, node) | {node}
                                  for node in ([node for node, _ in presses] if p_cols else state)]
@@ -426,23 +454,6 @@ def iter_simulations(
                 else:
                     masks[code] = no_effect_cells(np.asarray(absolute_effects(variant), dtype=int))
         return code, masks[code]
-
-    def draw(present=None):
-        values = _random_sampler(dist, len(symbols_sampled), rng)
-        if fixed_fn:
-            values[fixed_indices] = fixed_fn(*values)
-        if present is None:
-            present = tuple(rng.uniform(size=len(interactions)) < rng.uniform()) if interactions else ()
-        code, mask = get_zero_effect_mask(present)
-        values[[i for keep, idx in zip(present, group_idx) if not keep for i in idx]] = 0.0
-        effect = evaluate_sample(values, mask)
-        if effect is not None:
-            effects.append(effect)
-            structure_ids.append(code)
-            valid_sims.append(all(np.sign(effect[response_idx[node]]) == obs for node, obs in observe or ()))
-            if return_samples:
-                samples.append(values)
-        return effect is not None and (not condition or valid_sims[-1])
 
     sampled_index = {sym: i for i, sym in enumerate(symbols_sampled)}
     sample_functions = {
@@ -458,7 +469,22 @@ def iter_simulations(
             masks.clear()
         while drawn < n_sim and attempts < max_attempts:
             attempts += 1
-            drawn += draw(present)
+            sampled_structure = present
+            values = _random_sampler(dist, len(symbols_sampled), rng)
+            if fixed_fn:
+                values[fixed_indices] = fixed_fn(*values)
+            if sampled_structure is None:
+                sampled_structure = tuple(rng.uniform(size=len(interactions)) < rng.uniform()) if interactions else ()
+            code, mask = get_zero_effect_mask(sampled_structure)
+            values[[i for keep, idx in zip(sampled_structure, group_idx) if not keep for i in idx]] = 0.0
+            effect = evaluate_sample(values, mask)
+            if effect is not None:
+                effects.append(effect)
+                structure_ids.append(code)
+                valid_sims.append(all(np.sign(effect[response_idx[node]]) == obs for node, obs in observe or ()))
+                if return_samples:
+                    samples.append(values)
+            drawn += effect is not None and (not condition or valid_sims[-1])
         if drawn < n_sim:
             label = f" for structure {get_zero_effect_mask(present)[0]}" if present is not None else ""
             raise RuntimeError(f"Maximum iterations reached{label}. Matched {drawn}/{n_sim} draws.")
@@ -598,7 +624,7 @@ def simulations_table(
     for g in variants:
         changed = [n for n, c in g.nodes(data="category") if c != categories[n]]
         if changed:
-            raise ValueError(f"Node {', '.join(changed)} changes category across model alternatives")
+            raise ValueError(f"Nodes change category: {', '.join(map(str, changed))}")
     observations = _parse_observations(observe) if observe else None
     rows = []
 

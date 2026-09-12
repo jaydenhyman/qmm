@@ -87,7 +87,7 @@ def test_compare_model_alternatives_combinations_false(snowshoe_dashed):
     assert result == expected
 
 def test_compare_model_alternatives_rejects_category_change(dashed_role_change):
-    with pytest.raises(ValueError, match="Node C changes category across model alternatives"):
+    with pytest.raises(ValueError, match="^Nodes change category: C$"):
         compare_model_alternatives(dashed_role_change, perturb="A:+", observe="B:+", n_sim=10)
 
 
@@ -154,21 +154,15 @@ def test_posterior_predictions_no_matching_simulations_raises(mesocosm):
         posterior_predictions(mesocosm, perturb='P:+', observe='A1:-, A2:-, AP:-, H1:-, H2:-, C1:-, C2:-', n_sim=100, seed=42)
 
 
-def test_posterior_predictions_structural_no_path_stays_nan():
-    G = nx.DiGraph()
-    for n in "AB":
-        G.add_node(n, category="state")
-        G.add_edge(n, n, sign=-1)
+def test_posterior_predictions_structural_no_path_stays_nan(self_limited_pair):
+    G = self_limited_pair
     result = posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, seed=1, max_attempts=20)
     assert float(result[0]) == 1.0 and result[1] is sp.nan
     with pytest.raises(RuntimeError, match="Matched 19/20 draws"):
         posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, max_attempts=19)
 
-def test_posterior_predictions_simultaneous_cancellation_matches_zero_observation():
-    G = nx.DiGraph()
-    for node in 'AB':
-        G.add_node(node, category='state')
-        G.add_edge(node, node, sign=-1)
+def test_posterior_predictions_simultaneous_cancellation_matches_zero_observation(self_limited_pair):
+    G = self_limited_pair
     G.add_edge('A', 'B', sign=1)
     result = posterior_predictions(
         G, perturb='A:+, B:-', observe='B:0', n_sim=5,
@@ -264,7 +258,7 @@ def test_bayes_factors_rejects_different_nodes(snowshoe):
 def test_bayes_factors_rejects_category_change(snowshoe):
     other = nx.DiGraph(snowshoe)
     other.remove_edges_from([('C', 'R'), ('C', 'P')])
-    with pytest.raises(ValueError, match="Model B: node C changes category"):
+    with pytest.raises(ValueError, match="^Model B: Nodes change category: C$"):
         bayes_factors([snowshoe, other], perturb='R:+', observe='C:+', n_sim=10)
 
 

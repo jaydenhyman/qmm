@@ -59,7 +59,7 @@ def test_mutual_information_rejects_different_nodes(snowshoe):
 def test_mutual_information_rejects_category_change(snowshoe):
     G2 = snowshoe.copy()
     G2.remove_edges_from([('C', 'R'), ('C', 'P')])
-    with pytest.raises(ValueError, match="Model B: node C changes category"):
+    with pytest.raises(ValueError, match="^Model B: Nodes change category: C$"):
         mutual_information((snowshoe, G2), perturb='R:+', n_sim=100, seed=42)
 
 

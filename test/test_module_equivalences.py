@@ -1,12 +1,13 @@
 """Equivalences between qmm modules."""
 
-import itertools
+from test.feedback import cycle_expansion
 
+import networkx as nx
 import numpy as np
 import pytest
 import sympy as sp
 
-from qmm.core.helper import get_nodes, get_weight, load_digraph
+from qmm.core.helper import _edge_prefix, get_nodes, get_weight, load_digraph
 from qmm.core.press import (
     absolute_feedback_matrix,
     adjoint_matrix,
@@ -18,13 +19,28 @@ from qmm.core.structure import create_matrix
 from qmm.extensions.effects import cumulative_effects, direct_effects, get_simulations
 from qmm.extensions.indicators import mutual_information
 from qmm.extensions.life import birth_matrix, death_matrix, life_expectancy_change
-from qmm.extensions.paths import complementary_feedback, get_cycles, system_paths, weighted_paths
+from qmm.extensions.paths import complementary_feedback, system_paths, weighted_paths
 from qmm.extensions.senstability import (
     absolute_structural_sensitivity,
     net_structural_sensitivity,
     structural_sensitivity,
 )
 from qmm.extensions.validation import marginal_likelihood
+
+
+@pytest.fixture
+def io_and_state_model(request):
+    """Input-output model, the same model with self-limited input and output states, and their symbol map."""
+    G = request.getfixturevalue(request.param)
+    H = nx.DiGraph()
+    H.add_nodes_from((node, {**data, "category": "state"}) for node, data in G.nodes(data=True))
+    H.add_edges_from(G.edges(data=True))
+    H.add_edges_from((node, node, {"sign": -1}) for node in get_nodes(G, "input") + get_nodes(G, "output"))
+    symbols = {sp.Symbol(f"a_{v},{u}"): sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")
+               for u, v in G.edges() if _edge_prefix(G, u, v) != "a"}
+    symbols.update({sp.Symbol(f"a_{node},{node}"): sp.Integer(1)
+                    for node in get_nodes(G, "input") + get_nodes(G, "output")})
+    return G, H, symbols
 
 
 # =============================================================================
@@ -140,15 +156,7 @@ def test_perturb_argument_matches_the_full_matrix_column(model):
 @pytest.mark.parametrize("model", ["snowshoe_rp", "chain"])
 def test_disjoint_cycle_combinations_match_system_feedback(model):
     G = load_digraph(model)
-    cycles = get_cycles(G)
-    n = len(get_nodes(G, "state"))
-    feedback = [sp.Integer(-1)] + [sp.Integer(0)] * n
-    for size in range(1, n + 1):
-        for combination in itertools.combinations(zip(cycles["Cycle"], cycles["Product"]), size):
-            covered = [node for cycle, _ in combination for node in cycle]
-            if len(covered) == len(set(covered)):
-                feedback[len(covered)] += (-1) ** (size + 1) * sp.prod([product for _, product in combination])
-    result = sp.Matrix(feedback).applyfunc(sp.expand)
+    result, _ = cycle_expansion(G)
     expected = system_feedback(G).applyfunc(sp.expand)
     assert result == expected
 

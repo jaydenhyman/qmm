@@ -40,6 +40,8 @@ def birth_matrix(
         # [1, 1, 0]])
         ```
     """
+    if form not in ("symbolic", "signed"):
+        raise ValueError("Invalid form. Choose 'symbolic', 'signed'.")
     A_sgn = create_matrix(G, form="signed")
     A_sym = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")
@@ -90,6 +92,8 @@ def death_matrix(
         # [0, 0, 1]])
         ```
     """
+    if form not in ("symbolic", "signed"):
+        raise ValueError("Invalid form. Choose 'symbolic', 'signed'.")
     A_sgn = create_matrix(G, form="signed")
     A_sym = create_matrix(G, form="symbolic")
     nodes = get_nodes(G, "state")

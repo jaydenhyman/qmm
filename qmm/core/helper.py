@@ -395,18 +395,14 @@ def sign_determinacy(
     return pmat
 
 
-def _node_name(G: nx.DiGraph, node: str, labels: bool = False) -> str:
-    """The node's label when labels is True and it has one, otherwise its id."""
-    return str(G.nodes[node].get("label") or node) if labels else str(node)
-
-
 def _arrows(G: nx.DiGraph, path: List[str], labels: bool = False) -> str:
     """Write a path as nodes joined by $\\rightarrow$ (positive link) or $\\multimap$ (negative link)."""
     parts = []
     for from_node, to_node in zip(path, path[1:]):
         arrow = "$\\rightarrow$" if G[from_node][to_node].get("sign", 1) > 0 else "$\\multimap$"
-        parts.append(f"{_node_name(G, from_node, labels)} {arrow}")
-    parts.append(_node_name(G, path[-1], labels))
+        name = str(G.nodes[from_node].get("label") or from_node) if labels else str(from_node)
+        parts.append(f"{name} {arrow}")
+    parts.append(str(G.nodes[path[-1]].get("label") or path[-1]) if labels else str(path[-1]))
     return " ".join(parts)
 
 
@@ -491,15 +487,6 @@ def _check_direct_io_edges(G: nx.DiGraph) -> None:
 def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:
     """Calculate the permanent of a square matrix.
 
-    The permanent is like the determinant, but without alternating signs between
-    permutations. Each term multiplies one entry from every row and column.
-    For a binary matrix, it counts how many such terms are nonzero.
-
-    The calculation reuses partial results and skips terms that must be zero.
-    This can greatly reduce work for sparse, structured matrices, although
-    runtime can still grow exponentially. Integer arithmetic is exact;
-    floating-point arithmetic can have rounding error.
-
     Args:
         A: Square NumPy array.
         source: Return minor permanents after removing this row. Entry j is the
@@ -562,7 +549,6 @@ def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> U
     remaining = np.ones(n, dtype=bool)
     if source is not None:
         remaining[source] = False
-    # Finish columns early to keep the table of partial choices small.
     order, reached = [], np.zeros(n, dtype=bool)
     while remaining.any():
         wanted = pattern[remaining].sum(0) - pattern > 0
@@ -576,20 +562,18 @@ def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> U
     states = {0: np.array([1] + [0] * n, dtype=object) if levels else 1}
     full = (1 << n) - 1
     for k, i in enumerate(order):
-        # Find columns that no later row can fill.
-        updated, closed = {}, sum(1 << int(j) for j in np.flatnonzero(~pattern[order[k + 1:]].any(0)))
+        updated, closed_columns = {}, sum(1 << int(j) for j in np.flatnonzero(~pattern[order[k + 1:]].any(0)))
         options = [(1 << int(j), links[i][j], levels and i == j) for j in np.flatnonzero(pattern[i])]
         for used, weight in states.items():
-            for bit, strength, skip in options:
+            for bit, strength, diagonal in options:
                 if used & bit:
                     continue
                 target = used | bit
-                unused = closed & ~target
-                # A source minor may leave one column unused.
+                unused = closed_columns & ~target
                 if (unused if source is None else unused & (unused - 1)):
                     continue
                 value = weight * strength
-                if skip:  # The diagonal contributes A[i, i] + x for per(A + xI).
+                if diagonal:
                     value[1:] += weight[:-1]
                 updated[target] = updated.get(target, 0) + value
         states = updated

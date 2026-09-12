@@ -2,9 +2,8 @@
 
 import pytest
 import networkx as nx
-import sympy as sp
 
-from qmm.core.helper import _edge_prefix, get_nodes, list_to_digraph
+from qmm.core.helper import list_to_digraph
 from qmm.core.structure import create_matrix
 from qmm.extensions.effects import define_input_output
 
@@ -405,18 +404,6 @@ def cyclic_inputs_graph():
     return G
 
 
-@pytest.fixture
-def cyclic_outputs_graph():
-    """Graph with cyclic output nodes for error testing."""
-    G = nx.DiGraph()
-    G.add_node('S', category='state')
-    G.add_edge('S', 'S', sign=-1)
-    G.add_node('O1', category='output')
-    G.add_node('O2', category='output')
-    G.add_edge('O1', 'O2', sign=1)
-    G.add_edge('O2', 'O1', sign=1)
-    G.add_edge('S', 'O1', sign=1)
-    return G
 
 
 @pytest.fixture
@@ -483,15 +470,6 @@ def io_branched():
 
 
 @pytest.fixture
-def io_and_state_model(request):
-    """Input-output model, the same model with self-limited input and output states, and their symbol map."""
-    G = request.getfixturevalue(request.param)
-    H = nx.DiGraph()
-    H.add_nodes_from((node, {**data, "category": "state"}) for node, data in G.nodes(data=True))
-    H.add_edges_from(G.edges(data=True))
-    H.add_edges_from((node, node, {"sign": -1}) for node in get_nodes(G, "input") + get_nodes(G, "output"))
-    symbols = {sp.Symbol(f"a_{v},{u}"): sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")
-               for u, v in G.edges() if _edge_prefix(G, u, v) != "a"}
-    symbols.update({sp.Symbol(f"a_{node},{node}"): sp.Integer(1)
-                    for node in get_nodes(G, "input") + get_nodes(G, "output")})
-    return G, H, symbols
+def self_limited_pair():
+    """Two independent self-limited states."""
+    return list_to_digraph([[-1, 0], [0, -1]], ["A", "B"]).copy()

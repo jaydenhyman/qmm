@@ -18,6 +18,11 @@ from qmm.extensions.life import (
 # birth_matrix
 # =============================================================================
 
+@pytest.mark.parametrize("function", [birth_matrix, death_matrix])
+def test_birth_death_matrix_invalid_form_snowshoe(snowshoe, function):
+    with pytest.raises(ValueError, match="^Invalid form"):
+        function(snowshoe, form="invalid")
+
 def test_birth_matrix_form_signed_snowshoe(snowshoe):
     result = birth_matrix(snowshoe, form='signed')
     expected = sp.Matrix([

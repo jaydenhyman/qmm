@@ -62,7 +62,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
             raise ValueError(f"Model {chr(65 + i)} has different nodes: {sorted(fresh.keys() ^ categories.keys())}")
         changed = [n for n in categories if fresh[n] != categories[n]]
         if changed:
-            raise ValueError(f"Model {chr(65 + i)}: node {', '.join(changed)} changes category")
+            raise ValueError(f"Model {chr(65 + i)}: Nodes change category: {', '.join(map(str, changed))}")
     nodes = sorted(get_nodes(models[0], "state") + get_nodes(models[0], "output"))
     probabilities, model_weights = [], []
     for G in models:

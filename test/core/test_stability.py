@@ -1,13 +1,17 @@
 """Tests for qmm.core.stability module."""
 
+from qmm.core.stability import _has_cycle_cover
+from math import factorial
+
 import itertools
+from test.feedback import cycle_expansion
 import pytest
 import sympy as sp
 import numpy as np
 import pandas as pd
 import networkx as nx
 
-from qmm.core.helper import list_to_digraph, get_nodes
+from qmm.core.helper import list_to_digraph, perm
 from qmm.core.structure import create_matrix
 from qmm.core.stability import (
     sign_stability,
@@ -234,26 +238,8 @@ def test_system_feedback_form_signed_chain_repeat_chain(chain):
     assert result == expected
 
 
-def _cycle_expansion(G):
-    states = get_nodes(G, 'state')
-    A = create_matrix(G)
-    index = {node: i for i, node in enumerate(states)}
-    cycles = list(nx.simple_cycles(G.subgraph(states)))
-    feedback = [sp.Integer(-1)] + [sp.Integer(0)] * len(states)
-    counts = [1] + [0] * len(states)
-    for m in range(1, len(states) + 1):
-        for combination in itertools.combinations(cycles, m):
-            nodes = [node for cycle in combination for node in cycle]
-            if len(nodes) != len(set(nodes)):
-                continue
-            product = sp.prod([A[index[b], index[a]] for cycle in combination for a, b in zip(cycle, cycle[1:] + cycle[:1])])
-            feedback[len(nodes)] += (-1) ** (m + 1) * product
-            counts[len(nodes)] += 1
-    return sp.Matrix(feedback).applyfunc(sp.expand), sp.Matrix(counts)
-
-
 def test_feedback_matches_disjoint_cycle_expansion_snowshoe_rp(snowshoe_rp):
-    feedback, counts = _cycle_expansion(snowshoe_rp)
+    feedback, counts = cycle_expansion(snowshoe_rp)
     result = (system_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp, method='polynomial'))
     expected = (feedback, counts, counts)
     assert result == expected
@@ -319,7 +305,7 @@ def test_absolute_feedback_polynomial_all_levels_snowshoe(snowshoe):
 def test_absolute_feedback_exact_for_large_counts_no_fixture():
     n = 20
     G = list_to_digraph([[-1 if i == j else 1 for j in range(n)] for i in range(n)])
-    assert absolute_feedback(G, level=n)[0] == __import__("math").factorial(n)
+    assert absolute_feedback(G, level=n)[0] == factorial(n)
 
 
 def test_absolute_feedback_all_levels_default_form_chain(chain):
@@ -779,7 +765,7 @@ def test_simulation_stability_presample_wrong_shape(snowshoe):
 
 
 def test_system_feedback_invalid_form(snowshoe):
-    with pytest.raises(ValueError, match="form must be either 'symbolic' or 'signed'"):
+    with pytest.raises(ValueError, match="^Invalid form"):
         system_feedback(snowshoe, form="invalid")
 
 
@@ -799,18 +785,16 @@ def test_absolute_feedback_invalid_method(snowshoe):
 
 
 def test_hurwitz_determinants_invalid_form(snowshoe):
-    with pytest.raises(ValueError, match="form must be either 'symbolic' or 'signed'"):
+    with pytest.raises(ValueError, match="^Invalid form"):
         hurwitz_determinants(snowshoe, form="invalid")
 
 
 def test_sign_stability_jeffries_counterexample_no_fixture():
-    # Jeffries (1974): species 1 self-regulating, species 2 preyed on by species 3. Conditions i-v hold,
-    # but the predation community {2, 3} passes the colour test and the system is only neutrally stable.
     G = list_to_digraph([[-1, 1, 0], [0, 0, -1], [0, 1, 0]], ["1", "2", "3"])
     result = sign_stability(G).set_index("Test")["Result"]
     assert all(result[f"Condition {c}"] for c in ["i", "ii", "iii", "iv", "v"])
-    assert result["Colour test"] == False  # noqa: E712 - numpy bool
-    assert result["Sign stable"] == False  # noqa: E712
+    assert not result["Colour test"]
+    assert not result["Sign stable"]
 
 
 def test_simulation_stability_positive_self_effect_fails_criterion_i_no_fixture():
@@ -821,19 +805,16 @@ def test_simulation_stability_positive_self_effect_fails_criterion_i_no_fixture(
 
 
 def test_conditional_stability_tied_maximum_is_class_ii():
-    from qmm import list_to_digraph
     G = list_to_digraph([[-1, 1, -1], [1, -1, -1], [1, 1, -1]], ["A", "B", "C"])
     assert conditional_stability(G)["Result"].iloc[-1] == "Class II"
 
 
 def test_conditional_stability_missing_feedback_raises():
-    from qmm import list_to_digraph
-    with pytest.raises(ValueError, match="No feedback terms at level"):
+    with pytest.raises(ValueError, match="^No feedback terms at level 1$"):
         conditional_stability(list_to_digraph([[0, -1], [1, 0]], ["A", "B"]))
 
 
 def test_sign_stability_and_level_zero_feedback_beyond_63_states():
-    from qmm import list_to_digraph
     G = list_to_digraph((-np.eye(64)).astype(int).tolist(), [f"n{i}" for i in range(64)])
     assert sign_stability(G)["Result"].iloc[-1]
     assert absolute_feedback(G, level=0) == sp.Matrix([1])
@@ -854,8 +835,6 @@ def test_first_level_feedback_uses_diagonal(monkeypatch):
 
 
 def test_cycle_cover_matching_agrees_with_exact_count():
-    from qmm.core.stability import _has_cycle_cover
-    from qmm.core.helper import perm
     rng = np.random.RandomState(0)
     for _ in range(300):
         n = rng.randint(1, 7)

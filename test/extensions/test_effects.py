@@ -1,5 +1,9 @@
 """Tests for qmm.extensions.effects module."""
 
+from qmm.extensions import simulations_table as from_extensions
+from unittest.mock import patch
+from qmm.extensions.validation import marginal_likelihood
+
 import pytest
 import sympy as sp
 import numpy as np
@@ -74,7 +78,6 @@ def test_define_input_output_invalid_input_type_no_fixture():
 
 
 def test_define_input_output_cyclic_inputs_become_state(cyclic_inputs_graph):
-    # a cycle among would-be inputs is feedback, so it classifies as state
     G = define_input_output(cyclic_inputs_graph)
     assert set(get_nodes(G, "state")) >= {"I1", "I2"}
 
@@ -111,12 +114,11 @@ def test_define_input_output_rejects_non_unit_signs():
 
 
 def test_define_input_output_overwrites_preset_categories():
-    # pre-set categories are ignored; classification is purely topological
     G = nx.DiGraph()
     G.add_edge('R', 'R', sign=-1)
     G.add_edge('Inp', 'R', sign=1)
     G.add_edge('R', 'Out', sign=1)
-    G.nodes['Inp']['category'] = 'output'  # deliberately wrong; topology says input
+    G.nodes['Inp']['category'] = 'output'
     Gd = define_input_output(G)
     assert (Gd.nodes['Inp']['category'], Gd.nodes['R']['category'], Gd.nodes['Out']['category']) == ('input', 'state', 'output')
 
@@ -692,12 +694,11 @@ def test_simulations_table_counts_match_structure(snowshoe_io_na):
 
 
 def test_simulations_table_rejects_category_change(dashed_role_change):
-    with pytest.raises(ValueError, match="Node C changes category across model alternatives"):
+    with pytest.raises(ValueError, match="^Nodes change category: C$"):
         simulations_table(dashed_role_change, perturb="A:+", n_sim=10)
 
 
 def test_simulations_table_importable():
-    from qmm.extensions import simulations_table as from_extensions
     assert simulations_table is from_extensions
 
 
@@ -810,7 +811,6 @@ def test_table_of_effects_decimals_rounds(snowshoe_io):
 
 
 def test_simulation_effects_handles_singular_matrices(snowshoe_io):
-    from unittest.mock import patch
     original_inv = np.linalg.inv
     call_count = [0]
 
@@ -826,13 +826,9 @@ def test_simulation_effects_handles_singular_matrices(snowshoe_io):
         assert call_count[0] > 5
 
 
-def test_zero_observation_matches_draws_where_uncertain_link_is_absent():
-    G = nx.DiGraph()
-    for n in "AB":
-        G.add_node(n, category="state")
-        G.add_edge(n, n, sign=-1)
+def test_zero_observation_matches_draws_where_uncertain_link_is_absent(self_limited_pair):
+    G = self_limited_pair
     G.add_edge("A", "B", sign=1, dashes=True)
-    from qmm.extensions.validation import marginal_likelihood
     averaged = marginal_likelihood(G, "A:+", "B:0", n_sim=400, seed=3, uncertain_interactions="sample")
     assert 0.3 < averaged < 0.7
     certain = G.copy()
@@ -852,11 +848,8 @@ def test_get_simulations_requires_a_positive_integer(snowshoe, option, value):
         get_simulations(snowshoe, **{option: value})
 
 
-def test_fixed_uncertain_strength_is_sampled_in_and_out():
-    G = nx.DiGraph()
-    for node in 'AB':
-        G.add_node(node, category='state')
-        G.add_edge(node, node, sign=-1)
+def test_fixed_uncertain_strength_is_sampled_in_and_out(self_limited_pair):
+    G = self_limited_pair
     G.add_edge('A', 'B', sign=1, dashes=True)
     sims = get_simulations(
         G, n_sim=50, seed=42, uncertain_interactions="sample", return_samples=True,
@@ -873,11 +866,8 @@ def test_tied_presampled_strengths_report_actual_draws(snowshoe):
     assert np.array_equal(sims['samples']['a_R,R'], sims['samples']['a_P,P'])
 
 
-def test_simulations_table_counts_cancelled_presses_as_no_effect():
-    G = nx.DiGraph()
-    for node in 'AB':
-        G.add_node(node, category='state')
-        G.add_edge(node, node, sign=-1)
+def test_simulations_table_counts_cancelled_presses_as_no_effect(self_limited_pair):
+    G = self_limited_pair
     G.add_edge('A', 'B', sign=1)
     result = simulations_table(G, 'A:+, B:-', n_sim=5,
                                presample=lambda symbols: {symbol: 1 for symbol in symbols})
@@ -932,7 +922,7 @@ def test_structure_averaging_rejects_changes_to_node_roles():
     graph.add_edge('A', 'A', sign=-1, dashes=True)
     graph.add_edge('A', 'B', sign=1)
     graph.add_edge('B', 'B', sign=-1)
-    with pytest.raises(ValueError, match=r"Nodes change category: \['A'\]"):
+    with pytest.raises(ValueError, match=r"^Nodes change category: A$"):
         get_simulations(graph, n_sim=20, uncertain_interactions="sample", seed=42)
 
 

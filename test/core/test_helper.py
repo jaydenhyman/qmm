@@ -1,5 +1,9 @@
 """Tests for qmm.core.helper module."""
 
+from qmm.extensions.validation import marginal_likelihood
+from qmm.extensions.effects import simulations_table
+from math import factorial
+
 import pytest
 import networkx as nx
 import numpy as np
@@ -34,6 +38,17 @@ from qmm.core.structure import create_matrix
 # =============================================================================
 # list_to_digraph()
 # =============================================================================
+
+def test_list_to_digraph_rejects_duplicate_ids():
+    with pytest.raises(ValueError, match="unique"):
+        list_to_digraph([[-1, 1], [-1, -1]], ids=["A", "A"])
+
+
+@pytest.mark.parametrize("value", [1.8, -0.5, np.nan, np.inf])
+def test_list_to_digraph_rejects_non_sign_entries(value):
+    with pytest.raises(ValueError, match="entries"):
+        list_to_digraph([[value]])
+
 
 def test_list_to_digraph_signed_matrix_snowshoe(snowshoe):
     result = (
@@ -469,6 +484,26 @@ def test_node_sign_invalid_format_no_fixture():
 # _parse_perturbations()
 # =============================================================================
 
+def test_parse_perturbations_invalid_node_multi(snowshoe):
+    with pytest.raises(ValueError, match="Unknown perturbation node"):
+        simulations_table(snowshoe, perturb='R:+, Invalid:+', observe='')
+
+
+def test_parse_perturbations_empty_string(snowshoe):
+    with pytest.raises(ValueError, match="Perturbation string cannot be empty"):
+        marginal_likelihood(snowshoe, perturb='   ', observe='R:+')
+
+
+def test_parse_perturbations_preserves_graph_with_existing_press_node_name():
+    G = list_to_digraph([[-1, 0], [1, -1]], ids=["_P", "B"])
+    modified, press = _parse_perturbations(G, "_P:+, B:-")
+    assert modified is G
+    assert press == (("_P", 1), ("B", -1))
+    assert modified.nodes["_P"]["category"] == "state"
+    assert modified["_P"]["_P"]["sign"] == -1
+    assert "_P_" not in G
+
+
 def test_parse_perturbations_single_value_snowshoe(snowshoe):
     G = snowshoe
     _, pt = _parse_perturbations(G, 'R:+')
@@ -554,6 +589,19 @@ def test_random_sampler_uniform_two_oom_range_no_fixture():
 # get_dashed_alternatives()
 # =============================================================================
 
+def test_get_dashed_alternatives_variants_carry_no_dashes_snowshoe_dashed(snowshoe_dashed):
+    result = any(d.get("dashes") for g in get_dashed_alternatives(snowshoe_dashed) for _, _, d in g.edges(data=True))
+    expected = False
+    assert result == expected
+
+
+def test_get_dashed_alternatives_keeps_reciprocal_dashed_edges_together_snowshoe_dashed(snowshoe_dashed):
+    variants = get_dashed_alternatives(snowshoe_dashed)
+    result = (len(variants), sum(g.has_edge('R', 'P') == g.has_edge('P', 'R') for g in variants), len(get_dashed_alternatives(snowshoe_dashed, combinations=False)))
+    expected = (4, 4, 3)
+    assert result == expected
+
+
 def test_get_dashed_alternatives_no_dashed_edges_snowshoe(snowshoe):
     result = get_dashed_alternatives(snowshoe)
     assert len(result) == 1
@@ -582,19 +630,8 @@ def test_get_dashed_alternatives_combinations_false_snowshoe_dashed(snowshoe_das
 
 
 # =============================================================================
-# Additional coverage tests
+# perm()
 # =============================================================================
-
-def test_parse_perturbations_empty_string(snowshoe):
-    from qmm.extensions.validation import marginal_likelihood
-    with pytest.raises(ValueError, match="Perturbation string cannot be empty"):
-        marginal_likelihood(snowshoe, perturb='   ', observe='R:+')
-
-
-def test_parse_perturbations_invalid_node_multi(snowshoe):
-    from qmm.extensions.effects import simulations_table
-    with pytest.raises(ValueError, match="Unknown perturbation node"):
-        simulations_table(snowshoe, perturb='R:+, Invalid:+', observe='')
 
 
 def test_perm_not_array_no_fixture():
@@ -710,7 +747,7 @@ def test_perm_small_matrices_no_fixture():
 
 def test_perm_exact_beyond_float_precision_no_fixture():
     n = 19
-    assert perm(np.ones((n, n), dtype=int)) == __import__("math").factorial(n)
+    assert perm(np.ones((n, n), dtype=int)) == factorial(n)
     A = np.array([[1 if abs(i - j) <= 1 else 0 for j in range(40)] for i in range(40)])
     fib = [0, 1]
     for _ in range(41):
@@ -788,7 +825,6 @@ def test_perm_matches_absolute_determinants(model):
 
 
 def test_perm_levels_matches_perm_of_principal_submatrices_no_fixture():
-    from itertools import combinations
     rng = np.random.default_rng(13)
     for _ in range(10):
         n = int(rng.integers(1, 7))
@@ -810,37 +846,3 @@ def test_perm_source_matches_perm_of_minors_no_fixture():
                 minor = np.delete(np.delete(A, j, 0), i, 1)
                 expected = int(sp.Matrix(minor.tolist()).per()) if minor.size else 1
                 assert minors[i] == expected
-
-
-@pytest.mark.parametrize("value", [1.8, -0.5, np.nan, np.inf])
-def test_list_to_digraph_rejects_non_sign_entries(value):
-    with pytest.raises(ValueError, match="entries"):
-        list_to_digraph([[value]])
-
-
-def test_list_to_digraph_rejects_duplicate_ids():
-    with pytest.raises(ValueError, match="unique"):
-        list_to_digraph([[-1, 1], [-1, -1]], ids=["A", "A"])
-
-
-def test_parse_perturbations_preserves_graph_with_existing_press_node_name():
-    G = list_to_digraph([[-1, 0], [1, -1]], ids=["_P", "B"])
-    modified, press = _parse_perturbations(G, "_P:+, B:-")
-    assert modified is G
-    assert press == (("_P", 1), ("B", -1))
-    assert modified.nodes["_P"]["category"] == "state"
-    assert modified["_P"]["_P"]["sign"] == -1
-    assert "_P_" not in G
-
-
-def test_get_dashed_alternatives_keeps_reciprocal_dashed_edges_together_snowshoe_dashed(snowshoe_dashed):
-    variants = get_dashed_alternatives(snowshoe_dashed)
-    result = (len(variants), sum(g.has_edge('R', 'P') == g.has_edge('P', 'R') for g in variants), len(get_dashed_alternatives(snowshoe_dashed, combinations=False)))
-    expected = (4, 4, 3)
-    assert result == expected
-
-
-def test_get_dashed_alternatives_variants_carry_no_dashes_snowshoe_dashed(snowshoe_dashed):
-    result = any(d.get("dashes") for g in get_dashed_alternatives(snowshoe_dashed) for _, _, d in g.edges(data=True))
-    expected = False
-    assert result == expected

@@ -543,7 +543,7 @@ def conditional_stability(G: nx.DiGraph) -> pd.DataFrame:
     w_fb = weighted_feedback(G)
     missing = [k for k in range(1, n + 1) if w_fb[k] is sp.nan]
     if missing:
-        raise ValueError(f"No feedback terms at level {', '.join(map(str, missing))}: the model cannot satisfy Hurwitz criterion i and has no conditional stability class.")
+        raise ValueError(f"No feedback terms at level {', '.join(map(str, missing))}")
     w_det = weighted_determinants(G, level=n - 1)[0]
     C = _create_model_c(n)
     w_det_c = weighted_determinants(C, level=n - 1)[0]
@@ -655,7 +655,7 @@ def simulation_stability(
             n_unstable += 1
         magnitude = np.max(np.abs(S), initial=0)
         pc = np.poly(S / magnitude if magnitude > 0 else S)
-        hurwitz_i = bool(np.all(pc[1:] > 0))  # np.poly is monic, so every coefficient must be positive.
+        hurwitz_i = bool(np.all(pc[1:] > 0))
         n = len(pc)
         H = np.zeros((n - 1, n - 1))
         for r in range(1, n):

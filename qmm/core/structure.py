@@ -71,6 +71,10 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
         if "title" not in att:
             att["title"] = None
         G.add_edge(source, target, **att)
+    subnetworks = list(nx.weakly_connected_components(G))
+    if len(subnetworks) > 1:
+        groups = "; ".join(str([n for n in G if n in s]) for s in subnetworks)
+        raise ValueError(f"Disconnected model: {groups}")
     return define_input_output(G)
 
 

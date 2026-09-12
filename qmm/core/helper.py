@@ -9,6 +9,9 @@ from dataclasses import dataclass
 def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
     """Convert an adjacency matrix to a directed graph.
 
+    Every node is assigned the state role, and no connectivity or feedback check is
+    applied; analysis trusts a graph built this way.
+
     Args:
         matrix: A square matrix (list of lists or numpy array) representing the adjacency matrix.
             Non-zero values indicate edges, where the value represents the sign of the edge.

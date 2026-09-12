@@ -39,22 +39,33 @@ def test_import_digraph_rejects_invalid_signs_and_arrows(attributes):
 
 
 @pytest.mark.parametrize("reverse", [False, True])
-def test_import_digraph_derives_roles_and_preserves_components(reverse):
+def test_import_digraph_derives_roles(reverse):
     data = {
         "nodes": [{"id": n, "category": "output", "label": "Same"}
-                  for n in ("I", "S", "O", "Z")],
+                  for n in ("I", "S", "O")],
         "edges": [{"from": a, "to": b, "sign": -1}
-                  for a, b in [("I", "S"), ("S", "S"), ("S", "O"), ("Z", "Z")]],
+                  for a, b in [("I", "S"), ("S", "S"), ("S", "O")]],
     }
     if reverse:
         data["nodes"].reverse()
         data["edges"].reverse()
     graph = import_digraph(data, file_path=False)
     result = nx.get_node_attributes(graph, "category")
-    expected = {"I": "input", "S": "state", "O": "output", "Z": "state"}
+    expected = {"I": "input", "S": "state", "O": "output"}
     assert result == expected
     assert nx.is_frozen(graph)
     assert all(node["category"] == "output" for node in data["nodes"])
+
+
+def test_import_digraph_rejects_disconnected_model():
+    data = {
+        "nodes": [{"id": n} for n in ("A", "B", "Z")],
+        "edges": [{"from": a, "to": b, "sign": -1}
+                  for a, b in [("A", "A"), ("A", "B"), ("B", "A"), ("Z", "Z")]],
+    }
+    expected = r"Disconnected model: \['A', 'B'\]; \['Z'\]"
+    with pytest.raises(ValueError, match=expected):
+        import_digraph(data, file_path=False)
 
 
 @pytest.mark.parametrize("first, second", [("B", "B"), ("A", "A"), (1, "1")])

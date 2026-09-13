@@ -327,7 +327,7 @@ def test_sign_determinacy_effects_nan_for_missing_paths(snowshoe_io_na):
 
 def test_get_simulations(snowshoe_io):
     result = set(get_simulations(snowshoe_io, n_sim=100, seed=42).keys())
-    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable', 'structures'}
+    expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable', 'structures', 'perturb', 'interactions', 'signs'}
     assert result == expected
 
 def test_get_simulations_effects_length(snowshoe_io):

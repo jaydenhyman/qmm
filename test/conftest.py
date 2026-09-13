@@ -473,3 +473,9 @@ def io_branched():
 def self_limited_pair():
     """Two independent self-limited states."""
     return list_to_digraph([[-1, 0], [0, -1]], ["A", "B"]).copy()
+
+
+@pytest.fixture
+def singular_complement():
+    """S feeds back through Y; without S, X and Y lack self-effects and depend only on Z."""
+    return list_to_digraph([[0, 0, 0, -1], [0, -1, -1, -1], [0, 1, 0, 0], [1, 1, 0, 0]], ["S", "Z", "X", "Y"]).copy()

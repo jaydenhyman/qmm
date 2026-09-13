@@ -447,25 +447,43 @@ def _simulate_pathway_effects(
     uncertain_interactions: str,
     pair_reciprocal: bool,
     observe: Optional[str] = None,
+    sims: Optional[dict] = None,
 ) -> Tuple[list, np.ndarray, dict]:
     """Pathways from source to target and their effect in each stable simulation."""
     _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     state_nodes = get_nodes(G, "state")
     path_nodes = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
-    sims = get_simulations(
-        G,
-        n_sim=n_sim,
-        dist=dist,
-        seed=seed,
-        perturb=(source, 1),
-        observe=_parse_observations(observe) if observe else None,
-        return_samples=True,
-        uncertain_interactions=uncertain_interactions,
-        pair_reciprocal=pair_reciprocal,
-    )
+    if sims is None:
+        sims = get_simulations(
+            G,
+            n_sim=n_sim,
+            dist=dist,
+            seed=seed,
+            perturb=(source, 1),
+            observe=_parse_observations(observe) if observe else None,
+            return_samples=True,
+            uncertain_interactions=uncertain_interactions,
+            pair_reciprocal=pair_reciprocal,
+        )
+    if "samples" not in sims:
+        raise ValueError("Simulations need return_samples=True.")
+    presses = sims["perturb"]
+    if len(presses) > 1 or any(node != source for node, _ in presses):
+        raise ValueError(f"Simulations must press only {source}.")
+    press_sign = presses[0][1] if presses else 1
     samples = sims["samples"]
-    n_stable = sims["n_stable"]
+    nodes = state_nodes + get_nodes(G, "input") + get_nodes(G, "output")
+    if sims["all_nodes"] != nodes:
+        differ = sorted(set(nodes) ^ set(sims["all_nodes"]), key=str) or [n for n, m in zip(nodes, sims["all_nodes"]) if n != m]
+        raise ValueError(f"Simulations are for a different graph: {', '.join(map(str, differ))}.")
+    signs = {(u, v): sign for u, v, sign in G.edges(data="sign", default=1)}
+    changed = sorted({edge for edge, _ in signs.items() ^ sims["signs"].items()})
+    if changed:
+        raise ValueError(f"Simulations are for a different graph: {', '.join(f'{u} -> {v}' for u, v in changed)}.")
+    n_stable = len(sims["effects"])
+    if any(len(values) != n_stable for values in [sims["structures"], *samples.values()]):
+        raise ValueError("Simulation arrays differ in length.")
     node_id = {n: i for i, n in enumerate(state_nodes)}
     A = np.zeros((n_stable, len(state_nodes), len(state_nodes)))
     for u, v in G.edges():
@@ -478,8 +496,18 @@ def _simulate_pathway_effects(
         for u, v in zip(path, path[1:]):
             product = product * G[u][v].get("sign", 1) * samples[f"{_edge_prefix(G, u, v)}_{v},{u}"]
         complement = [node_id[n] for n in state_nodes if n not in path]
-        det_complement = np.linalg.det(-A[:, complement][:, :, complement]) if complement else np.ones(n_stable)
-        terms[:, j] = product * det_complement / det_system
+        block = -A[:, complement][:, :, complement]
+        det_complement = np.linalg.det(block)
+        if not np.diagonal(block, axis1=1, axis2=2).all():
+            k = len(complement)
+            patterns, pattern_of = np.unique(block.reshape(n_stable, -1) != 0, axis=0, return_inverse=True)
+            matched = np.zeros(len(patterns), dtype=bool)
+            for p, pattern in enumerate(patterns):
+                links = nx.Graph((row, k + col) for row, col in zip(*np.nonzero(pattern.reshape(k, k))))
+                if len(links) == 2 * k:
+                    matched[p] = len(nx.bipartite.maximum_matching(links, top_nodes=range(k))) == 2 * k
+            det_complement[~matched[pattern_of]] = 0
+        terms[:, j] = press_sign * product * det_complement / det_system
     return path_nodes, terms, sims
 
 def pathway_effects(
@@ -492,6 +520,7 @@ def pathway_effects(
     uncertain_interactions: Literal["sample", "enumerate"] = "sample",
     pair_reciprocal: bool = True,
     observe: str = "",
+    sims: Optional[dict] = None,
 ) -> pd.DataFrame:
     """Simulate the effect transmitted along each causal pathway from source to target.
 
@@ -505,9 +534,14 @@ def pathway_effects(
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         observe: Observation string (node:sign, comma-separated allowed) to condition on
+        sims: Stable draws from get_simulations or iter_simulations with return_samples=True,
+            pressing only source or nothing, used instead of new simulations; n_sim, dist, seed,
+            uncertain_interactions and pair_reciprocal are then ignored, and observe keeps the
+            draws whose responses match.
 
     Returns:
-        pd.DataFrame: Pathway length, sign, sign frequencies and contribution
+        pd.DataFrame: Pathway length, sign, share of draws containing every link of the path,
+        sign frequencies and contribution
 
     References:
         - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
@@ -518,22 +552,38 @@ def pathway_effects(
         ```python
         from qmm import pathway_effects, load_digraph
         pathway_effects(load_digraph("snowshoe_rp"), 'R', 'P', n_sim=1000)
-        #    Length       Path Sign  Positive  Negative  Zero  Contribution
-        # 0       2  (R, C, P)    +       1.0       0.0   0.0           1.0
-        # 1       1     (R, P)    +       0.0       0.0   1.0           0.0
+        #    Length       Path Sign  Present  Positive  Negative  Zero  Contribution
+        # 0       2  (R, C, P)    +      1.0       1.0       0.0   0.0           1.0
+        # 1       1     (R, P)    +      1.0       0.0       0.0   1.0           0.0
         ```
     """
     _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
-        return pd.DataFrame(columns=["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"])
-    path_nodes, terms, sims = _simulate_pathway_effects(G, source, target, n_sim, dist, seed, uncertain_interactions, pair_reciprocal, observe)
+        return pd.DataFrame(columns=["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"])
+    path_nodes, terms, sims = _simulate_pathway_effects(G, source, target, n_sim, dist, seed, uncertain_interactions, pair_reciprocal, observe, sims)
+    groups = {edge: i for i, group in enumerate(sims["interactions"]) for edge in group}
+    structures = np.array(sims["structures"], dtype=object)
+    present = np.empty(terms.shape, dtype=bool)
+    for j, path in enumerate(path_nodes):
+        bits = sum(1 << groups[edge] for edge in zip(path, path[1:]) if edge in groups)
+        present[:, j] = (structures & bits) == bits
     if observe:
-        mask = np.asarray(sims["valid_sims"], dtype=bool)
-        terms = terms[mask]
+        effects = np.asarray(sims["effects"])
+        if effects.ndim != 2:
+            raise ValueError("Observations require a perturbation.")
+        responders = get_nodes(G, "state") + get_nodes(G, "output")
+        observed = _parse_observations(observe)
+        unknown = [node for node, _ in observed if node not in responders]
+        if unknown:
+            raise ValueError(f"Unknown observation node(s): {unknown}. Valid response nodes: {responders}")
+        mask = np.all([np.sign(effects[:, responders.index(node)]) == sign for node, sign in observed], axis=0)
+        terms, present = terms[mask], present[mask]
+    if not len(terms):
+        raise ValueError("No simulations match observe.")
     size = np.abs(terms)
     tiny = np.finfo(float).tiny
-    signs = np.where(size <= 1e-9 * np.maximum(size.max(axis=1, keepdims=True), tiny), 0, np.sign(terms))
+    signs = np.sign(terms)
     total = size.sum(axis=1, keepdims=True)
     contribution = np.where(total > 0, size / np.maximum(total, tiny), 0.0).mean(axis=0)
     paths_df = pd.DataFrame(
@@ -541,6 +591,7 @@ def pathway_effects(
             "Length": [len(path) - 1 for path in path_nodes],
             "Path": [tuple(path) for path in path_nodes],
             "Sign": [_sign_string(G, path) for path in path_nodes],
+            "Present": present.mean(axis=0),
             "Positive": (signs > 0).mean(axis=0),
             "Negative": (signs < 0).mean(axis=0),
             "Zero": (signs == 0).mean(axis=0),

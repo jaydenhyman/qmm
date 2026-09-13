@@ -266,9 +266,11 @@ def get_simulations(
 
     Returns:
         Dictionary with effects, valid_sims, all_nodes, tmat, prop_stable,
-        attempts, n_stable, structures, and optionally samples. All stable draws
-        are retained; valid_sims flags observation matches. structures contains
-        the bit mask of present uncertain interactions for each draw.
+        attempts, n_stable, structures, perturb, interactions, signs, and optionally samples.
+        All stable draws are retained; valid_sims flags observation matches. structures
+        contains the bit mask of present uncertain interactions for each draw, with bit i
+        for the edges in interactions[i]. perturb holds the (node, sign) presses, and
+        signs holds the sign of each edge.
 
     Raises:
         ValueError: Invalid sampling options or incompatible node categories.
@@ -339,11 +341,13 @@ def iter_simulations(
 
     Yields:
         Dictionaries with effects, valid_sims, all_nodes, tmat, prop_stable,
-        attempts, n_stable, structures, and optionally samples. All stable draws
-        are retained; valid_sims flags observation matches. structures identifies
-        each draw by a bit mask of present uncertain interactions. tmat contains
-        term counts for G; effects use each draw's structure to set cells without
-        terms to exact zero before combining perturbations.
+        attempts, n_stable, structures, perturb, interactions, signs, and optionally samples.
+        All stable draws are retained; valid_sims flags observation matches. structures
+        identifies each draw by a bit mask of present uncertain interactions, with bit i
+        for the edges in interactions[i]. perturb holds the (node, sign) presses, and
+        signs holds the sign of each edge. tmat contains term counts for G; effects use
+        each draw's structure to set cells without terms to exact zero before combining
+        perturbations.
 
     Raises:
         ValueError: A draw limit is invalid, or a structure has invalid nodes or
@@ -501,6 +505,9 @@ def iter_simulations(
             "attempts": attempts,
             "n_stable": len(effects),
             "structures": structure_ids,
+            "perturb": presses,
+            "interactions": interactions,
+            "signs": {(u, v): sign for u, v, sign in G.edges(data="sign", default=1)},
         }
         if return_samples:
             n_samples = len(samples)

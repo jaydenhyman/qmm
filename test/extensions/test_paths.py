@@ -10,7 +10,7 @@ import networkx as nx
 from qmm.core.helper import get_nodes
 from qmm.core.structure import create_matrix
 from qmm.core.stability import system_feedback
-from qmm.extensions.effects import cumulative_effects
+from qmm.extensions.effects import cumulative_effects, get_simulations, iter_simulations
 from qmm.extensions.paths import (
     get_cycles,
     cycles_table,
@@ -464,7 +464,7 @@ def test_pathway_effects_terms_sum_inp1_out1_snowshoe_io(snowshoe_io):
 
 def test_pathway_effects_table_inp1_out1_snowshoe_io(snowshoe_io):
     result = pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=300, seed=1)
-    expected_cols = ["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"]
+    expected_cols = ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"]
     assert list(result.columns) == expected_cols
     assert len(result) == 4
     assert result["Contribution"].sum() == pytest.approx(1.0)
@@ -555,7 +555,7 @@ def test_tables_are_fresh_objects_snowshoe_io(snowshoe_io):
 def test_pathway_effects_no_route_returns_empty_table(self_limited_pair):
     G = self_limited_pair
     result = pathway_effects(G, "A", "B", n_sim=10)
-    assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Positive", "Negative", "Zero", "Contribution"]
+    assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"]
 
 
 def test_pathway_effects_reflects_changed_edge_sign(self_limited_pair):
@@ -597,8 +597,250 @@ def test_pathway_effects_terms_match_system_paths_numerators_snowshoe_rp(snowsho
     assert np.allclose(terms, expected, rtol=1e-9, atol=1e-12)
 
 
+def test_pathway_effects_sims_link_fixed_to_zero_present(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge("A", "B", sign=1)
+    sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), return_samples=True,
+                           presample=lambda symbols: {sp.Symbol("a_B,A"): 0})
+    result = pathway_effects(G, "A", "B", sims=sims).loc[0, ["Present", "Zero", "Contribution"]].tolist()
+    expected = [1.0, 1.0, 0.0]
+    assert result == expected
+
+
+def test_pathway_effects_sims_observe_contradicting_captured_observation(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge("A", "B", sign=1)
+    sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), observe=(("B", 1),), return_samples=True)
+    with pytest.raises(ValueError, match="No simulations match"):
+        pathway_effects(G, "A", "B", observe="B:-", sims=sims)
+
+
+def test_pathway_effects_sims_observe_filters_same_draws_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=300, seed=2, perturb=("R", 1), return_samples=True)
+    direct_kept = np.array(sims["structures"]) & 1 == 1
+    valid = np.array([effect[1] < 0 for effect in sims["effects"]])
+    tables = [pathway_effects(snowshoe_dashed, "R", "P", observe=observe, sims=sims) for observe in ("", "C:-")]
+    result = [table.loc[table["Length"] == 1, "Present"].item() for table in tables]
+    expected = [direct_kept.mean(), direct_kept[valid].mean()]
+    assert 0 < valid.sum() < len(valid)
+    assert result == pytest.approx(expected)
+
+
+def test_pathway_effects_sims_observe_matches_fresh_run_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=300, seed=2, perturb=("R", 1), observe=(("C", -1),),
+                           return_samples=True)
+    result = pathway_effects(snowshoe_dashed, "R", "P", observe="C:-", sims=sims)
+    expected = pathway_effects(snowshoe_dashed, "R", "P", n_sim=300, seed=2, observe="C:-")
+    assert result.equals(expected)
+
+
+def test_pathway_effects_sims_observe_requires_every_observation_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=50, seed=2, perturb=("R", 1), return_samples=True)
+    with pytest.raises(ValueError, match="No simulations match"):
+        pathway_effects(snowshoe_dashed, "R", "P", observe="C:-,C:+", sims=sims)
+
+
+def test_pathway_effects_sims_observe_unknown_node_snowshoe(snowshoe):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
+    with pytest.raises(ValueError, match="Unknown observation node"):
+        pathway_effects(snowshoe, "R", "P", observe="Missing:+", sims=sims)
+
+
+@pytest.mark.parametrize("observe, observed", [("Out1:-", (("Out1", -1),)), ("C:-,Out1:+", (("C", -1), ("Out1", 1)))])
+def test_pathway_effects_sims_observe_matches_valid_draws_snowshoe_io(snowshoe_io, observe, observed):
+    sims = next(iter_simulations(snowshoe_io, 300, seed=1, perturb=("Inp1", 1), observe=observed, condition=False,
+                                 return_samples=True))
+    keep = np.array(sims["valid_sims"])
+    subset = {**sims, "effects": np.array(sims["effects"])[keep], "structures": list(np.array(sims["structures"])[keep]),
+              "samples": {name: values[keep] for name, values in sims["samples"].items()}}
+    result = pathway_effects(snowshoe_io, "Inp1", "Out1", observe=observe, sims=sims)
+    expected = pathway_effects(snowshoe_io, "Inp1", "Out1", sims=subset)
+    assert 0 < keep.sum() < len(keep)
+    assert result.equals(expected)
+
+
+def test_pathway_effects_sims_matrix_observe_requires_perturbation_snowshoe(snowshoe):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, return_samples=True)
+    with pytest.raises(ValueError, match="require a perturbation"):
+        pathway_effects(snowshoe, "R", "P", observe="C:+", sims=sims)
+
+
+def test_pathway_effects_sims_negative_press(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge("A", "B", sign=1)
+    sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", -1), return_samples=True)
+    tables = [pathway_effects(G, "A", "B", observe=observe, sims=sims) for observe in ("", "B:-")]
+    result = [table.loc[0, ["Positive", "Negative"]].tolist() for table in tables]
+    expected = [[0.0, 1.0], [0.0, 1.0]]
+    assert result == expected
+
+
+def test_pathway_effects_terms_sum_sims_negative_press_snowshoe_dashed(snowshoe_dashed):
+    sims = get_simulations(snowshoe_dashed, n_sim=200, seed=1, perturb=("R", -1), return_samples=True)
+    paths, terms, _ = _simulate_pathway_effects(snowshoe_dashed, "R", "P", 200, "uniform", 1, "sample", True, sims=sims)
+    result = terms.sum(axis=1)
+    expected = np.array([effect[2] for effect in sims["effects"]])
+    assert len(set(sims["structures"])) == 4
+    assert np.allclose(result, expected)
+
+
+def test_pathway_effects_terms_sum_sims_matrix_mesocosm(mesocosm):
+    nodes = get_nodes(mesocosm, "state")
+    sims = get_simulations(mesocosm, n_sim=100, seed=3, return_samples=True)
+    paths, terms, _ = _simulate_pathway_effects(mesocosm, "P", "C2", 100, "uniform", 3, "sample", True, sims=sims)
+    result = terms.sum(axis=1)
+    expected = np.array([effect[nodes.index("C2"), nodes.index("P")] for effect in sims["effects"]])
+    assert np.allclose(result, expected)
+
+
+@pytest.mark.parametrize("perturb", [(("R", 1), ("P", -1)), ("P", 1), (("R", 1), ("R", 1))])
+def test_pathway_effects_sims_rejects_other_press_snowshoe(snowshoe, perturb):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=perturb, return_samples=True)
+    with pytest.raises(ValueError, match="press only R"):
+        pathway_effects(snowshoe, "R", "C", sims=sims)
+
+
+@pytest.mark.parametrize("simulated, analysed", [("snowshoe_rp", "snowshoe"), ("snowshoe", "snowshoe_rp")])
+def test_pathway_effects_sims_rejects_other_graph(request, simulated, analysed):
+    sims = get_simulations(request.getfixturevalue(simulated), n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
+    with pytest.raises(ValueError, match="different graph: R -> P"):
+        pathway_effects(request.getfixturevalue(analysed), "R", "P", sims=sims)
+
+
+def test_pathway_effects_sims_accepts_edge_without_sign(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge("A", "B")
+    sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), return_samples=True)
+    result = pathway_effects(G, "A", "B", sims=sims).loc[0, "Positive"]
+    expected = 1.0
+    assert result == expected
+
+
+def test_pathway_effects_sims_rejects_changed_edge_sign(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge("A", "B", sign=1)
+    sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), return_samples=True)
+    G["A"]["B"]["sign"] = -1
+    with pytest.raises(ValueError, match="different graph: A -> B"):
+        pathway_effects(G, "A", "B", sims=sims)
+
+
+def test_pathway_effects_sims_rejects_other_node_order_snowshoe(snowshoe):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
+    G = nx.DiGraph()
+    G.add_nodes_from(reversed(list(snowshoe.nodes(data=True))))
+    G.add_edges_from(snowshoe.edges(data=True))
+    with pytest.raises(ValueError, match="different graph: P, R"):
+        pathway_effects(G, "R", "P", sims=sims)
+
+
+def test_pathway_effects_sims_rejects_extra_node_snowshoe(snowshoe):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
+    G = nx.DiGraph(snowshoe)
+    G.add_node("X", category="state")
+    G.add_edge("X", "X", sign=-1)
+    with pytest.raises(ValueError, match="different graph: X"):
+        pathway_effects(G, "R", "P", sims=sims)
+
+
+@pytest.mark.parametrize("key", ["structures", "samples"])
+def test_pathway_effects_sims_rejects_misaligned_arrays_snowshoe(snowshoe, key):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
+    if key == "structures":
+        sims["structures"] = sims["structures"][:1]
+    else:
+        sims["samples"]["a_P,C"] = sims["samples"]["a_P,C"][:1]
+    with pytest.raises(ValueError, match="differ in length"):
+        pathway_effects(snowshoe, "R", "P", sims=sims)
+
+
+def test_pathway_effects_sims_require_samples_snowshoe(snowshoe):
+    sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1))
+    with pytest.raises(ValueError, match="return_samples"):
+        pathway_effects(snowshoe, "R", "P", sims=sims)
+
+
+def test_pathway_effects_dropped_link_absent_and_zero_strength_link_present(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge("A", "B", sign=1, dashes=True)
+    sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), return_samples=True, uncertain_interactions="enumerate",
+                           presample=lambda symbols: {sp.Symbol("a_B,A"): 0})
+    result = pathway_effects(G, "A", "B", sims=sims).loc[0, ["Present", "Zero"]].tolist()
+    expected = [0.5, 1.0]
+    assert result == expected
+
+
+@pytest.mark.parametrize("pair_reciprocal", [True, False])
+def test_pathway_effects_present_matches_nonzero_response_reciprocal_dashes(self_limited_pair, pair_reciprocal):
+    G = self_limited_pair
+    G.add_edge("A", "B", sign=1, dashes=True)
+    G.add_edge("B", "A", sign=-1, dashes=True)
+    sims = get_simulations(G, n_sim=200, seed=1, perturb=("B", 1), return_samples=True, pair_reciprocal=pair_reciprocal)
+    result = pathway_effects(G, "B", "A", sims=sims).loc[0, "Present"]
+    expected = np.mean([effect[0] != 0 for effect in sims["effects"]])
+    assert 0 < expected < 1
+    assert result == expected
+
+
+def test_pathway_effects_present_requires_every_uncertain_link_fork(fork):
+    fork["A"]["C"]["dashes"] = True
+    fork["C"]["B"]["dashes"] = True
+    table = pathway_effects(fork, "A", "B", n_sim=5, seed=1, uncertain_interactions="enumerate")
+    result = table.set_index("Path")["Present"].to_dict()
+    expected = {("A", "B"): 1.0, ("A", "C", "B"): 0.25}
+    assert result == expected
+
+
+def test_pathway_effects_present_with_64_uncertain_links_chain():
+    nodes = [f"N{i:02d}" for i in range(65)]
+    G = nx.DiGraph()
+    G.add_nodes_from(nodes, category="state")
+    G.add_edges_from(zip(nodes, nodes), sign=-1)
+    G.add_edges_from(zip(nodes, nodes[1:]), sign=1, dashes=True)
+    sims = get_simulations(G, n_sim=5, seed=4, perturb=("N00", 1), return_samples=True)
+    result = pathway_effects(G, "N00", "N01", sims=sims).loc[0, "Present"]
+    expected = np.mean([effect[1] != 0 for effect in sims["effects"]])
+    assert max(code.bit_length() for code in sims["structures"]) > 63 and 0 < expected < 1
+    assert result == expected
+
+
+def test_pathway_effects_present_path_without_complementary_feedback_snowshoe_rp(snowshoe_rp):
+    table = pathway_effects(snowshoe_rp, "R", "P", n_sim=50, seed=1)
+    result = table.loc[table["Length"] == 1, ["Present", "Zero", "Contribution"]].values.tolist()
+    expected = [[1.0, 1.0, 0.0]]
+    assert result == expected
+
+
+def test_pathway_effects_structurally_zero_response_singular_complement(singular_complement):
+    table = pathway_effects(singular_complement, "S", "S", n_sim=200, seed=1)
+    result = table.loc[0, ["Positive", "Negative", "Zero", "Contribution"]].tolist()
+    expected = [0.0, 0.0, 1.0, 0.0]
+    assert result == expected
+
+
+def test_pathway_effects_zero_share_matches_zero_response_uncertain_self_effects(singular_complement):
+    G = singular_complement
+    G.add_edge("X", "X", sign=-1, dashes=True)
+    G.add_edge("Y", "Y", sign=-1, dashes=True)
+    sims = get_simulations(G, n_sim=300, seed=1, perturb=("S", 1), return_samples=True)
+    result = pathway_effects(G, "S", "S", sims=sims).loc[0, "Zero"]
+    expected = np.mean([effect[0] == 0 for effect in sims["effects"]])
+    assert len(set(sims["structures"])) == 4 and 0 < expected < 1
+    assert result == expected
+
+
+def test_pathway_effects_tiny_present_term_keeps_sign_fork(fork):
+    sims = get_simulations(fork, n_sim=5, seed=1, perturb=("A", 1), return_samples=True,
+                           presample=lambda symbols: {sp.Symbol("a_B,A"): 1e-12})
+    table = pathway_effects(fork, "A", "B", sims=sims)
+    result = table.loc[table["Length"] == 1, ["Positive", "Zero"]].values.tolist()
+    expected = [[1.0, 0.0]]
+    assert result == expected
+
+
 def test_pathway_effects_enumerate_snowshoe_dashed(snowshoe_dashed):
     result = pathway_effects(snowshoe_dashed, "R", "P", n_sim=50, seed=2, uncertain_interactions="enumerate")
     direct = result[result["Length"] == 1].iloc[0]
     assert direct["Zero"] == 0.75
+    assert direct["Present"] == 0.5
     assert result["Contribution"].sum() == pytest.approx(1.0)

@@ -246,12 +246,13 @@ def get_simulations(
     uncertain_interactions: Literal["sample", "enumerate"] = "sample",
     pair_reciprocal: bool = True,
     max_attempts: Optional[int] = None,
+    condition: bool = True,
 ) -> Dict[str, Any]:
     """Collect numerical simulations; see iter_simulations for sampling options.
 
     Args:
         G: Signed digraph with state, input and output categories.
-        n_sim: Stable draws matching observe, per enumerated structure or sampled batch.
+        n_sim: Target stable draws per batch; observation matches when condition=True.
         dist: Distribution of interaction strengths.
         seed: Random seed.
         perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
@@ -261,6 +262,7 @@ def get_simulations(
         uncertain_interactions: Sample uncertain interactions or enumerate every structure.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
+        condition: Require observation matches to reach n_sim; otherwise count all stable draws.
 
     Returns:
         Dictionary with effects, valid_sims, all_nodes, tmat, prop_stable,
@@ -283,7 +285,8 @@ def get_simulations(
         ```
     """
     batches = iter_simulations(G, n_sim, dist, seed, perturb, observe, presample,
-                               return_samples, uncertain_interactions, pair_reciprocal, max_attempts=max_attempts)
+                               return_samples, uncertain_interactions, pair_reciprocal,
+                               condition=condition, max_attempts=max_attempts)
     result = next(batches)
     samples = [result["samples"]] if return_samples else []
     for batch in batches:

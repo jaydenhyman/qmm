@@ -466,6 +466,15 @@ def test_get_simulations_with_observe(snowshoe_io):
     result = (sum(sims['valid_sims']), sims['n_stable'] > 100)
     expected = (100, True)
     assert result == expected
+    sims = get_simulations(snowshoe_io, n_sim=100, seed=42,
+                           perturb=('Inp1', 1), observe=(('Out1', 1),), condition=False)
+    result = (sims['n_stable'], 0 < sum(sims['valid_sims']) < 100)
+    expected = (100, True)
+    assert result == expected
+    sims = get_simulations(snowshoe_io, n_sim=100, seed=42,
+                           perturb=('Inp1', 1), observe=(('Out1', 0),), condition=False)
+    assert sims['n_stable'] == 100
+    assert not any(sims['valid_sims'])
 
 
 def test_get_simulations_all_nodes_includes_all(snowshoe_io):

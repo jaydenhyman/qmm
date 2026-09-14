@@ -220,9 +220,9 @@ def create_matrix(
                 if G.has_edge(source, target):
                     matrix[i, j] = sign(source, target, prefix)
             else:
-                paths = nx.all_simple_paths(G, source, target)
-                valid = [p for p in paths if all(G.nodes[n]["category"] == category for n in p[1:-1])]
-                matrix[i, j] = sum(product(path) for path in valid)
+                graph = G.subgraph([n for n in G if n in (source, target) or G.nodes[n].get("category") == category])
+                paths = nx.all_simple_paths(graph, source, target)
+                matrix[i, j] = sum(product(path) for path in paths)
     return matrix
 
 

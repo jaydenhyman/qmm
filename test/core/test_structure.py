@@ -2,6 +2,7 @@
 
 import json
 import warnings
+from unittest.mock import patch
 import networkx as nx
 import pytest
 import sympy as sp
@@ -202,7 +203,12 @@ def test_create_matrix_form_binary_snowshoe(snowshoe):
 
 
 def test_create_matrix_form_signed_matrix_B_snowshoe_io(snowshoe_io):
-    B = create_matrix(snowshoe_io, form='signed', matrix_type='B')
+    with patch('qmm.core.structure.nx.all_simple_paths', wraps=nx.all_simple_paths) as paths:
+        B = create_matrix(snowshoe_io, form='signed', matrix_type='B')
+    for call in paths.call_args_list:
+        graph, source, target = call.args
+        assert all(node in (source, target) or data['category'] == 'input'
+                   for node, data in graph.nodes(data=True))
     result = (B.shape, B)
     expected = ((3, 2), sp.Matrix([
         [1, 0],
@@ -213,7 +219,12 @@ def test_create_matrix_form_signed_matrix_B_snowshoe_io(snowshoe_io):
 
 
 def test_create_matrix_form_signed_matrix_C_snowshoe_io(snowshoe_io):
-    C = create_matrix(snowshoe_io, form='signed', matrix_type='C')
+    with patch('qmm.core.structure.nx.all_simple_paths', wraps=nx.all_simple_paths) as paths:
+        C = create_matrix(snowshoe_io, form='signed', matrix_type='C')
+    for call in paths.call_args_list:
+        graph, source, target = call.args
+        assert all(node in (source, target) or data['category'] == 'output'
+                   for node, data in graph.nodes(data=True))
     result = (C.shape, C)
     expected = ((2, 3), sp.Matrix([
         [0, -1, 1],

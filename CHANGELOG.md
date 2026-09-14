@@ -10,6 +10,7 @@ Changes since 0.4.17:
 - Support simultaneous press perturbations and observation conditioning. `get_simulations(condition=False)` collects a fixed number of stable draws per batch (per structure when enumerating) before observation filtering.
 - Reuse saved simulation strengths for pathway decomposition and report pathway presence separately from its response sign and contribution.
 - Correct the feedforward term in cumulative effects and retain available sections of stability tables when conditional stability is undefined.
+- Restrict input/output path searches to permitted intermediate nodes, avoiding enumeration of irrelevant state pathways in large models.
 - Improve numerical term counting, consistency between modules, mathematical regression tests and the getting-started examples.
 
 ### Migration

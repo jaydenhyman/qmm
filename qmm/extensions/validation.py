@@ -55,11 +55,10 @@ def marginal_likelihood(
     """
     pert = _parse_perturbations(G, perturb)
     likelihood, count = 0.0, 0
-    for sims in _simulate(G, n_sim=n_sim, dist=dist, seed=seed,
-                          perturb=pert,
-                                 observe=_parse_observations(observe) if observe else None,
-                                 uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
-                                 condition=False):
+    for sims in _simulate(G, n_sim=n_sim, dist=dist, seed=seed, perturb=pert,
+                          observe=_parse_observations(observe) if observe else None,
+                          uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
+                          condition=False):
         likelihood += sum(sims["valid_sims"]) / sims["n_stable"]
         count += 1
     return likelihood / count
@@ -186,8 +185,8 @@ def posterior_predictions(
     positive, negative, count = np.zeros(n_total), np.zeros(n_total), 0
     for sims in _simulate(G, n_sim=n_sim, dist=dist, seed=seed,
                           perturb=pert, observe=observations, presample=presample,
-                                 uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
-                                 max_attempts=max_attempts):
+                          uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
+                          max_attempts=max_attempts):
         effects = np.asarray(sims["effects"])[sims["valid_sims"], :n_total]
         positive += np.mean(effects > 0, axis=0)
         negative += np.mean(effects < 0, axis=0)

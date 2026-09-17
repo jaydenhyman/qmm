@@ -334,7 +334,7 @@ def test_weighted_predictions_matrix_perturb_P_mesocosm(mesocosm):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_missing_paths_snowshoe_io_na(snowshoe_io_na):
+def test_weighted_predictions_matrix_no_effect_snowshoe_io_na(snowshoe_io_na):
     result = weighted_predictions_matrix(snowshoe_io_na, as_nan=True, as_abs=False)
     expected = sp.Matrix([
         [     1,     -1,      1, 1],
@@ -344,7 +344,7 @@ def test_weighted_predictions_matrix_missing_paths_snowshoe_io_na(snowshoe_io_na
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_false_missing_paths_snowshoe_io_na(snowshoe_io_na):
+def test_weighted_predictions_matrix_as_nan_false_no_effect_snowshoe_io_na(snowshoe_io_na):
     result = weighted_predictions_matrix(snowshoe_io_na, as_nan=False, as_abs=False)
     expected = sp.Matrix([
         [1, -1,  1, 1],
@@ -645,7 +645,7 @@ def test_numerical_simulations_reproducible_seed_snowshoe(snowshoe):
     expected = numerical_simulations(snowshoe, n_sim=100, seed=42)
     assert result == expected
 
-def test_numerical_simulations_missing_paths_default_nan_snowshoe_io_na(snowshoe_io_na):
+def test_numerical_simulations_no_effect_nan_snowshoe_io_na(snowshoe_io_na):
     result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42)
     expected = sp.Matrix([
         [   1.0,   -1.0,    1.0, 1.0],
@@ -655,7 +655,7 @@ def test_numerical_simulations_missing_paths_default_nan_snowshoe_io_na(snowshoe
     assert result == expected
 
 
-def test_numerical_simulations_missing_paths_mode_absolute_snowshoe_io_na(snowshoe_io_na):
+def test_numerical_simulations_no_effect_mode_absolute_snowshoe_io_na(snowshoe_io_na):
     result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, mode="absolute")
     expected = sp.Matrix([
         [   1.0,    1.0,    1.0, 1.0],
@@ -665,7 +665,7 @@ def test_numerical_simulations_missing_paths_mode_absolute_snowshoe_io_na(snowsh
     assert result == expected
 
 
-def test_numerical_simulations_missing_paths_mode_positive_snowshoe_io_na(snowshoe_io_na):
+def test_numerical_simulations_no_effect_mode_positive_snowshoe_io_na(snowshoe_io_na):
     result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [   1.0,    0.0,    1.0, 1.0],

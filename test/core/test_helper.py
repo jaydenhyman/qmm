@@ -594,6 +594,9 @@ def test_get_dashed_alternatives_no_dashed_edges_snowshoe(snowshoe):
     result = get_dashed_alternatives(snowshoe)
     assert len(result) == 1
     assert result[0].number_of_edges() == snowshoe.number_of_edges()
+
+
+def test_get_dashed_alternatives_importable():
     assert qmm.get_dashed_alternatives is get_dashed_alternatives
 
 

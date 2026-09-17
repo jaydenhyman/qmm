@@ -27,7 +27,7 @@ Replace `as_abs=True` with `mode='absolute'`, `positive_only=True` with `mode='p
 Changes since 0.4.17:
 
 - Validate imported node identities, directed edges and interaction signs; preserve model metadata and derive node roles automatically.
-- Reject imported models with multiple weakly connected components. Directly constructed graphs are trusted.
+- Reject imported models with multiple weakly connected components. `define_input_output` no longer accepts `remove_disconnected`; clean up the model explicitly before analysis. Directly constructed graphs are trusted.
 - Sample or enumerate uncertain interactions, retain structural zeros, and reject alternatives that change node roles. Reciprocal uncertain interactions can be grouped.
 - Support simultaneous press perturbations and observation conditioning. `get_simulations(condition=False)` collects a fixed number of stable draws per batch (per structure when enumerating) before observation filtering.
 - Reuse saved simulation strengths for pathway decomposition and report pathway presence separately from its response sign and contribution.
@@ -37,7 +37,7 @@ Changes since 0.4.17:
 
 ### Migration
 
-Import now refuses ambiguous identities, invalid signs and disconnected models instead of silently repairing them. Alternative comparisons require consistent node roles, and enumerated sampling can fail when a requested structure cannot supply enough accepted draws within its attempt limit.
+Update callers that pass `remove_disconnected`. Import now refuses ambiguous identities, invalid signs and disconnected models instead of silently repairing them. Alternative comparisons require consistent node roles, and enumerated sampling can fail when a requested structure cannot supply enough accepted draws within its attempt limit.
 
 `average_uncertain` has been replaced by `uncertain_interactions="sample"` or `"enumerate"`; sampling is now the default. These modes have different structure-weighting and stopping rules; this is not a boolean rename. Reciprocal uncertain edges are grouped by default; pass `pair_reciprocal=False` to sample directed edges independently. To analyse a fixed topology, first select the desired graph and clear its uncertain-edge flags (`dashes`).
 

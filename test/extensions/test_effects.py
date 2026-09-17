@@ -182,7 +182,7 @@ def test_weighted_effects_matches_weighted_predictions_matrix(snowshoe, snowshoe
     expected = weighted_predictions_matrix(snowshoe)
     assert result == expected
 
-def test_weighted_effects_nan_for_missing_paths(snowshoe_io_na):
+def test_weighted_effects_nan_for_no_effect(snowshoe_io_na):
     result = weighted_effects(snowshoe_io_na)
     expected = sp.Matrix([
         [     1,     -1,      1, 1,      1,     -1],
@@ -222,7 +222,7 @@ def test_sign_determinacy_effects_matches_sign_determinacy_matrix(snowshoe, snow
     expected = sign_determinacy_matrix(snowshoe, method='average')
     assert result == expected
 
-def test_sign_determinacy_effects_nan_for_missing_paths(snowshoe_io_na):
+def test_sign_determinacy_effects_nan_for_no_effect(snowshoe_io_na):
     result = sign_determinacy_effects(snowshoe_io_na, method='average')
     half = sp.Rational(1, 2)
     expected = sp.Matrix([
@@ -761,7 +761,7 @@ def test_simulation_effects_retries_singular_draws(snowshoe_io):
         assert call_count[0] > 5
 
 
-def test_marginal_likelihood_zero_observation_matches_absent_uncertain_link(self_limited_pair):
+def test_marginal_likelihood_zero_observation_matches_absent_uncertain_interaction(self_limited_pair):
     G = self_limited_pair
     G.add_edge("A", "B", sign=1, dashes=True)
     averaged = marginal_likelihood(G, "A:+", "B:0", n_sim=400, seed=3, uncertain_interactions="sample")
@@ -783,7 +783,7 @@ def test_get_simulations_rejects_invalid_counts(snowshoe, option, value):
         get_simulations(snowshoe, **{option: value})
 
 
-def test_get_simulations_presample_uncertain_link_sampled_in_and_out(self_limited_pair):
+def test_get_simulations_presample_uncertain_interaction_sampled_in_and_out(self_limited_pair):
     G = self_limited_pair
     G.add_edge('A', 'B', sign=1, dashes=True)
     sims = get_simulations(
@@ -908,7 +908,7 @@ def test_get_simulations_rejects_unknown_uncertain_interactions(snowshoe_dashed)
 def test_simulate_enumerate_yields_each_structure_snowshoe_dashed(snowshoe_dashed):
     strengths = {symbol: 0.5 for symbol in create_matrix(snowshoe_dashed, "symbolic").free_symbols}
     batches = list(_simulate(snowshoe_dashed, n_sim=10, seed=1, uncertain_interactions="enumerate",
-                                    max_attempts=np.int64(10), presample=lambda symbols: strengths))
+                             max_attempts=np.int64(10), presample=lambda symbols: strengths))
     result = [(len(batch["effects"]), len(set(batch["structures"]))) for batch in batches]
     expected = [(10, 1)] * 4
     assert result == expected

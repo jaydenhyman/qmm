@@ -416,8 +416,10 @@ def test_path_metrics_zero_complementary_feedback_nan_feedback_graph(nan_feedbac
                     "Positive feedback", "Negative feedback", "Weighted feedback", "Weighted path", "System path"]),
 ])
 def test_path_functions_no_path_return_empty_tables_snowshoe_io_na(snowshoe_io_na, function, columns):
-    result = function(snowshoe_io_na, "R", "N")
-    assert result.empty and list(result.columns) == columns
+    table = function(snowshoe_io_na, "R", "N")
+    result = (table.empty, list(table.columns))
+    expected = (True, columns)
+    assert result == expected
 
 
 def test_path_metrics_rejects_invalid_source(snowshoe_io):
@@ -665,7 +667,7 @@ def test_pathway_effects_sims_rejects_unknown_observe_node(snowshoe):
 @pytest.mark.parametrize("observe, observed", [("Out1:-", (("Out1", -1),)), ("C:-,Out1:+", (("C", -1), ("Out1", 1)))])
 def test_pathway_effects_sims_observe_matches_valid_draws_snowshoe_io(snowshoe_io, observe, observed):
     sims = get_simulations(snowshoe_io, 300, seed=1, perturb=("Inp1", 1), observe=observed, condition=False,
-                                 return_samples=True)
+                           return_samples=True)
     keep = np.array(sims["valid_sims"])
     subset = {**sims, "effects": np.array(sims["effects"])[keep], "structures": list(np.array(sims["structures"])[keep]),
               "samples": {name: values[keep] for name, values in sims["samples"].items()}}
@@ -798,7 +800,7 @@ def test_pathway_effects_present_matches_nonzero_response_reciprocal_dashes(self
     assert result == expected
 
 
-def test_pathway_effects_present_requires_every_uncertain_link_fork(fork):
+def test_pathway_effects_present_requires_every_uncertain_interaction_fork(fork):
     fork["A"]["C"]["dashes"] = True
     fork["C"]["B"]["dashes"] = True
     table = pathway_effects(fork, "A", "B", n_sim=5, seed=1, uncertain_interactions="enumerate")
@@ -807,7 +809,7 @@ def test_pathway_effects_present_requires_every_uncertain_link_fork(fork):
     assert result == expected
 
 
-def test_pathway_effects_present_with_64_uncertain_links():
+def test_pathway_effects_present_with_64_uncertain_interactions():
     nodes = [f"N{i:02d}" for i in range(65)]
     G = nx.DiGraph()
     G.add_nodes_from(nodes, category="state")

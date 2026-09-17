@@ -398,7 +398,7 @@ def test_posterior_predictions_enumerate_averages_structures_equally(fork):
     assert result == expected
 
 
-def test_posterior_predictions_enumerate_skips_structure_without_matches_fork(fork):
+def test_posterior_predictions_enumerate_drops_structure_without_matches_fork(fork):
     G = nx.DiGraph(fork)
     G['A']['B']['dashes'] = True
     with pytest.warns(UserWarning, match="No matching draws for structure 0"):

@@ -473,7 +473,7 @@ def _simulate(
                     samples.append(values)
             drawn += effect is not None and (not condition or valid_sims[-1])
         if drawn == 0 and present is not None and condition and observe:
-            warnings.warn(f"No matching draws for structure {get_zero_effect_mask(present)[0]}", stacklevel=2)
+            warnings.warn(f"No matching draws for structure {get_zero_effect_mask(present)[0]}", stacklevel=3)
             continue
         if drawn < n_sim:
             label = f" for structure {get_zero_effect_mask(present)[0]}" if present is not None else ""

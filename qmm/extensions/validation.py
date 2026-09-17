@@ -149,7 +149,7 @@ def posterior_predictions(
         seed: Random seed
         mode: 'dominant' for the signed proportion of the dominant sign,
             or 'positive' for the proportion of positive responses
-        presample: Optional callable passed through to get_simulations
+        presample: Callable receiving coefficient symbols and returning substitutions.
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.

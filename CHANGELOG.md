@@ -20,7 +20,7 @@ Changes since 0.5.0:
 
 ### Migration
 
-Replace `as_abs=True` with `mode='absolute'`, `positive_only=True` with `mode='positive'` and `match_adjoint=True` with `mode='match_adjoint'`; drop `as_nan` from `numerical_simulations` calls. Replace `iter_simulations` with `get_simulations`. Check callers of `paths_table` for an empty table instead of None, and callers of `compare_model_alternatives` that formatted the likelihood column. Calls with `combinations=False` now receive one row per uncertain interaction plus the base model.
+Replace `as_abs=True` with `mode='absolute'`, `positive_only=True` with `mode='positive'` and `match_adjoint=True` with `mode='match_adjoint'`; drop `as_nan` from `numerical_simulations` calls. Replace `iter_simulations` with `get_simulations`, which concatenates enumerated structures into one result rather than yielding a batch per structure. Path functions (`get_paths`, `complementary_feedback`, `system_paths`, `weighted_paths`, `paths_table`, `path_metrics`) return an empty table when no path exists, so callers that tested for one sentinel row or for None must test for an empty table. Callers of `compare_model_alternatives` no longer need to parse the likelihood column. Calls with `combinations=False` now receive one row per uncertain interaction plus the base model.
 
 ## 0.5.0
 

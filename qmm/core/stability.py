@@ -306,7 +306,7 @@ def feedback_metrics(G: nx.DiGraph) -> pd.DataFrame:
     absolute = absolute_feedback(G)
     positive = get_positive(net, absolute)
     negative = get_negative(net, absolute)
-    weighted = weighted_feedback(G)
+    weighted = get_weight(net, absolute)
     n = len(positive)
     levels = [str(i) for i in range(n)]
 
@@ -488,7 +488,7 @@ def determinants_metrics(G: nx.DiGraph) -> pd.DataFrame:
     """
     net = net_determinants(G)
     absolute = absolute_determinants(G)
-    weighted = weighted_determinants(G)
+    weighted = get_weight(net, absolute)
     n = len(net)
     levels = [str(i) for i in range(n)]
     df = {

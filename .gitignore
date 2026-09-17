@@ -1,5 +1,8 @@
 uv.lock
 notebooks/
+/AGENTS.md
+/.scratch/
+docs/agents/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -132,4 +135,3 @@ cython_debug/
 *.sage.py
 celerybeat-schedule
 celerybeat.pid
-

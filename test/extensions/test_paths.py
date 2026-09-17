@@ -10,7 +10,7 @@ import networkx as nx
 from qmm.core.helper import get_nodes
 from qmm.core.structure import create_matrix
 from qmm.core.stability import system_feedback
-from qmm.extensions.effects import cumulative_effects, get_simulations, iter_simulations
+from qmm.extensions.effects import cumulative_effects, get_simulations
 from qmm.extensions.paths import (
     get_cycles,
     cycles_table,
@@ -669,8 +669,8 @@ def test_pathway_effects_sims_observe_unknown_node_snowshoe(snowshoe):
 
 @pytest.mark.parametrize("observe, observed", [("Out1:-", (("Out1", -1),)), ("C:-,Out1:+", (("C", -1), ("Out1", 1)))])
 def test_pathway_effects_sims_observe_matches_valid_draws_snowshoe_io(snowshoe_io, observe, observed):
-    sims = next(iter_simulations(snowshoe_io, 300, seed=1, perturb=("Inp1", 1), observe=observed, condition=False,
-                                 return_samples=True))
+    sims = get_simulations(snowshoe_io, 300, seed=1, perturb=("Inp1", 1), observe=observed, condition=False,
+                                 return_samples=True)
     keep = np.array(sims["valid_sims"])
     subset = {**sims, "effects": np.array(sims["effects"])[keep], "structures": list(np.array(sims["structures"])[keep]),
               "samples": {name: values[keep] for name, values in sims["samples"].items()}}

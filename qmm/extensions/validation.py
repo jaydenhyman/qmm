@@ -3,7 +3,7 @@
 import sympy as sp
 import numpy as np
 import pandas as pd
-from .effects import iter_simulations
+from .effects import _simulate
 from ..core.structure import define_input_output
 from ..core.helper import (
     _build_model_variant,
@@ -56,8 +56,8 @@ def marginal_likelihood(
     """
     pert = _parse_perturbations(G, perturb)
     likelihood, count = 0.0, 0
-    for sims in iter_simulations(G, n_sim=n_sim, dist=dist, seed=seed,
-                                 perturb=pert,
+    for sims in _simulate(G, n_sim=n_sim, dist=dist, seed=seed,
+                          perturb=pert,
                                  observe=_parse_observations(observe) if observe else None,
                                  uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
                                  condition=False):
@@ -159,7 +159,7 @@ def posterior_predictions(
         seed: Random seed
         mode: 'dominant' for the signed proportion of the dominant sign,
             or 'positive' for the proportion of positive responses
-        presample: Optional callable passed through to iter_simulations
+        presample: Optional callable passed through to get_simulations
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
@@ -193,8 +193,8 @@ def posterior_predictions(
     observations = _parse_observations(observe) if observe else None
     n_total = len(get_nodes(G, "state")) + len(get_nodes(G, "output"))
     positive, negative, count = np.zeros(n_total), np.zeros(n_total), 0
-    for sims in iter_simulations(G, n_sim=n_sim, dist=dist, seed=seed,
-                                 perturb=pert, observe=observations, presample=presample,
+    for sims in _simulate(G, n_sim=n_sim, dist=dist, seed=seed,
+                          perturb=pert, observe=observations, presample=presample,
                                  uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
                                  max_attempts=max_attempts):
         effects = np.asarray(sims["effects"])[sims["valid_sims"], :n_total]

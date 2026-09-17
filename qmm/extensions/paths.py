@@ -527,7 +527,7 @@ def pathway_effects(
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         observe: Observation string (node:sign, comma-separated allowed) to condition on
-        sims: Stable draws from get_simulations or iter_simulations with return_samples=True,
+        sims: Stable draws from get_simulations with return_samples=True,
             pressing only source or nothing, used instead of new simulations; n_sim, dist, seed,
             uncertain_interactions and pair_reciprocal are then ignored, and observe keeps the
             draws whose responses match.

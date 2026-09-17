@@ -248,7 +248,7 @@ def get_simulations(
     max_attempts: Optional[int] = None,
     condition: bool = True,
 ) -> Dict[str, Any]:
-    """Collect numerical simulations; see iter_simulations for sampling options.
+    """Collect numerical simulations over one sampled batch or every enumerated structure.
 
     Args:
         G: Signed digraph with state, input and output categories.
@@ -259,10 +259,13 @@ def get_simulations(
         observe: Optional (node, sign) pairs; signs are -1, 0 or 1.
         presample: Callable receiving coefficient symbols and returning substitutions.
         return_samples: Include coefficient strengths for each stable draw.
-        uncertain_interactions: Sample uncertain interactions or enumerate every structure.
+        uncertain_interactions: 'sample' draws a probability uniformly from 0 to 1 for each attempt,
+            then keeps each uncertain interaction independently with that probability.
+            'enumerate' visits every combination and collects n_sim draws for each.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
-        condition: Require observation matches to reach n_sim; otherwise count all stable draws.
+        condition: Require observation matches to reach n_sim. Use False to estimate
+            likelihoods from a fixed number of stable draws.
 
     Returns:
         Dictionary with effects, valid_sims, all_nodes, tmat, prop_stable,
@@ -286,9 +289,9 @@ def get_simulations(
         # (3, 3)
         ```
     """
-    batches = iter_simulations(G, n_sim, dist, seed, perturb, observe, presample,
-                               return_samples, uncertain_interactions, pair_reciprocal,
-                               condition=condition, max_attempts=max_attempts)
+    batches = _simulate(G, n_sim, dist, seed, perturb, observe, presample,
+                        return_samples, uncertain_interactions, pair_reciprocal,
+                        condition=condition, max_attempts=max_attempts)
     result = next(batches)
     samples = [result["samples"]] if return_samples else []
     for batch in batches:
@@ -305,7 +308,7 @@ def get_simulations(
     return result
 
 
-def iter_simulations(
+def _simulate(
     G: nx.DiGraph,
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
@@ -319,40 +322,10 @@ def iter_simulations(
     condition: bool = True,
     max_attempts: Optional[int] = None,
 ) -> Iterator[Dict[str, Any]]:
-    """Yield stable simulations, one batch per enumerated structure or one sampled batch.
+    """Yield one batch of stable draws per enumerated structure, or one sampled batch.
 
-    Args:
-        G: Signed digraph with state, input and output categories.
-        n_sim: Target stable draws matching observe. With condition=False, target
-            stable draws regardless of observations. The target applies to each batch.
-        dist: Distribution of interaction strengths.
-        seed: Random seed.
-        perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
-        observe: Optional (node, sign) pairs; signs are -1, 0 or 1.
-        presample: Callable receiving coefficient symbols and returning substitutions.
-        return_samples: Include the actual coefficient strengths for each stable draw.
-        uncertain_interactions: 'sample' draws a probability uniformly from 0 to 1 for each attempt,
-            then keeps each uncertain interaction independently with that probability.
-            'enumerate' visits every combination and collects n_sim draws for each.
-        pair_reciprocal: Keep or drop reciprocal dashed edges together.
-        condition: Require observation matches to reach n_sim. Use False to estimate
-            likelihoods from a fixed number of stable draws.
-        max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
-
-    Yields:
-        Dictionaries with effects, valid_sims, all_nodes, tmat, prop_stable,
-        attempts, n_stable, structures, perturb, interactions, signs, and optionally samples.
-        All stable draws are retained; valid_sims flags observation matches. structures
-        identifies each draw by a bit mask of present uncertain interactions, with bit i
-        for the edges in interactions[i]. perturb holds the (node, sign) presses, and
-        signs holds the sign of each edge. tmat contains term counts for G; effects use
-        each draw's structure to set cells without terms to exact zero before combining
-        perturbations.
-
-    Raises:
-        ValueError: A draw limit is invalid, or a structure has invalid nodes or
-            changes node categories.
-        RuntimeError: A batch cannot reach n_sim within max_attempts.
+    Each batch holds every stable draw with valid_sims flagging observation matches;
+    effects use each draw's structure to set cells without terms to exact zero.
     """
     if isinstance(n_sim, (bool, np.bool_)) or not isinstance(n_sim, (int, np.integer)) or n_sim <= 0:
         raise ValueError("n_sim must be a positive integer.")
@@ -584,8 +557,8 @@ def simulation_effects(
     if mode not in ("dominant", "positive"):
         raise ValueError("Invalid mode. Choose 'dominant' or 'positive'.")
     positive, negative, count = 0, 0, 0
-    for sims in iter_simulations(G, n_sim, dist, seed, presample=presample,
-                                 uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
+    for sims in _simulate(G, n_sim, dist, seed, presample=presample,
+                          uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
         pos, neg = _sign_counts(sims["effects"])
         positive += pos / sims["n_stable"]
         negative += neg / sims["n_stable"]
@@ -652,7 +625,7 @@ def simulations_table(
         if not response_nodes:
             continue
         pert = _parse_perturbations(g, perturb)
-        sims = next(iter_simulations(
+        sims = next(_simulate(
             g,
             n_sim=n_sim,
             dist=dist,

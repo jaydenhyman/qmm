@@ -20,7 +20,7 @@ from qmm.extensions.effects import (
     weighted_effects,
     sign_determinacy_effects,
     get_simulations,
-    iter_simulations,
+    _simulate,
     simulation_effects,
     simulations_table,
     direct_effects,
@@ -905,9 +905,9 @@ def test_get_simulations_rejects_unknown_uncertain_mode_snowshoe_dashed(snowshoe
         get_simulations(snowshoe_dashed, n_sim=10, uncertain_interactions="unknown")
 
 
-def test_iter_simulations_enumerate_yields_each_structure_snowshoe_dashed(snowshoe_dashed):
+def test_simulate_enumerate_yields_each_structure_snowshoe_dashed(snowshoe_dashed):
     strengths = {symbol: 0.5 for symbol in create_matrix(snowshoe_dashed, "symbolic").free_symbols}
-    batches = list(iter_simulations(snowshoe_dashed, n_sim=10, seed=1, uncertain_interactions="enumerate",
+    batches = list(_simulate(snowshoe_dashed, n_sim=10, seed=1, uncertain_interactions="enumerate",
                                     max_attempts=np.int64(10), presample=lambda symbols: strengths))
     result = [(len(batch["effects"]), len(set(batch["structures"]))) for batch in batches]
     expected = [(10, 1)] * 4

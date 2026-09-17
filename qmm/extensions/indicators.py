@@ -5,7 +5,7 @@ import numpy as np
 import networkx as nx
 from ..core.helper import get_nodes, _parse_perturbations
 from ..core.structure import define_input_output
-from .effects import iter_simulations
+from .effects import _simulate
 from typing import Union, List, Literal
 
 def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False, uncertain_interactions: Literal["sample", "enumerate"] = "sample", pair_reciprocal: bool = True, weights: Literal["equal", "posterior"] = "equal", base: float = np.e) -> pd.DataFrame:
@@ -71,8 +71,8 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         node_indices = [response_nodes.index(node) for node in nodes]
         sign_probabilities = np.zeros((len(nodes), 3))
         stability, batches = 0.0, 0
-        for sims in iter_simulations(G, n_sim=n_sim, seed=seed, perturb=perturb_tuple,
-                                     uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
+        for sims in _simulate(G, n_sim=n_sim, seed=seed, perturb=perturb_tuple,
+                              uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
             effects = np.sign(np.asarray(sims["effects"])[:, node_indices])
             sign_probabilities += (effects[..., None] == (-1, 0, 1)).mean(axis=0)
             stability += sims["prop_stable"]

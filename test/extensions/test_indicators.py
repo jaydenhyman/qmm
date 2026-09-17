@@ -82,7 +82,7 @@ def test_mutual_information_posterior_weights_and_bits(monkeypatch, uncertain_in
         [{'effects': [np.array([-1.0])] * 4, 'prop_stable': stability}
          for stability in ((0.5, 1.0) if uncertain_interactions == 'enumerate' else (0.75,))],
     ])
-    monkeypatch.setattr('qmm.extensions.indicators.iter_simulations', lambda *args, **kwargs: iter(next(draws)))
+    monkeypatch.setattr('qmm.extensions.indicators._simulate', lambda *args, **kwargs: iter(next(draws)))
     result = mutual_information(models, 'X:+', n_sim=4, uncertain_interactions=uncertain_interactions, weights=weights, base=2)
     expected = -(0.25 * np.log2(0.25) + 0.75 * np.log2(0.75)) if weights == 'posterior' else 1.0
     assert result['Mutual Information'].iloc[0] == pytest.approx(expected)

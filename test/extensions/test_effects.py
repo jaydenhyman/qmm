@@ -457,10 +457,14 @@ def test_simulation_effects_full_matrix(snowshoe_io):
         [-0.63, -0.63,  1.0, -0.53, -1.0],
         [  1.0,   1.0, -1.0,  0.52,  1.0]])
     assert result == expected
+    assert simulation_effects(snowshoe_io, n_sim=100, seed=42, mode="dominant") == expected
+    for mode in ("absolute", "match_adjoint", "invalid", True, False, None):
+        with pytest.raises(ValueError, match="Invalid mode"):
+            simulation_effects(None, mode=mode)
 
 
-def test_simulation_effects_positive_only(snowshoe_io):
-    result = simulation_effects(snowshoe_io, n_sim=100, seed=42, positive_only=True)
+def test_simulation_effects_positive(snowshoe_io):
+    result = simulation_effects(snowshoe_io, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [ 1.0,  0.0, 1.0,  1.0, 0.0],
         [ 1.0,  1.0, 0.0, 0.52, 1.0],
@@ -474,7 +478,7 @@ def test_simulation_effects_presample_full_matrix(snowshoe_rp):
     def presample(symbols):
         return {sp.Symbol('a_P,R'): 1}
 
-    result = simulation_effects(snowshoe_rp, n_sim=100, seed=42, presample=presample, positive_only=False)
+    result = simulation_effects(snowshoe_rp, n_sim=100, seed=42, presample=presample, mode="dominant")
     expected = sp.Matrix([
         [  1.0,  -1.0,  1.0],
         [-0.59,   1.0, -1.0],
@@ -551,8 +555,8 @@ def test_simulation_effects_nan_for_no_path(snowshoe_io_na):
     assert result == expected
 
 
-def test_simulation_effects_positive_only_nan_for_no_path(snowshoe_io_na):
-    result = simulation_effects(snowshoe_io_na, n_sim=100, seed=42, positive_only=True)
+def test_simulation_effects_positive_nan_for_no_path(snowshoe_io_na):
+    result = simulation_effects(snowshoe_io_na, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [   1.0,    0.0,    1.0,  1.0,    1.0,    0.0],
         [   1.0,    1.0,    0.0,  1.0,   0.49,    1.0],
@@ -720,7 +724,7 @@ def test_table_of_effects_with_lambda_no_name(snowshoe_io):
 
 def test_table_of_effects_forwards_kwargs(snowshoe_io):
     default = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42)
-    positive = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42, positive_only=True)
+    positive = table_of_effects(snowshoe_io, simulation_effects, n_sim=200, seed=42, mode="positive")
     assert isinstance(positive, pd.DataFrame)
     assert not default.equals(positive)
 
@@ -950,6 +954,6 @@ def test_simulations_table_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowsho
 
 
 def test_simulation_effects_enumerate_divides_by_all_stable_draws_snowshoe_dashed(snowshoe_dashed):
-    result = simulation_effects(snowshoe_dashed, n_sim=50, seed=1, positive_only=True, uncertain_interactions="enumerate")[0, 0]
+    result = simulation_effects(snowshoe_dashed, n_sim=50, seed=1, mode="positive", uncertain_interactions="enumerate")[0, 0]
     expected = 1.0
     assert result == expected

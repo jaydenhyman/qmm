@@ -119,6 +119,10 @@ def test_posterior_predictions(mesocosm):
         0.9835,
     ]
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
+    assert posterior_predictions(mesocosm, perturb='P:+', observe='A1:+', seed=42, mode="dominant") == result
+    for mode in ("absolute", "match_adjoint", "invalid", True, False, None):
+        with pytest.raises(ValueError, match="Invalid mode"):
+            posterior_predictions(None, perturb='P:+', mode=mode)
 
 def test_posterior_predictions_complex_observations(mesocosm):
     result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', dist='uniform', seed=42)
@@ -134,8 +138,8 @@ def test_posterior_predictions_complex_observations(mesocosm):
     ]
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
 
-def test_posterior_predictions_positive_only(mesocosm):
-    result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42, positive_only=True)
+def test_posterior_predictions_positive(mesocosm):
+    result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42, mode="positive")
     expected = [
         1.0,
         0.38,
@@ -156,19 +160,21 @@ def test_posterior_predictions_no_matching_simulations_raises(mesocosm):
 
 def test_posterior_predictions_structural_no_path_stays_nan(self_limited_pair):
     G = self_limited_pair
-    result = posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, seed=1, max_attempts=20)
-    assert float(result[0]) == 1.0 and result[1] is sp.nan
+    for mode in ("dominant", "positive"):
+        result = posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, seed=1, max_attempts=20, mode=mode)
+        assert float(result[0]) == 1.0 and result[1] is sp.nan
     with pytest.raises(RuntimeError, match="Matched 19/20 draws"):
         posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, max_attempts=19)
 
 def test_posterior_predictions_simultaneous_cancellation_matches_zero_observation(self_limited_pair):
     G = self_limited_pair
     G.add_edge('A', 'B', sign=1)
-    result = posterior_predictions(
-        G, perturb='A:+, B:-', observe='B:0', n_sim=5,
-        presample=lambda symbols: {symbol: 1 for symbol in symbols},
-    )
-    assert list(result) == [sp.Float(1), sp.Float(0)]
+    for mode in ("dominant", "positive"):
+        result = posterior_predictions(
+            G, perturb='A:+, B:-', observe='B:0', n_sim=5,
+            presample=lambda symbols: {symbol: 1 for symbol in symbols}, mode=mode,
+        )
+        assert list(result) == [sp.Float(1), sp.Float(0)]
 
 
 # =============================================================================
@@ -396,7 +402,7 @@ def test_posterior_predictions_enumerate_averages_structures_equally(fork):
     sims = get_simulations(G, n_sim=100, seed=1, perturb=('A', 1), observe=(('B', 1),), uncertain_interactions="enumerate")
     valid = np.array(sims["valid_sims"])
     pooled = np.mean(np.array(sims["effects"])[valid][:, 2] > 0)
-    predictions = posterior_predictions(G, 'A:+', 'B:+', n_sim=100, seed=1, positive_only=True, uncertain_interactions="enumerate")
+    predictions = posterior_predictions(G, 'A:+', 'B:+', n_sim=100, seed=1, mode="positive", uncertain_interactions="enumerate")
     counts = [sum(v for v, c in zip(sims["valid_sims"], sims["structures"]) if c == code) for code in range(4)]
     result = ([float(x) for x in predictions], pooled, counts)
     expected = ([1.0, 1.0, 0.5], 0.5, [100] * 4)

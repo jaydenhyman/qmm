@@ -534,7 +534,7 @@ def simulation_effects(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    positive_only: bool = False,
+    mode: Literal["dominant", "positive"] = "dominant",
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
     uncertain_interactions: Literal["sample", "enumerate"] = "sample",
     pair_reciprocal: bool = True,
@@ -546,13 +546,17 @@ def simulation_effects(
         n_sim: Stable draws per structure.
         dist: Distribution for sampling ("uniform", "weak", "moderate", "strong")
         seed: Random seed
-        positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
+        mode: 'dominant' for the signed proportion of the dominant sign,
+            or 'positive' for the proportion of positive responses
         presample: Optional callable passed through to get_simulations
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
 
     Returns:
         SymPy Matrix containing simulation results
+
+    Raises:
+        ValueError: If mode is invalid.
 
     Examples:
         ```python
@@ -565,7 +569,7 @@ def simulation_effects(
         # [-0.517, -0.517,  1.0,  0.526, -1.0],
         # [   1.0,    1.0, -1.0, -0.513,  1.0]])
 
-        simulation_effects(load_digraph("snowshoe_io"), n_sim=1000, positive_only=True)
+        simulation_effects(load_digraph("snowshoe_io"), n_sim=1000, mode="positive")
         # Matrix([
         # [  1.0,   0.0, 1.0,   1.0, 0.0],
         # [  1.0,   1.0, 0.0, 0.487, 1.0],
@@ -574,6 +578,8 @@ def simulation_effects(
         # [  1.0,   1.0, 0.0, 0.487, 1.0]])
         ```
     """
+    if mode not in ("dominant", "positive"):
+        raise ValueError("Invalid mode. Choose 'dominant' or 'positive'.")
     positive, negative, count = 0, 0, 0
     for sims in iter_simulations(G, n_sim, dist, seed, presample=presample,
                                  uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
@@ -584,7 +590,7 @@ def simulation_effects(
     positive, negative = positive / count, negative / count
     tmat = sims["tmat"]
     n_rows, n_cols = tmat.shape
-    smat = positive if positive_only else np.where(negative > positive, -negative, positive)
+    smat = positive if mode == "positive" else np.where(negative > positive, -negative, positive)
     smat = [[sp.nan if not tmat[i, j] else smat[i, j] for j in range(n_cols)] for i in range(n_rows)]
     return sp.Matrix(smat)
 

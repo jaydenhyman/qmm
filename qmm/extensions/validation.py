@@ -142,7 +142,7 @@ def posterior_predictions(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    positive_only: bool = False,
+    mode: Literal["dominant", "positive"] = "dominant",
     presample: Optional[Callable[[Tuple[sp.Symbol, ...]], Dict[sp.Symbol, Any]]] = None,
     uncertain_interactions: Literal["sample", "enumerate"] = "sample",
     pair_reciprocal: bool = True,
@@ -157,7 +157,8 @@ def posterior_predictions(
         n_sim: Stable draws matching observe, per structure when uncertain_interactions='enumerate'.
         dist: Distribution for sampling
         seed: Random seed
-        positive_only: Return just the proportion of positive responses instead of sign-dominant proportions
+        mode: 'dominant' for the signed proportion of the dominant sign,
+            or 'positive' for the proportion of positive responses
         presample: Optional callable passed through to iter_simulations
         uncertain_interactions: Sample uncertain interactions, or average every structure equally.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
@@ -167,6 +168,7 @@ def posterior_predictions(
         sp.Matrix: Predictions conditioned on observations
 
     Raises:
+        ValueError: If mode is invalid.
         RuntimeError: If a batch cannot collect enough matching stable draws.
 
     References:
@@ -185,6 +187,8 @@ def posterior_predictions(
         # [-0.511]])
         ```
     """
+    if mode not in ("dominant", "positive"):
+        raise ValueError("Invalid mode. Choose 'dominant' or 'positive'.")
     pert = _parse_perturbations(G, perturb)
     observations = _parse_observations(observe) if observe else None
     n_total = len(get_nodes(G, "state")) + len(get_nodes(G, "output"))
@@ -200,7 +204,7 @@ def posterior_predictions(
     positive /= count
     negative /= count
 
-    smat = positive if positive_only else np.where(negative > positive, -negative, positive)
+    smat = positive if mode == "positive" else np.where(negative > positive, -negative, positive)
 
     p_cols = [sims["all_nodes"].index(node) for node, _ in pert]
     tmat = sims["tmat"]

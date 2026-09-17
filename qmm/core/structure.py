@@ -85,7 +85,7 @@ def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
     return define_input_output(G)
 
 
-def define_input_output(G: nx.DiGraph) -> nx.DiGraph:
+def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.DiGraph:
     """Classify nodes as state, input or output from topology (any pre-set category is overwritten).
 
     Sources (and source-chains) become inputs, sinks (and sink-chains) outputs; a
@@ -94,6 +94,7 @@ def define_input_output(G: nx.DiGraph) -> nx.DiGraph:
 
     Args:
         G: NetworkX DiGraph representing signed digraph model
+        remove_disconnected: Keep only the largest subnetwork and warn about the dropped nodes
 
     Returns:
         nx.DiGraph: Model with input, state and output classification
@@ -114,13 +115,18 @@ def define_input_output(G: nx.DiGraph) -> nx.DiGraph:
         raise TypeError("Input must be a networkx.DiGraph.")
     _check_signs(G)
     G_def = G.copy()
+    if remove_disconnected:
+        largest = max(nx.weakly_connected_components(G_def), key=len, default=set())
+        dropped = [n for n in G_def if n not in largest]
+        if dropped:
+            warnings.warn(f"Dropped nodes: {dropped}", stacklevel=2)
+            G_def.remove_nodes_from(dropped)
     nx.set_node_attributes(G_def, "state", "category")
     invalid = [n for nodes in nx.weakly_connected_components(G_def)
                if nx.is_directed_acyclic_graph(G_def.subgraph(nodes)) for n in nodes]
     if invalid:
         raise ValueError(f"Invalid nodes: {sorted(invalid, key=str)}")
 
-    # Inputs then outputs, each a fixpoint (order-independent); self-loop/feedback nodes stay state.
     def classify(role, here, there):
         changed = True
         while changed:

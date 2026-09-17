@@ -626,9 +626,14 @@ def test_edges_table_non_standard_sign(non_standard_sign_graph):
     assert '0.5' in result['Sign'].values
 
 
-def test_define_input_output_classifies_components_independently(snowshoe):
+def test_define_input_output_keeps_components_unless_removed(snowshoe):
     G = nx.DiGraph(snowshoe)
     G.add_edge('Z', 'Z', sign=-1)
     result = nx.get_node_attributes(define_input_output(G), "category")
     expected = {'R': 'state', 'C': 'state', 'P': 'state', 'Z': 'state'}
     assert result == expected
+    with pytest.warns(UserWarning, match=r"Dropped nodes: \['Z'\]"):
+        result = nx.get_node_attributes(define_input_output(G, remove_disconnected=True), "category")
+    expected = {'R': 'state', 'C': 'state', 'P': 'state'}
+    assert result == expected
+    assert list(G) == ['R', 'C', 'P', 'Z']

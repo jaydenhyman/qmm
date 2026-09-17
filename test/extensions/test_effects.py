@@ -346,6 +346,7 @@ def test_get_simulations_with_perturb_negative(snowshoe_io):
     (('R', 1), ('C', -1)),
     (('Inp1', 1), ('Inp2', -1)),
     (('R', 1), ('Inp2', 1)),
+    (('R', 0), ('Inp2', -1)),
 ])
 def test_simultaneous_presses_match_direct_solve(snowshoe_io, presses):
     sims = get_simulations(snowshoe_io, n_sim=10, perturb=presses, return_samples=True)
@@ -400,9 +401,17 @@ def test_get_simulations_all_nodes_includes_all(snowshoe_io):
     expected = set(all_expected)
     assert result == expected
 
-def test_get_simulations_invalid_perturb_node(snowshoe_io):
-    with pytest.raises(ValueError, match="Perturbation node 'InvalidNode' not found."):
-        get_simulations(snowshoe_io, n_sim=100, perturb=('InvalidNode', 1))
+@pytest.mark.parametrize('kwargs, expected', [
+    ({'perturb': ('InvalidNode', 1)}, "Perturbation node 'InvalidNode' not found."),
+    ({'perturb': ('R', 5)}, "Sign must be -1, 0 or 1: R"),
+    ({'perturb': (('R', 1), ('C', -2))}, "Sign must be -1, 0 or 1: C"),
+    ({'perturb': ('R', 1), 'observe': (('Out1', 7),)}, "Sign must be -1, 0 or 1: Out1"),
+])
+def test_get_simulations_rejects_invalid_presses_and_observations(snowshoe_io, kwargs, expected):
+    with pytest.raises(ValueError) as error:
+        get_simulations(snowshoe_io, n_sim=100, **kwargs)
+    result = str(error.value)
+    assert result == expected
 
 
 def test_get_simulations_no_state_variables(io_only_graph):

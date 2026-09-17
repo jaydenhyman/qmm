@@ -400,6 +400,9 @@ def iter_simulations(
     for node, _ in presses:
         if node not in perturb_nodes:
             raise ValueError(f"Perturbation node '{node}' not found.")
+    for node, sign in presses + tuple(observe or ()):
+        if sign not in (-1, 0, 1):
+            raise ValueError(f"Sign must be -1, 0 or 1: {node}")
     p_cols = [perturb_nodes.index(node) for node, _ in presses]
     p_signs = [sign for _, sign in presses]
     if observe and not p_cols:

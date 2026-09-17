@@ -224,9 +224,7 @@ def numerical_simulations(
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
     as_nan: bool = True,
-    as_abs: bool = False,
-    positive_only: bool = False,
-    match_adjoint: bool = False,
+    mode: Literal["dominant", "absolute", "positive", "match_adjoint"] = "dominant",
 ) -> sp.Matrix:
     """Calculate proportion of positive and negative responses from stable simulations.
 
@@ -236,11 +234,10 @@ def numerical_simulations(
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong')
         seed: Random seed
         as_nan: Return NaN for undefined ratios
-        positive_only: Return just the proportion of positive responses instead of sign-dominant proportions.
-        as_abs: Return absolute values
-        match_adjoint: Return proportion of simulations matching the sign of the adjoint.
-            Values are always between 0 and 1. Entries where the adjoint sign is
-            ambiguous (0) return 0.5. Incompatible with positive_only and as_abs.
+        mode: Response summary: 'dominant' (signed proportion of the dominant sign),
+            'absolute' (unsigned proportion of the dominant sign), 'positive'
+            (proportion of positive responses) or 'match_adjoint' (proportion
+            matching the sign of the adjoint; ambiguous adjoint entries return 0.5).
 
     References:
         - Dambacher, J.M., Li, H.W., Rossignol, P.A. (2003). Qualitative predictions in model ecosystems. Ecological Modelling 161, 79–93.
@@ -249,7 +246,7 @@ def numerical_simulations(
         sp.Matrix: Average proportion of positive and negative responses
 
     Raises:
-        ValueError: If invalid parameter combinations are used.
+        ValueError: If mode is invalid or incompatible with as_nan.
 
     Examples:
         ```python
@@ -260,19 +257,19 @@ def numerical_simulations(
         # [0.621,   1.0, -1.0],
         # [  1.0, 0.639,  1.0]])
 
-        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, as_abs=True)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, mode='absolute')
         # Matrix([
         # [  1.0,   1.0, 1.0],
         # [0.621,   1.0, 1.0],
         # [  1.0, 0.639, 1.0]])
 
-        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, as_abs=False)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, mode='match_adjoint')
         # Matrix([
-        # [  1.0,  -1.0,  1.0],
-        # [0.621,   1.0, -1.0],
-        # [  1.0, 0.639,  1.0]])
+        # [1.0, 1.0, 1.0],
+        # [0.5, 1.0, 1.0],
+        # [1.0, 0.5, 1.0]])
 
-        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, positive_only=True)
+        numerical_simulations(load_digraph("snowshoe_rp"), n_sim=1000, seed=42, mode='positive')
         # Matrix([
         # [  1.0,   0.0, 1.0],
         # [0.621,   1.0, 0.0],
@@ -281,14 +278,10 @@ def numerical_simulations(
     """
     if isinstance(n_sim, (bool, np.bool_)) or not isinstance(n_sim, (int, np.integer)) or n_sim < 0:
         raise ValueError("n_sim must be a nonnegative integer")
-    if positive_only and not as_nan:
-        raise ValueError("Invalid parameter combination: positive_only=True requires as_nan=True")
-    if as_abs and not as_nan:
-        raise ValueError("Invalid parameter combination: as_abs=True requires as_nan=True")
-    if match_adjoint and positive_only:
-        raise ValueError("Invalid parameter combination: match_adjoint=True is incompatible with positive_only=True")
-    if match_adjoint and as_abs:
-        raise ValueError("Invalid parameter combination: match_adjoint=True is incompatible with as_abs=True")
+    if mode not in ("dominant", "absolute", "positive", "match_adjoint"):
+        raise ValueError("Invalid mode. Choose 'dominant', 'absolute', 'positive', 'match_adjoint'.")
+    if mode in ("absolute", "positive") and not as_nan:
+        raise ValueError(f"mode='{mode}' requires as_nan=True")
 
     rng = np.random.RandomState(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
@@ -299,7 +292,7 @@ def numerical_simulations(
     positive = np.zeros((n, n), dtype=int)
     negative = np.zeros((n, n), dtype=int)
     total_simulations = 0
-    if match_adjoint:
+    if mode == "match_adjoint":
         adjoint_signs_np = np.array(
             adjoint_matrix(G, form="signed").tolist(), dtype=float
         )
@@ -322,9 +315,9 @@ def numerical_simulations(
         raise RuntimeError(f"Maximum iterations reached. Stable proportion: {total_simulations / max_attempts:.4f}")
     if total_simulations == 0:
         smat = np.full((n, n), np.nan)
-    elif positive_only:
+    elif mode == "positive":
         smat = positive / total_simulations
-    elif match_adjoint:
+    elif mode == "match_adjoint":
         matches = np.where(adjoint_signs_np > 0, positive,
                   np.where(adjoint_signs_np < 0, negative, 0))
         smat = np.where(adjoint_signs_np == 0, 0.5,
@@ -336,10 +329,10 @@ def numerical_simulations(
         tmat = absolute_feedback_matrix(G)
         tmat_np = np.array(tmat.tolist(), dtype=bool)
         smat = sp.Matrix([[sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)] for i in range(n)])
-        if as_abs:
+        if mode == "absolute":
             smat = sp.Matrix([[sp.Abs(x) if x != sp.nan else sp.nan for x in row] for row in smat.tolist()])
 
     if not as_nan:
-        fill = sp.Rational(1, 2) if match_adjoint else 0
+        fill = sp.Rational(1, 2) if mode == "match_adjoint" else 0
         smat = sp.Matrix([[fill if sp.nan == x else x for x in row] for row in smat.tolist()])
     return sp.Matrix(smat)

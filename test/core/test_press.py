@@ -623,8 +623,8 @@ def test_numerical_simulations_signed_default_mesocosm(mesocosm):
     assert result == expected
 
 
-def test_numerical_simulations_positive_only_true_snowshoe(snowshoe):
-    result = numerical_simulations(snowshoe, n_sim=100, seed=42, positive_only=True)
+def test_numerical_simulations_mode_positive_snowshoe(snowshoe):
+    result = numerical_simulations(snowshoe, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [1.0, 0.0, 1.0],
         [1.0, 1.0, 0.0],
@@ -641,8 +641,8 @@ def test_numerical_simulations_as_nan_false_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_numerical_simulations_as_abs_true_snowshoe(snowshoe):
-    result = numerical_simulations(snowshoe, n_sim=100, seed=42, as_abs=True)
+def test_numerical_simulations_mode_absolute_snowshoe(snowshoe):
+    result = numerical_simulations(snowshoe, n_sim=100, seed=42, mode="absolute")
     expected = sp.Matrix([
         [1.0, 1.0, 1.0],
         [1.0, 1.0, 1.0],
@@ -682,8 +682,8 @@ def test_numerical_simulations_missing_paths_fill_zeros_snowshoe_io_na(snowshoe_
     assert result == expected
 
 
-def test_numerical_simulations_missing_paths_as_abs_true_snowshoe_io_na(snowshoe_io_na):
-    result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, as_abs=True)
+def test_numerical_simulations_missing_paths_mode_absolute_snowshoe_io_na(snowshoe_io_na):
+    result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, mode="absolute")
     expected = sp.Matrix([
         [   1.0,    1.0,    1.0, 1.0],
         [   1.0,    1.0,    1.0, 1.0],
@@ -692,8 +692,8 @@ def test_numerical_simulations_missing_paths_as_abs_true_snowshoe_io_na(snowshoe
     assert result == expected
 
 
-def test_numerical_simulations_missing_paths_positive_only_true_snowshoe_io_na(snowshoe_io_na):
-    result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, positive_only=True)
+def test_numerical_simulations_missing_paths_mode_positive_snowshoe_io_na(snowshoe_io_na):
+    result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [   1.0,    0.0,    1.0, 1.0],
         [   1.0,    1.0,    0.0, 1.0],
@@ -702,8 +702,8 @@ def test_numerical_simulations_missing_paths_positive_only_true_snowshoe_io_na(s
     assert result == expected
 
 
-def test_numerical_simulations_as_nan_true_as_abs_false_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, as_abs=False)
+def test_numerical_simulations_as_nan_true_mode_dominant_snowshoe_na(snowshoe_na):
+    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, mode="dominant")
     expected = np.array([
         [   1.0,   -1.0, -0.5],
         [np.nan,    1.0, -1.0],
@@ -715,8 +715,8 @@ def test_numerical_simulations_as_nan_true_as_abs_false_snowshoe_na(snowshoe_na)
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-def test_numerical_simulations_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, as_abs=True)
+def test_numerical_simulations_as_nan_true_mode_absolute_snowshoe_na(snowshoe_na):
+    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, mode="absolute")
     expected = np.array([
         [   1.0,    1.0, 0.5],
         [np.nan,    1.0, 1.0],
@@ -728,8 +728,8 @@ def test_numerical_simulations_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na):
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-def test_numerical_simulations_as_nan_false_as_abs_false_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=False, as_abs=False)
+def test_numerical_simulations_as_nan_false_mode_dominant_snowshoe_na(snowshoe_na):
+    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=False, mode="dominant")
     expected = np.array([
         [1.0, -1.0, -0.5],
         [0.0,  1.0, -1.0],
@@ -738,8 +738,8 @@ def test_numerical_simulations_as_nan_false_as_abs_false_snowshoe_na(snowshoe_na
     assert np.allclose(np.array(result.tolist(), dtype=float), expected, atol=0.1)
 
 
-def test_numerical_simulations_positive_only_true_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, positive_only=True)
+def test_numerical_simulations_mode_positive_snowshoe_na(snowshoe_na):
+    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, mode="positive")
     expected = np.array([
         [   1.0,    0.0, 0.5],
         [np.nan,    1.0, 0.0],
@@ -751,14 +751,15 @@ def test_numerical_simulations_positive_only_true_snowshoe_na(snowshoe_na):
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-def test_numerical_simulations_positive_only_requires_as_nan_true(snowshoe):
-    with pytest.raises(ValueError, match="positive_only=True requires as_nan=True"):
-        numerical_simulations(snowshoe, n_sim=100, seed=42, positive_only=True, as_nan=False)
+@pytest.mark.parametrize("mode", ["positive", "absolute"])
+def test_numerical_simulations_mode_requires_as_nan_true(snowshoe, mode):
+    with pytest.raises(ValueError, match=f"mode='{mode}' requires as_nan=True"):
+        numerical_simulations(snowshoe, n_sim=100, seed=42, mode=mode, as_nan=False)
 
 
-def test_numerical_simulations_as_abs_requires_as_nan_true(snowshoe):
-    with pytest.raises(ValueError, match="as_abs=True requires as_nan=True"):
-        numerical_simulations(snowshoe, n_sim=100, seed=42, as_abs=True, as_nan=False)
+def test_numerical_simulations_invalid_mode(snowshoe):
+    with pytest.raises(ValueError, match="Invalid mode"):
+        numerical_simulations(snowshoe, n_sim=100, seed=42, mode="signed")
 
 
 def test_numerical_simulations_linalg_retries_snowshoe(snowshoe):
@@ -783,8 +784,8 @@ def test_numerical_simulations_no_stable_matrices_snowshoe(snowshoe):
             assert result[i, j] is sp.nan
 
 
-def test_numerical_simulations_match_adjoint_mesocosm(mesocosm):
-    result = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True)
+def test_numerical_simulations_mode_match_adjoint_mesocosm(mesocosm):
+    result = numerical_simulations(mesocosm, n_sim=100, seed=42, mode="match_adjoint")
     expected = sp.Matrix([
         [1.0, 0.73, 0.64, 1.0, 0.5, 1.0, 0.68, 0.5],
         [0.71, 0.88, 0.95, 0.71, 0.87, 0.71, 0.95, 0.87],
@@ -797,26 +798,10 @@ def test_numerical_simulations_match_adjoint_mesocosm(mesocosm):
     assert result == expected
 
 
-def test_numerical_simulations_match_adjoint_as_nan_false_mesocosm(mesocosm):
-    result = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, as_nan=False)
+def test_numerical_simulations_mode_match_adjoint_as_nan_false_mesocosm(mesocosm):
+    result = numerical_simulations(mesocosm, n_sim=100, seed=42, mode="match_adjoint", as_nan=False)
     result_arr = np.array(result.tolist(), dtype=float)
     assert not np.any(np.isnan(result_arr))
-
-
-def test_numerical_simulations_match_adjoint_does_not_change_default_mesocosm(mesocosm):
-    result_default = numerical_simulations(mesocosm, n_sim=100, seed=42)
-    result_explicit = numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=False)
-    assert result_default == result_explicit
-
-
-def test_numerical_simulations_match_adjoint_incompatible_with_positive_only(mesocosm):
-    with pytest.raises(ValueError, match="match_adjoint=True is incompatible with positive_only=True"):
-        numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, positive_only=True)
-
-
-def test_numerical_simulations_match_adjoint_incompatible_with_as_abs(mesocosm):
-    with pytest.raises(ValueError, match="match_adjoint=True is incompatible with as_abs=True"):
-        numerical_simulations(mesocosm, n_sim=100, seed=42, match_adjoint=True, as_abs=True)
 
 
 # =============================================================================

@@ -54,9 +54,9 @@ def marginal_likelihood(
         # 0.526
         ```
     """
-    graph, pert = _parse_perturbations(G, perturb)
+    pert = _parse_perturbations(G, perturb)
     likelihood, count = 0.0, 0
-    for sims in iter_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
+    for sims in iter_simulations(G, n_sim=n_sim, dist=dist, seed=seed,
                                  perturb=pert,
                                  observe=_parse_observations(observe) if observe else None,
                                  uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
@@ -185,11 +185,11 @@ def posterior_predictions(
         # [-0.511]])
         ```
     """
-    graph, pert = _parse_perturbations(G, perturb)
+    pert = _parse_perturbations(G, perturb)
     observations = _parse_observations(observe) if observe else None
     n_total = len(get_nodes(G, "state")) + len(get_nodes(G, "output"))
     positive, negative, count = np.zeros(n_total), np.zeros(n_total), 0
-    for sims in iter_simulations(graph, n_sim=n_sim, dist=dist, seed=seed,
+    for sims in iter_simulations(G, n_sim=n_sim, dist=dist, seed=seed,
                                  perturb=pert, observe=observations, presample=presample,
                                  uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal,
                                  max_attempts=max_attempts):

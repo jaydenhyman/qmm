@@ -642,9 +642,9 @@ def simulations_table(
         response_nodes = get_nodes(g, "state") + get_nodes(g, "output")
         if not response_nodes:
             continue
-        graph, pert = _parse_perturbations(g, perturb)
+        pert = _parse_perturbations(g, perturb)
         sims = next(iter_simulations(
-            graph,
+            g,
             n_sim=n_sim,
             dist=dist,
             seed=seed,

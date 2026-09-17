@@ -66,12 +66,12 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
     nodes = sorted(get_nodes(models[0], "state") + get_nodes(models[0], "output"))
     probabilities, model_weights = [], []
     for G in models:
-        G_modified, perturb_tuple = _parse_perturbations(G, perturb)
+        perturb_tuple = _parse_perturbations(G, perturb)
         response_nodes = get_nodes(G, "state") + get_nodes(G, "output")
         node_indices = [response_nodes.index(node) for node in nodes]
         sign_probabilities = np.zeros((len(nodes), 3))
         stability, batches = 0.0, 0
-        for sims in iter_simulations(G_modified, n_sim=n_sim, seed=seed, perturb=perturb_tuple,
+        for sims in iter_simulations(G, n_sim=n_sim, seed=seed, perturb=perturb_tuple,
                                      uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
             effects = np.sign(np.asarray(sims["effects"])[:, node_indices])
             sign_probabilities += (effects[..., None] == (-1, 0, 1)).mean(axis=0)

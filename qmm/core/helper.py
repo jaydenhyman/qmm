@@ -4,7 +4,6 @@ import numpy as np
 import sympy as sp
 import networkx as nx
 from typing import List, Union, Dict, Any, Optional, Tuple, Literal
-from dataclasses import dataclass
 
 def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
     """Convert an adjacency matrix to a directed graph.
@@ -421,46 +420,36 @@ def _sign_string(G: nx.DiGraph, path: List[str]) -> str:
         return "0"
 
 
-@dataclass(frozen=True)
-class _NodeSign:
-    node: str
-    sign: int
-    
-    @classmethod
-    def from_str(cls, s: str) -> '_NodeSign':
-        """Create from 'B:+', 'B: -', 'B:0', or a bare 'B' (sign defaults to +)."""
-        node, sep, sign = s.strip().partition(":")
-        node = node.strip()
-        sign = sign.strip() if sep else "+"
-        if not node:
-            raise ValueError(f"Missing node name in '{s}'")
-        if sign not in ["+", "-", "0"]:
-            raise ValueError(f"Sign must be +, -, or 0, got '{sign}' in '{s}'")
-        return cls(node, 1 if sign == "+" else (-1 if sign == "-" else 0))
-    
-    def to_tuple(self) -> tuple[str, int]:
-        """Convert to tuple format for internal use"""
-        return (self.node, self.sign)
-
-def _parse_perturbations(G: nx.DiGraph, perturb: str) -> Tuple[nx.DiGraph, Tuple[Tuple[str, int], ...]]:
-    """Parse fixed simultaneous unit presses without changing the graph."""
+def _parse_perturbations(G: nx.DiGraph, perturb: str) -> Tuple[Tuple[str, int], ...]:
+    """Parse fixed simultaneous unit presses."""
     perturbations = [p.strip() for p in perturb.split(',') if p.strip()]
     if not perturbations:
         raise ValueError("Perturbation string cannot be empty.")
     valid_nodes = set(get_nodes(G, "all"))
     presses = []
     for p in perturbations:
-        ns = _NodeSign.from_str(p)
-        if ns.node not in valid_nodes:
-            raise ValueError(f"Unknown perturbation node: {ns.node}")
-        presses.append(ns.to_tuple())
-    return G, tuple(presses)
+        node, sign = _parse_observations(p)[0]
+        if node not in valid_nodes:
+            raise ValueError(f"Unknown perturbation node: {node}")
+        presses.append((node, sign))
+    return tuple(presses)
 
 def _parse_observations(s: str) -> Tuple[Tuple[str, int], ...]:
+    """Parse 'B:+', 'B: -', 'B:0', or a bare 'B' (sign defaults to +), comma-separated."""
     if not s:
         return tuple()
-    return tuple(_NodeSign.from_str(obs.strip()).to_tuple() 
-                for obs in s.split(","))
+    pairs = []
+    for text in s.split(","):
+        text = text.strip()
+        node, sep, sign = text.partition(":")
+        node = node.strip()
+        sign = sign.strip() if sep else "+"
+        if not node:
+            raise ValueError(f"Missing node name in '{text}'")
+        if sign not in ["+", "-", "0"]:
+            raise ValueError(f"Sign must be +, -, or 0, got '{sign}' in '{text}'")
+        pairs.append((node, 1 if sign == "+" else (-1 if sign == "-" else 0)))
+    return tuple(pairs)
 
 
 def _check_signs(G: nx.DiGraph) -> None:

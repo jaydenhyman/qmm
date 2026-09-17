@@ -21,7 +21,6 @@ from qmm.core.helper import (
     get_negative,
     sign_determinacy,
     _sign_string,
-    _NodeSign,
     _parse_perturbations,
     _parse_observations,
     _check_signs,
@@ -454,33 +453,6 @@ def test_sign_string_zero_product_no_fixture():
 
 
 # =============================================================================
-# _NodeSign
-# =============================================================================
-
-
-@pytest.mark.parametrize('text', ['', '  ', ':+', ' : -'])
-def test_node_sign_requires_a_node_name(text):
-    with pytest.raises(ValueError, match='Missing node name'):
-        _NodeSign.from_str(text)
-
-@pytest.mark.parametrize("s,node,sign", [('A:+', 'A', 1), ('B:-', 'B', -1), ('C:0', 'C', 0)])
-def test_node_sign_from_str_node_sign_params(s, node, sign):
-    ns = _NodeSign.from_str(s)
-    result = (ns.node, ns.sign, ns.to_tuple())
-    expected = (node, sign, (node, sign))
-    assert result == expected
-
-
-def test_node_sign_invalid_format_no_fixture():
-    result = None
-    expected = ValueError
-    with pytest.raises(expected):
-        _NodeSign.from_str('X:invalid')
-        result = "No exception"
-    assert result is None
-
-
-# =============================================================================
 # _parse_perturbations()
 # =============================================================================
 
@@ -494,29 +466,21 @@ def test_parse_perturbations_empty_string(snowshoe):
         marginal_likelihood(snowshoe, perturb='   ', observe='R:+')
 
 
-def test_parse_perturbations_preserves_graph_with_existing_press_node_name():
-    G = list_to_digraph([[-1, 0], [1, -1]], ids=["_P", "B"])
-    modified, press = _parse_perturbations(G, "_P:+, B:-")
-    assert modified is G
-    assert press == (("_P", 1), ("B", -1))
-    assert modified.nodes["_P"]["category"] == "state"
-    assert modified["_P"]["_P"]["sign"] == -1
-    assert "_P_" not in G
-
-
 def test_parse_perturbations_single_value_snowshoe(snowshoe):
-    G = snowshoe
-    _, pt = _parse_perturbations(G, 'R:+')
-    result = pt
+    result = _parse_perturbations(snowshoe, 'R:+')
     expected = (('R', 1),)
     assert result == expected
 
 
 def test_parse_perturbations_multiple_values_snowshoe(snowshoe):
-    G = snowshoe
-    G2, pt2 = _parse_perturbations(G, 'R:+, C:-')
-    result = ('_P' in G2.nodes(), pt2)
-    expected = (False, (('R', 1), ('C', -1)))
+    result = _parse_perturbations(snowshoe, 'R:+, C:-')
+    expected = (('R', 1), ('C', -1))
+    assert result == expected
+
+
+def test_parse_perturbations_skips_blank_entries_snowshoe(snowshoe):
+    result = _parse_perturbations(snowshoe, ' R , ,C: - ,')
+    expected = (('R', 1), ('C', -1))
     assert result == expected
 
 
@@ -562,6 +526,29 @@ def test_parse_observations_multiple_values_no_fixture():
     result = _parse_observations('A:+, B:-')
     expected = (('A', 1), ('B', -1))
     assert result == expected
+
+
+@pytest.mark.parametrize("text, expected", [
+    ('A:+', (('A', 1),)),
+    ('B:-', (('B', -1),)),
+    ('C:0', (('C', 0),)),
+    ('D', (('D', 1),)),
+    (' E : - ', (('E', -1),)),
+])
+def test_parse_observations_signs_params(text, expected):
+    result = _parse_observations(text)
+    assert result == expected
+
+
+@pytest.mark.parametrize('text', ['  ', ':+', ' : -', 'A:+,'])
+def test_parse_observations_requires_a_node_name(text):
+    with pytest.raises(ValueError, match='Missing node name'):
+        _parse_observations(text)
+
+
+def test_parse_observations_invalid_sign_no_fixture():
+    with pytest.raises(ValueError, match="Sign must be"):
+        _parse_observations('X:invalid')
 
 
 # =============================================================================

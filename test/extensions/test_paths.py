@@ -393,9 +393,30 @@ def test_path_metrics_inp1_out1_snowshoe_io(snowshoe_io):
         ("Inp1", "C", "Out1"),
     ]
     expected_complements = [(), ("P",), ("R",), ("R", "P")]
+    expected_values = [
+        [-1, 1, 0, 1, -1,  1,  1],
+        [-1, 1, 0, 1, -1, -1, -1],
+        [-1, 1, 0, 1, -1, -1, -1],
+        [-1, 1, 0, 1, -1,  1,  1]]
     assert list(result["Path"]) == expected_paths
     assert list(result["Complementary subsystem"]) == expected_complements
     assert list(result["Sign"]) == ["+", "\u2212", "\u2212", "+"]
+    assert result.iloc[:, 4:].values.tolist() == expected_values
+
+
+@pytest.mark.parametrize("source, target", [("A1", "A1"), ("A2", "H2"), ("P", "A1")])
+def test_path_metrics_match_weighted_and_system_paths_mesocosm(mesocosm, source, target):
+    result = path_metrics(mesocosm, source, target)[["Path", "Weighted path", "System path"]].values.tolist()
+    weights = weighted_paths(mesocosm, source, target)
+    effects = system_paths(mesocosm, source, target, form="signed")
+    expected = [list(row) for row in zip(weights["Path"], weights["Weight"], effects["Effect"])]
+    assert result == expected
+
+
+def test_path_metrics_zero_complementary_feedback_nan_feedback_graph(nan_feedback_graph):
+    result = path_metrics(nan_feedback_graph, "A", "B").iloc[0, 4:].tolist()
+    expected = [0, 0, 0, 0, 0, 0, 0]
+    assert result == expected
 
 
 def test_path_metrics_no_path_available_snowshoe_io_na(snowshoe_io_na):

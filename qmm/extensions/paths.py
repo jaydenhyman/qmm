@@ -402,37 +402,32 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     state_nodes = get_nodes(G, "state")
-    if source == target:
-        paths = [[source]]
-    elif not nx.has_path(G, source, target):
+    if not nx.has_path(G, source, target):
         return pd.DataFrame()
-    else:
-        paths = list(nx.all_simple_paths(G, source, target))
-    subsystem_nodes = [[n for n in state_nodes if n not in set(path)] for path in paths]
     net_fb = complementary_feedback(G, source=source, target=target, form="signed")
     absolute_fb = complementary_feedback(G, source=source, target=target, form="binary")
-    path_signs = get_paths(G, source=source, target=target, form="signed")
+    path_signs = get_paths(G, source=source, target=target, form="signed")["Product"]
+    paths = list(net_fb["Path"])
+    subsystem_nodes = [[n for n in state_nodes if n not in set(path)] for path in paths]
     net_m = sp.Matrix(net_fb["Feedback"].tolist())
     abs_m = sp.Matrix(absolute_fb["Feedback"].tolist())
     weighted_fb = get_weight(net_m, abs_m, sp.Integer(0))
     positive_fb = get_positive(net_m, abs_m)
     negative_fb = get_negative(net_m, abs_m)
-    weighted_path = weighted_paths(G, source, target)
-    system_path = system_paths(G, source, target, form="signed")
     n = len(paths)
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in paths],
-            "Path": [tuple(path) for path in paths],
-            "Sign": ["+" if sign == 1 else "−" for sign in path_signs["Product"]],
+            "Path": paths,
+            "Sign": ["+" if sign == 1 else "−" for sign in path_signs],
             "Complementary subsystem": [tuple(nodes) for nodes in subsystem_nodes],
             "Net feedback": [net_m[i] for i in range(n)],
             "Absolute feedback": [abs_m[i] for i in range(n)],
             "Positive feedback": [positive_fb[i] for i in range(n)],
             "Negative feedback": [negative_fb[i] for i in range(n)],
             "Weighted feedback": [weighted_fb[i] for i in range(n)],
-            "Weighted path": list(weighted_path["Weight"]),
-            "System path": list(system_path["Effect"]),
+            "Weighted path": [-path_signs[i] * weighted_fb[i] for i in range(n)],
+            "System path": [-path_signs[i] * net_m[i] for i in range(n)],
         }
     )
     return paths_df

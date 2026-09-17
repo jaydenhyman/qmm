@@ -6,7 +6,7 @@ import networkx as nx
 import sympy as sp
 from typing import Optional, Literal, Tuple
 from ..core.structure import create_matrix
-from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback
+from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback, _has_cycle_cover
 from ..core.helper import (
     get_nodes,
     get_positive,
@@ -498,9 +498,7 @@ def _simulate_pathway_effects(
             patterns, pattern_of = np.unique(block.reshape(n_stable, -1) != 0, axis=0, return_inverse=True)
             matched = np.zeros(len(patterns), dtype=bool)
             for p, pattern in enumerate(patterns):
-                links = nx.Graph((row, k + col) for row, col in zip(*np.nonzero(pattern.reshape(k, k))))
-                if len(links) == 2 * k:
-                    matched[p] = len(nx.bipartite.maximum_matching(links, top_nodes=range(k))) == 2 * k
+                matched[p] = _has_cycle_cover(pattern.reshape(k, k))
             det_complement[~matched[pattern_of]] = 0
         terms[:, j] = press_sign * product * det_complement / det_system
     return path_nodes, terms, sims

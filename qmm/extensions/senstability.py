@@ -2,7 +2,6 @@
 
 import sympy as sp
 import networkx as nx
-from functools import cache
 from ..core.structure import create_matrix
 from ..core.stability import system_feedback, net_feedback, absolute_feedback
 from ..core.helper import get_nodes, get_weight
@@ -27,7 +26,6 @@ def _structural_sensitivity(G: nx.DiGraph, level: Optional[int], feedback_fn: Ca
                 S[i, j] = fcp[level - 1] - scp[level - 1]
     return S
 
-@cache
 def structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate contribution of direct effects to stabilising and destabilising feedback.
 
@@ -53,7 +51,6 @@ def structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Mat
     """
     return _structural_sensitivity(G, level, system_feedback)
 
-@cache
 def net_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate net contribution of direct effects to system feedback.
 
@@ -79,7 +76,6 @@ def net_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp
     """
     return _structural_sensitivity(G, level, net_feedback)
 
-@cache
 def absolute_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate total contribution of direct effects to system feedback.
 
@@ -105,7 +101,6 @@ def absolute_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) 
     """
     return _structural_sensitivity(G, level, absolute_feedback)
 
-@cache
 def weighted_structural_sensitivity(G: nx.DiGraph, level: Optional[int] = None) -> sp.Matrix:
     """Calculate weighted structual sensitvity for each direct effect.
 

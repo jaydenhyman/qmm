@@ -1,5 +1,6 @@
 """Tests for qmm.extensions.senstability module."""
 
+import networkx as nx
 import pytest
 import sympy as sp
 
@@ -172,6 +173,18 @@ def test_weighted_structural_sensitivity_keystone_predator(keystone_predator):
         sp.Matrix([[-1, 1, 0], [1, -1, 0], [0, 0, sp.nan]]),
     ]
     assert result == expected
+
+
+def test_sensitivity_results_follow_graph_edits_and_are_independent(snowshoe):
+    graph = nx.DiGraph(snowshoe)
+    for function in (structural_sensitivity, net_structural_sensitivity,
+                     absolute_structural_sensitivity, weighted_structural_sensitivity):
+        expected = function(graph).copy()
+        function(graph)[0, 0] = 999
+        assert function(graph) == expected
+    assert net_structural_sensitivity(graph)[0, 0] == -1
+    graph['R']['R']['sign'] = 1
+    assert net_structural_sensitivity(graph)[0, 0] == 1
 
 
 def test_structural_sensitivity_invalid_level_low(snowshoe):

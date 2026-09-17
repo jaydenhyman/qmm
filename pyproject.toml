@@ -10,18 +10,18 @@ authors = [
 ]
 description = "A software platform for analysing the structure and function of complex systems"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
-    "numpy>=1.24.3,<2.0.0",
+    "numpy>=1.24.3",
     "sympy>=1.12.0",
     "networkx>=3.1",
     "pandas>=2.0.3",
@@ -47,9 +47,3 @@ select = ["E4", "E7", "E9", "F"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["qmm"]
-
-[dependency-groups]
-dev = [
-    "pytest>=8.3.5",
-    "pytest-cov>=7.0.0",
-]

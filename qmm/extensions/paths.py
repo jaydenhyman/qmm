@@ -163,7 +163,7 @@ def get_paths(
     if source == target:
         return pd.DataFrame({"Path": [(source,)], "Product": [sp.Integer(1)]})
     if not nx.has_path(G, source, target):
-        return pd.DataFrame({"Path": [()], "Product": [sp.Integer(0)]})
+        return pd.DataFrame(columns=["Path", "Product"])
     path_nodes = list(nx.all_simple_paths(G, source, target))
     products = []
     for p in path_nodes:
@@ -181,7 +181,7 @@ def get_paths(
         products.append(effect)
     return pd.DataFrame({"Path": [tuple(p) for p in path_nodes], "Product": products})
 
-def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -> Optional[pd.DataFrame]:
+def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -> pd.DataFrame:
     """Tabulate the causal pathways between two nodes.
 
     Each path is written as its nodes joined by $\\rightarrow$ for a positive link and
@@ -194,7 +194,7 @@ def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -
         labels: If True, write nodes by their label attribute instead of their id
 
     Returns:
-        Optional[pd.DataFrame]: Path length, path, and sign, or None if no paths exist
+        pd.DataFrame: Path length, path, and sign; empty if no path exists
 
     References:
         - Mason, S.J. (1953). Feedback Theory-Some Properties of Signal Flow Graphs. Proceedings of the IRE 41, 1144–1156.
@@ -214,7 +214,7 @@ def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -
     """
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
-        return None
+        return pd.DataFrame(columns=["Length", "Path", "Sign"])
     paths = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
     paths_df = pd.DataFrame(
         {
@@ -266,7 +266,7 @@ def complementary_feedback(
     if source == target:
         paths = [[source]]
     elif not nx.has_path(G, source, target):
-        return pd.DataFrame({"Path": [()], "Feedback": [sp.Integer(0)]})
+        return pd.DataFrame(columns=["Path", "Feedback"])
     else:
         paths = list(nx.all_simple_paths(G, source, target))
 
@@ -403,7 +403,8 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     _check_source_target(G, source, target)
     state_nodes = get_nodes(G, "state")
     if not nx.has_path(G, source, target):
-        return pd.DataFrame()
+        return pd.DataFrame(columns=["Length", "Path", "Sign", "Complementary subsystem", "Net feedback", "Absolute feedback",
+                                     "Positive feedback", "Negative feedback", "Weighted feedback", "Weighted path", "System path"])
     net_fb = complementary_feedback(G, source=source, target=target, form="signed")
     absolute_fb = complementary_feedback(G, source=source, target=target, form="binary")
     path_signs = get_paths(G, source=source, target=target, form="signed")["Product"]

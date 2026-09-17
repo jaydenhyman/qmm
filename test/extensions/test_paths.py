@@ -135,13 +135,6 @@ def test_get_paths_form_binary_inp1_out1_snowshoe_io(snowshoe_io):
     assert sp.Matrix(result["Product"].tolist()) == expected
 
 
-@pytest.mark.parametrize("source", ["R", "C", "P"])
-def test_get_paths_no_path_to_new_state_snowshoe_io_na_source(snowshoe_io_na, source):
-    result = get_paths(snowshoe_io_na, source, "N", form="signed")
-    expected = ((), sp.Integer(0))
-    assert (result["Path"].iloc[0], result["Product"].iloc[0]) == expected
-
-
 def test_get_paths_direct_input_output_symbolic_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
     result = get_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1", form="symbolic")
     d_Inp1_Out1 = sp.Symbol('d_Out1,Inp1')
@@ -217,12 +210,6 @@ def test_paths_table_labels_fall_back_to_ids_snowshoe_io(snowshoe_io):
     result = list(paths_table(G, "Inp1", "Out1", labels=True)["Path"])
     assert result[-1] == "Input $\\multimap$ Consumer $\\multimap$ Output"
     assert result[0] == "Input $\\rightarrow$ R $\\rightarrow$ Consumer $\\rightarrow$ P $\\rightarrow$ Output"
-
-
-def test_paths_table_no_path_available_snowshoe_io_na(snowshoe_io_na):
-    result = paths_table(snowshoe_io_na, "R", "N")
-    expected = None
-    assert result == expected
 
 
 def test_paths_table_invalid_source_snowshoe_io(snowshoe_io):
@@ -419,10 +406,18 @@ def test_path_metrics_zero_complementary_feedback_nan_feedback_graph(nan_feedbac
     assert result == expected
 
 
-def test_path_metrics_no_path_available_snowshoe_io_na(snowshoe_io_na):
-    result = path_metrics(snowshoe_io_na, "R", "N")
-    expected = pd.DataFrame()
-    assert result.equals(expected)
+@pytest.mark.parametrize("function, columns", [
+    (get_paths, ["Path", "Product"]),
+    (complementary_feedback, ["Path", "Feedback"]),
+    (system_paths, ["Path", "Effect"]),
+    (weighted_paths, ["Path", "Weight"]),
+    (paths_table, ["Length", "Path", "Sign"]),
+    (path_metrics, ["Length", "Path", "Sign", "Complementary subsystem", "Net feedback", "Absolute feedback",
+                    "Positive feedback", "Negative feedback", "Weighted feedback", "Weighted path", "System path"]),
+])
+def test_path_functions_without_a_path_return_empty_tables_snowshoe_io_na(snowshoe_io_na, function, columns):
+    result = function(snowshoe_io_na, "R", "N")
+    assert result.empty and list(result.columns) == columns
 
 
 def test_path_metrics_invalid_source_snowshoe_io(snowshoe_io):

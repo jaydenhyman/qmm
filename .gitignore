@@ -1,6 +1,7 @@
 uv.lock
 notebooks/
 /AGENTS.md
+/CONTEXT.md
 /.scratch/
 docs/agents/
 # Byte-compiled / optimized / DLL files

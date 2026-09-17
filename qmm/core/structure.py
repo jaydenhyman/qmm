@@ -181,12 +181,9 @@ def create_matrix(
     if invalid:
         raise ValueError(f"Invalid nodes: {invalid}")
 
-    def sym(source: str, target: str, prefix: str) -> sp.Symbol:
-        return sp.Symbol(f"{prefix}_{target},{source}")
-
     def sign(source: str, target: str, prefix: str) -> Union[sp.Symbol, int]:
         if form == "symbolic":
-            return sym(source, target, prefix) * G[source][target].get("sign", 1)
+            return sp.Symbol(f"{prefix}_{target},{source}") * G[source][target].get("sign", 1)
         elif form == "signed":
             return G[source][target].get("sign", 1)
         else:

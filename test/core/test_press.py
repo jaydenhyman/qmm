@@ -61,8 +61,9 @@ def test_numerical_simulations_does_not_reuse_mutable_results():
 def test_numerical_simulations_accepts_stable_diagonals_at_different_rates(monkeypatch):
     monkeypatch.setattr("qmm.core.press._random_sampler", lambda *args: np.array([1, 1e-16]))
     graph = list_to_digraph(-np.eye(2, dtype=int))
-    result = numerical_simulations(graph, n_sim=1, as_nan=False)
-    assert result == sp.eye(2).evalf()
+    result = numerical_simulations(graph, n_sim=1)
+    expected = sp.Matrix([[1.0, sp.nan], [sp.nan, 1.0]])
+    assert result == expected
 
 
 def test_adjoint_matrix_form_signed_snowshoe(snowshoe):
@@ -632,15 +633,6 @@ def test_numerical_simulations_mode_positive_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_numerical_simulations_as_nan_false_snowshoe(snowshoe):
-    result = numerical_simulations(snowshoe, n_sim=100, seed=42, as_nan=False)
-    expected = sp.Matrix([
-        [1.0, -1.0,  1.0],
-        [1.0,  1.0, -1.0],
-        [1.0,  1.0,  1.0]])
-    assert result == expected
-
-
 def test_numerical_simulations_mode_absolute_snowshoe(snowshoe):
     result = numerical_simulations(snowshoe, n_sim=100, seed=42, mode="absolute")
     expected = sp.Matrix([
@@ -672,16 +664,6 @@ def test_numerical_simulations_missing_paths_default_nan_snowshoe_io_na(snowshoe
     assert result == expected
 
 
-def test_numerical_simulations_missing_paths_fill_zeros_snowshoe_io_na(snowshoe_io_na):
-    result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, as_nan=False)
-    expected = sp.Matrix([
-        [1.0, -1.0,  1.0, 1.0],
-        [1.0,  1.0, -1.0, 1.0],
-        [1.0,  1.0,  1.0, 1.0],
-        [  0,    0,    0, 1.0]])
-    assert result == expected
-
-
 def test_numerical_simulations_missing_paths_mode_absolute_snowshoe_io_na(snowshoe_io_na):
     result = numerical_simulations(snowshoe_io_na, n_sim=100, seed=42, mode="absolute")
     expected = sp.Matrix([
@@ -702,8 +684,8 @@ def test_numerical_simulations_missing_paths_mode_positive_snowshoe_io_na(snowsh
     assert result == expected
 
 
-def test_numerical_simulations_as_nan_true_mode_dominant_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, mode="dominant")
+def test_numerical_simulations_mode_dominant_snowshoe_na(snowshoe_na):
+    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, mode="dominant")
     expected = np.array([
         [   1.0,   -1.0, -0.5],
         [np.nan,    1.0, -1.0],
@@ -715,8 +697,8 @@ def test_numerical_simulations_as_nan_true_mode_dominant_snowshoe_na(snowshoe_na
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-def test_numerical_simulations_as_nan_true_mode_absolute_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=True, mode="absolute")
+def test_numerical_simulations_mode_absolute_snowshoe_na(snowshoe_na):
+    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, mode="absolute")
     expected = np.array([
         [   1.0,    1.0, 0.5],
         [np.nan,    1.0, 1.0],
@@ -726,16 +708,6 @@ def test_numerical_simulations_as_nan_true_mode_absolute_snowshoe_na(snowshoe_na
     nan_mask = np.isnan(expected)
     assert np.all(np.isnan(result_arr[nan_mask]))
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
-
-
-def test_numerical_simulations_as_nan_false_mode_dominant_snowshoe_na(snowshoe_na):
-    result = numerical_simulations(snowshoe_na, n_sim=10000, seed=42, as_nan=False, mode="dominant")
-    expected = np.array([
-        [1.0, -1.0, -0.5],
-        [0.0,  1.0, -1.0],
-        [0.0,  0.0,  1.0]
-    ])
-    assert np.allclose(np.array(result.tolist(), dtype=float), expected, atol=0.1)
 
 
 def test_numerical_simulations_mode_positive_snowshoe_na(snowshoe_na):
@@ -749,12 +721,6 @@ def test_numerical_simulations_mode_positive_snowshoe_na(snowshoe_na):
     nan_mask = np.isnan(expected)
     assert np.all(np.isnan(result_arr[nan_mask]))
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
-
-
-@pytest.mark.parametrize("mode", ["positive", "absolute"])
-def test_numerical_simulations_mode_requires_as_nan_true(snowshoe, mode):
-    with pytest.raises(ValueError, match=f"mode='{mode}' requires as_nan=True"):
-        numerical_simulations(snowshoe, n_sim=100, seed=42, mode=mode, as_nan=False)
 
 
 def test_numerical_simulations_invalid_mode(snowshoe):
@@ -796,12 +762,6 @@ def test_numerical_simulations_mode_match_adjoint_mesocosm(mesocosm):
         [0.8, 0.65, 0.83, 0.8, 0.5, 0.8, 0.93, 0.93],
         [0.5, 0.95, 0.86, 0.5, 0.5, 0.5, 0.82, 0.5]])
     assert result == expected
-
-
-def test_numerical_simulations_mode_match_adjoint_as_nan_false_mesocosm(mesocosm):
-    result = numerical_simulations(mesocosm, n_sim=100, seed=42, mode="match_adjoint", as_nan=False)
-    result_arr = np.array(result.tolist(), dtype=float)
-    assert not np.any(np.isnan(result_arr))
 
 
 # =============================================================================

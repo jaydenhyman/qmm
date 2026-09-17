@@ -223,7 +223,6 @@ def numerical_simulations(
     n_sim: int = 10000,
     dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform",
     seed: int = 42,
-    as_nan: bool = True,
     mode: Literal["dominant", "absolute", "positive", "match_adjoint"] = "dominant",
 ) -> sp.Matrix:
     """Calculate proportion of positive and negative responses from stable simulations.
@@ -233,7 +232,6 @@ def numerical_simulations(
         n_sim: Nonnegative integer number of simulations
         dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong')
         seed: Random seed
-        as_nan: Return NaN for undefined ratios
         mode: Response summary: 'dominant' (signed proportion of the dominant sign),
             'absolute' (unsigned proportion of the dominant sign), 'positive'
             (proportion of positive responses) or 'match_adjoint' (proportion
@@ -246,7 +244,7 @@ def numerical_simulations(
         sp.Matrix: Average proportion of positive and negative responses
 
     Raises:
-        ValueError: If mode is invalid or incompatible with as_nan.
+        ValueError: If mode is invalid.
 
     Examples:
         ```python
@@ -280,8 +278,6 @@ def numerical_simulations(
         raise ValueError("n_sim must be a nonnegative integer")
     if mode not in ("dominant", "absolute", "positive", "match_adjoint"):
         raise ValueError("Invalid mode. Choose 'dominant', 'absolute', 'positive', 'match_adjoint'.")
-    if mode in ("absolute", "positive") and not as_nan:
-        raise ValueError(f"mode='{mode}' requires as_nan=True")
 
     rng = np.random.RandomState(seed)
     A = create_matrix(G, form="symbolic", matrix_type="A")
@@ -331,8 +327,4 @@ def numerical_simulations(
         smat = sp.Matrix([[sp.nan if not tmat_np[i, j] else smat[i, j] for j in range(n)] for i in range(n)])
         if mode == "absolute":
             smat = sp.Matrix([[sp.Abs(x) if x != sp.nan else sp.nan for x in row] for row in smat.tolist()])
-
-    if not as_nan:
-        fill = sp.Rational(1, 2) if mode == "match_adjoint" else 0
-        smat = sp.Matrix([[fill if sp.nan == x else x for x in row] for row in smat.tolist()])
     return sp.Matrix(smat)

@@ -613,18 +613,12 @@ def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "unif
         rng = np.random.RandomState()
     if dist == "uniform_two_oom":
         return rng.uniform(0.01, 1.0, size)
-
-    samplers = {
-        "uniform": lambda: rng.uniform(0, 1, size),
-        "weak": lambda: rng.beta(1, 3, size),
-        "moderate": lambda: rng.beta(2, 2, size),
-        "strong": lambda: rng.beta(3, 1, size),
-    }
-
-    if dist not in samplers:
-        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: {sorted(samplers.keys())} or 'uniform_two_oom'.")
-
-    return samplers[dist]()
+    if dist == "uniform":
+        return rng.uniform(0, 1, size)
+    shapes = {"weak": (1, 3), "moderate": (2, 2), "strong": (3, 1)}
+    if dist not in shapes:
+        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: ['moderate', 'strong', 'uniform', 'weak'] or 'uniform_two_oom'.")
+    return rng.beta(*shapes[dist], size)
 
 
 def _group_uncertain_edges(G: nx.DiGraph, pair_reciprocal: bool = True) -> List[List[Tuple[str, str]]]:

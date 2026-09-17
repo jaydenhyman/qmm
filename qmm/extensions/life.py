@@ -43,7 +43,7 @@ def birth_matrix(
     if form not in ("symbolic", "signed"):
         raise ValueError("Invalid form. Choose 'symbolic', 'signed'.")
     A_sgn = create_matrix(G, form="signed")
-    A_sym = create_matrix(G, form="symbolic")
+    A_sym = create_matrix(G, form="symbolic") if form == "symbolic" else None
     nodes = get_nodes(G, "state")
     if perturb is not None and perturb not in nodes:
         raise ValueError(f"Perturbation node must be one of: {nodes}")
@@ -95,7 +95,7 @@ def death_matrix(
     if form not in ("symbolic", "signed"):
         raise ValueError("Invalid form. Choose 'symbolic', 'signed'.")
     A_sgn = create_matrix(G, form="signed")
-    A_sym = create_matrix(G, form="symbolic")
+    A_sym = create_matrix(G, form="symbolic") if form == "symbolic" else None
     nodes = get_nodes(G, "state")
     if perturb is not None and perturb not in nodes:
         raise ValueError(f"Perturbation node must be one of: {nodes}")
@@ -196,14 +196,8 @@ def net_life_expectancy_change(
         ```
     """
     amat = adjoint_matrix(G, form="signed")
-    birth = birth_matrix(G, form="signed")
-    death = death_matrix(G, form="signed")
-    delta_birth = death * amat * sp.Integer(-1)
-    delta_death = birth * amat * sp.Integer(-1)
-    if type == "birth":
-        return delta_birth
-    else:
-        return delta_death
+    matrix = death_matrix(G, form="signed") if type == "birth" else birth_matrix(G, form="signed")
+    return matrix * amat * sp.Integer(-1)
 
 def absolute_life_expectancy_change(
     G: nx.DiGraph,
@@ -237,25 +231,9 @@ def absolute_life_expectancy_change(
         # [1, 2, 2]])
         ```
     """
-    sym_amat = adjoint_matrix(G, form="symbolic")
-    n = sym_amat.shape[0]
-    sym_birth = birth_matrix(G, form="symbolic")
-    sym_death = death_matrix(G, form="symbolic")
-    sym_delta_birth = sp.expand(sp.Integer(-1) * sym_death * sym_amat)
-    sym_delta_death = sp.expand(sp.Integer(-1) * sym_birth * sym_amat)
-
-    def count_symbols(matrix_element):
-        return sum(matrix_element.count(sym) for sym in matrix_element.free_symbols)
-
-    def create_abs_matrix(sym_delta_matrix, n):
-        return sp.Matrix(n, n, lambda i, j: count_symbols(sym_delta_matrix[i, j]) // n)
-
-    abs_birth = create_abs_matrix(sym_delta_birth, n)
-    abs_death = create_abs_matrix(sym_delta_death, n)
-    if type == "birth":
-        return abs_birth
-    else:
-        return abs_death
+    delta = life_expectancy_change(G, type="birth" if type == "birth" else "death")
+    n = delta.rows
+    return sp.Matrix(n, n, [sum(value.count(sym) for sym in value.free_symbols) // n for value in delta])
 
 def weighted_predictions_life_expectancy(
     G: nx.DiGraph,

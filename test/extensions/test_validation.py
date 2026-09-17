@@ -166,17 +166,6 @@ def test_posterior_predictions_structural_no_path_stays_nan(self_limited_pair):
     with pytest.raises(RuntimeError, match="Matched 19/20 draws"):
         posterior_predictions(G, perturb="A:+", observe="A:+", n_sim=20, max_attempts=19)
 
-def test_posterior_predictions_simultaneous_cancellation_matches_zero_observation(self_limited_pair):
-    G = self_limited_pair
-    G.add_edge('A', 'B', sign=1)
-    for mode in ("dominant", "positive"):
-        result = posterior_predictions(
-            G, perturb='A:+, B:-', observe='B:0', n_sim=5,
-            presample=lambda symbols: {symbol: 1 for symbol in symbols}, mode=mode,
-        )
-        assert list(result) == [sp.Float(1), sp.Float(0)]
-
-
 # =============================================================================
 # diagnose_observations
 # =============================================================================

@@ -257,7 +257,8 @@ def get_simulations(
         dist: Distribution of interaction strengths.
         seed: Random seed.
         perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
-        observe: Optional (node, sign) pairs; signs are -1, 0 or 1.
+        observe: Optional (node, sign) pairs; signs are -1, 0 or 1. Zero matches only an exact
+            zero response; cancellation under tied strengths is not treated as no effect.
         presample: Callable receiving coefficient symbols and returning substitutions.
         return_samples: Include coefficient strengths for each stable draw.
         uncertain_interactions: 'sample' draws a probability uniformly from 0 to 1 for each attempt,

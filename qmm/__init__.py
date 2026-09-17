@@ -47,6 +47,7 @@ from .core.helper import (
     get_negative,
     get_weight,
     sign_determinacy,
+    get_dashed_alternatives,
 )
 
 from .extensions.senstability import (
@@ -150,6 +151,7 @@ __all__ = [
     "get_negative",
     "get_weight",
     "sign_determinacy",
+    "get_dashed_alternatives",
     "structural_sensitivity",
     "net_structural_sensitivity",
     "absolute_structural_sensitivity",

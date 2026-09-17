@@ -5,6 +5,7 @@ from qmm.extensions.effects import simulations_table
 from math import factorial
 
 import pytest
+import qmm
 import networkx as nx
 import numpy as np
 import sympy as sp
@@ -593,6 +594,7 @@ def test_get_dashed_alternatives_no_dashed_edges_snowshoe(snowshoe):
     result = get_dashed_alternatives(snowshoe)
     assert len(result) == 1
     assert result[0].number_of_edges() == snowshoe.number_of_edges()
+    assert qmm.get_dashed_alternatives is get_dashed_alternatives
 
 
 def test_get_dashed_alternatives_combinations_true_snowshoe_dashed(snowshoe_dashed):

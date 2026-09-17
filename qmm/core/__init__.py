@@ -48,6 +48,7 @@ from .helper import (
     get_negative,
     get_weight,
     sign_determinacy,
+    get_dashed_alternatives,
 )
 
 __all__ = [
@@ -91,4 +92,5 @@ __all__ = [
     "get_negative",
     "get_weight",
     "sign_determinacy",
+    "get_dashed_alternatives",
 ] 

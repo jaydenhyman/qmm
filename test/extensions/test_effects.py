@@ -94,7 +94,7 @@ def test_cumulative_effects_form_signed_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_cumulative_effects_symbolic_matches_adjoint_snowshoe_snowshoe_io(snowshoe, snowshoe_io):
+def test_cumulative_effects_form_symbolic_matches_adjoint_matrix(snowshoe, snowshoe_io):
     result = cumulative_effects(snowshoe_io, form='symbolic')[:3, :3]
     expected = adjoint_matrix(snowshoe, form='symbolic')
     assert result == expected
@@ -111,7 +111,7 @@ def _scaled_equilibrium_derivative(G):
     return ((-A).det() * derivative).applyfunc(sp.cancel).applyfunc(sp.expand)
 
 
-def test_cumulative_effects_equals_scaled_equilibrium_derivative_snowshoe_io(snowshoe_io):
+def test_cumulative_effects_matches_scaled_equilibrium_derivative(snowshoe_io):
     result = cumulative_effects(snowshoe_io)
     expected = _scaled_equilibrium_derivative(snowshoe_io)
     assert result == expected
@@ -124,7 +124,7 @@ def test_absolute_effects_count_numerator_terms_io_chain(io_chain):
     assert result == expected
 
 
-def test_cumulative_effects_invalid_form_snowshoe_io(snowshoe_io):
+def test_cumulative_effects_rejects_invalid_form(snowshoe_io):
     with pytest.raises(ValueError) as exc_info:
         cumulative_effects(snowshoe_io, form='invalid')
     result = str(exc_info.value)
@@ -152,13 +152,13 @@ def test_absolute_effects_default_snowshoe_io(snowshoe_io):
     assert result == expected
 
 
-def test_absolute_effects_match_binary_cumulative_snowshoe_io(snowshoe_io):
+def test_absolute_effects_matches_binary_cumulative_effects(snowshoe_io):
     result = absolute_effects(snowshoe_io)
     expected = cumulative_effects(snowshoe_io, form='binary')
     assert result == expected
 
 
-def test_absolute_effects_vs_absolute_feedback_snowshoe_snowshoe_io(snowshoe, snowshoe_io):
+def test_absolute_effects_matches_absolute_feedback_matrix(snowshoe, snowshoe_io):
     result = absolute_effects(snowshoe_io)[:3, :3]
     expected = absolute_feedback_matrix(snowshoe)
     assert result == expected
@@ -167,7 +167,7 @@ def test_absolute_effects_vs_absolute_feedback_snowshoe_snowshoe_io(snowshoe, sn
 # weighted_effects
 # =============================================================================
 
-def test_weighted_effects_snowshoe_io(snowshoe_io):
+def test_weighted_effects_default_snowshoe_io(snowshoe_io):
     result = weighted_effects(snowshoe_io)
     expected = sp.Matrix([
         [1, -1,  1, 1, -1],
@@ -177,7 +177,7 @@ def test_weighted_effects_snowshoe_io(snowshoe_io):
         [1,  1, -1, 0,  1]])
     assert result == expected
 
-def test_weighted_predictions_vs_weighted_effects(snowshoe, snowshoe_io):
+def test_weighted_effects_matches_weighted_predictions_matrix(snowshoe, snowshoe_io):
     result = weighted_effects(snowshoe_io)[:3, :3]
     expected = weighted_predictions_matrix(snowshoe)
     assert result == expected
@@ -197,7 +197,7 @@ def test_weighted_effects_nan_for_missing_paths(snowshoe_io_na):
 # sign_determinacy_effects
 # =============================================================================
 
-def test_sign_determinacy_effects_average(snowshoe_io):
+def test_sign_determinacy_effects_method_average_snowshoe_io(snowshoe_io):
     result = sign_determinacy_effects(snowshoe_io, method='average')
     expected = sp.Matrix([
         [                1,                -1,  1,                 1, -1],
@@ -207,7 +207,7 @@ def test_sign_determinacy_effects_average(snowshoe_io):
         [                1,                 1, -1, sp.Rational(1, 2),  1]])
     assert result == expected
 
-def test_sign_determinacy_effects_95_bound(snowshoe_io):
+def test_sign_determinacy_effects_method_95_bound_snowshoe_io(snowshoe_io):
     result = sign_determinacy_effects(snowshoe_io, method='95_bound')
     expected = sp.Matrix([
         [                1,                -1,  1,                 1, -1],
@@ -217,7 +217,7 @@ def test_sign_determinacy_effects_95_bound(snowshoe_io):
         [                1,                 1, -1, sp.Rational(1, 2),  1]])
     assert result == expected
 
-def test_sign_determinacy_effects_vs_matrix(snowshoe, snowshoe_io):
+def test_sign_determinacy_effects_matches_sign_determinacy_matrix(snowshoe, snowshoe_io):
     result = sign_determinacy_effects(snowshoe_io, method='average')[:3, :3]
     expected = sign_determinacy_matrix(snowshoe, method='average')
     assert result == expected
@@ -238,7 +238,7 @@ def test_sign_determinacy_effects_nan_for_missing_paths(snowshoe_io_na):
 # get_simulations
 # =============================================================================
 
-def test_get_simulations(snowshoe_io):
+def test_get_simulations_result_keys(snowshoe_io):
     result = set(get_simulations(snowshoe_io, n_sim=100, seed=42).keys())
     expected = {'effects', 'valid_sims', 'all_nodes', 'tmat', 'prop_stable', 'attempts', 'n_stable', 'structures', 'perturb', 'interactions', 'signs'}
     assert result == expected
@@ -250,7 +250,7 @@ def test_get_simulations_effects_length(snowshoe_io):
     assert result == expected
 
 
-def test_get_simulations_reproducibility(snowshoe_io):
+def test_get_simulations_reproducible_seed(snowshoe_io):
     result_data = get_simulations(snowshoe_io, n_sim=100, seed=42)
     expected_data = get_simulations(snowshoe_io, n_sim=100, seed=42)
     result = {
@@ -269,12 +269,12 @@ def test_get_simulations_reproducibility(snowshoe_io):
 
 
 @pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong'])
-def test_get_simulations_distributions(snowshoe_io, dist):
+def test_get_simulations_dist_options(snowshoe_io, dist):
     result = len(get_simulations(snowshoe_io, n_sim=100, dist=dist, seed=42)['effects'])
     expected = 100
     assert result == expected
 
-def test_get_simulations_uniform_two_oom(snowshoe_io):
+def test_get_simulations_dist_uniform_two_oom(snowshoe_io):
     sims = get_simulations(snowshoe_io, n_sim=50, dist="uniform_two_oom", seed=42)
     assert len(sims["effects"]) == 50
 
@@ -327,7 +327,7 @@ def test_get_simulations_prop_stable(snowshoe):
     assert sims['prop_stable'] == pytest.approx(1.0)
 
 
-def test_get_simulations_with_perturb(snowshoe_io):
+def test_get_simulations_perturb_returns_vectors(snowshoe_io):
     state_nodes = get_nodes(snowshoe_io, 'state')
     perturb = (state_nodes[0], 1)
     effects = get_simulations(snowshoe_io, n_sim=100, seed=42, perturb=perturb)['effects']
@@ -335,7 +335,7 @@ def test_get_simulations_with_perturb(snowshoe_io):
     expected = [1] * len(effects)
     assert result == expected
 
-def test_get_simulations_with_perturb_negative(snowshoe_io):
+def test_get_simulations_perturb_negative(snowshoe_io):
     state_nodes = get_nodes(snowshoe_io, 'state')
     perturb = (state_nodes[0], -1)
     result = 'effects' in get_simulations(snowshoe_io, n_sim=100, seed=42, perturb=perturb)
@@ -348,7 +348,7 @@ def test_get_simulations_with_perturb_negative(snowshoe_io):
     (('R', 1), ('Inp2', 1)),
     (('R', 0), ('Inp2', -1)),
 ])
-def test_simultaneous_presses_match_direct_solve(snowshoe_io, presses):
+def test_get_simulations_simultaneous_presses_match_direct_solve(snowshoe_io, presses):
     sims = get_simulations(snowshoe_io, n_sim=10, perturb=presses, return_samples=True)
     baseline = get_simulations(snowshoe_io, n_sim=10, return_samples=True)
     assert sims['attempts'] == baseline['attempts']
@@ -368,13 +368,13 @@ def test_simultaneous_presses_match_direct_solve(snowshoe_io, presses):
         np.testing.assert_allclose(effect, np.concatenate([x, C @ x]))
 
 
-def test_single_press_tuple_remains_compatible(snowshoe_io):
+def test_get_simulations_single_press_tuple_remains_compatible(snowshoe_io):
     old = get_simulations(snowshoe_io, n_sim=10, perturb=('Inp1', -1))
     nested = get_simulations(snowshoe_io, n_sim=10, perturb=(('Inp1', -1),))
     np.testing.assert_array_equal(old['effects'], nested['effects'])
 
 
-def test_get_simulations_with_observe(snowshoe_io):
+def test_get_simulations_observe(snowshoe_io):
     sims = get_simulations(snowshoe_io, n_sim=100, seed=42,
                            perturb=('Inp1', 1), observe=(('Out1', 1),))
     result = (sum(sims['valid_sims']), sims['n_stable'] > 100)
@@ -414,13 +414,13 @@ def test_get_simulations_rejects_invalid_presses_and_observations(snowshoe_io, k
     assert result == expected
 
 
-def test_get_simulations_no_state_variables(io_only_graph):
+def test_get_simulations_rejects_no_state_nodes(io_only_graph):
     with pytest.raises(ValueError, match="Direct input to output edge"):
         get_simulations(io_only_graph, n_sim=50, perturb=('I', 1), seed=42)
 
 
 @pytest.mark.parametrize('max_attempts', [None, 1])
-def test_get_simulations_runtime_error_max_iterations(positive_loop_graph, max_attempts):
+def test_get_simulations_raises_at_max_attempts(positive_loop_graph, max_attempts):
     with pytest.raises(RuntimeError) as exc_info:
         get_simulations(positive_loop_graph, n_sim=100, seed=42, max_attempts=max_attempts)
     assert str(exc_info.value).startswith('Maximum iterations reached.')
@@ -457,7 +457,7 @@ def test_simulation_effects_sign_determined_cells_are_exact(snowshoe_io):
     assert result == expected
 
 
-def test_simulation_effects_full_matrix(snowshoe_io):
+def test_simulation_effects_default_snowshoe_io(snowshoe_io):
     result = simulation_effects(snowshoe_io, n_sim=100, seed=42)
     expected = sp.Matrix([
         [  1.0,  -1.0,  1.0,   1.0, -1.0],
@@ -472,7 +472,7 @@ def test_simulation_effects_full_matrix(snowshoe_io):
             simulation_effects(None, mode=mode)
 
 
-def test_simulation_effects_positive(snowshoe_io):
+def test_simulation_effects_mode_positive_snowshoe_io(snowshoe_io):
     result = simulation_effects(snowshoe_io, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [ 1.0,  0.0, 1.0,  1.0, 0.0],
@@ -483,7 +483,7 @@ def test_simulation_effects_positive(snowshoe_io):
     assert result == expected
 
 
-def test_simulation_effects_presample_full_matrix(snowshoe_rp):
+def test_simulation_effects_presample_snowshoe_rp(snowshoe_rp):
     def presample(symbols):
         return {sp.Symbol('a_P,R'): 1}
 
@@ -496,7 +496,7 @@ def test_simulation_effects_presample_full_matrix(snowshoe_rp):
 
 
 @pytest.mark.parametrize("dist", ['uniform', 'uniform_two_oom', 'weak', 'moderate', 'strong'])
-def test_simulation_effects_distributions(snowshoe_io, dist):
+def test_simulation_effects_dist_options_snowshoe_io(snowshoe_io, dist):
     expected_mats = {
         'uniform': sp.Matrix([
             [  1.0,  -1.0,  1.0,   1.0, -1.0],
@@ -539,12 +539,12 @@ def test_net_effects_returns_signed_cumulative(snowshoe_io):
     assert result == expected
 
 
-def test_net_effects_vs_adjoint_signed(snowshoe, snowshoe_io):
+def test_cumulative_effects_form_signed_matches_adjoint_matrix(snowshoe, snowshoe_io):
     result = cumulative_effects(snowshoe_io, form='signed')[:3, :3]
     expected = adjoint_matrix(snowshoe, form='signed')
     assert result == expected
 
-def test_simulation_effects_vs_numerical_simulations(snowshoe, snowshoe_io):
+def test_simulation_effects_matches_numerical_simulations(snowshoe, snowshoe_io):
     seed = 42
     n_sim = 100
     result = simulation_effects(snowshoe_io, n_sim=n_sim, seed=seed)[:3, :3]
@@ -564,7 +564,7 @@ def test_simulation_effects_nan_for_no_path(snowshoe_io_na):
     assert result == expected
 
 
-def test_simulation_effects_positive_nan_for_no_path(snowshoe_io_na):
+def test_simulation_effects_mode_positive_nan_for_no_path(snowshoe_io_na):
     result = simulation_effects(snowshoe_io_na, n_sim=100, seed=42, mode="positive")
     expected = sp.Matrix([
         [   1.0,    0.0,    1.0,  1.0,    1.0,    0.0],
@@ -641,13 +641,13 @@ def test_simulations_table_importable():
 # Additional coverage tests
 # =============================================================================
 
-def test_cumulative_effects_binary_form(snowshoe_io):
+def test_cumulative_effects_form_binary_shape(snowshoe_io):
     result = cumulative_effects(snowshoe_io, form="binary")
     assert result.shape[0] > 0
     assert result.shape[1] > 0
 
 
-def test_simulations_table_with_observe(snowshoe):
+def test_simulations_table_observe(snowshoe):
     result = simulations_table(snowshoe, perturb='R:+', observe='C:+', n_sim=100, seed=42)
     assert result is not None
 
@@ -656,36 +656,36 @@ def test_simulations_table_with_observe(snowshoe):
 # direct_effects() and table_of_direct_effects()
 # =============================================================================
 
-def test_direct_effects_net_form(snowshoe_io):
+def test_direct_effects_form_net(snowshoe_io):
     result = direct_effects(snowshoe_io, form="net")
     assert isinstance(result, sp.MatrixBase)
     assert result.shape == (5, 5)
 
 
-def test_direct_effects_absolute_form(snowshoe_io):
+def test_direct_effects_form_absolute(snowshoe_io):
     result = direct_effects(snowshoe_io, form="absolute")
     assert isinstance(result, sp.MatrixBase)
     assert result.shape == (5, 5)
 
 
-def test_direct_effects_positive_form(snowshoe_io):
+def test_direct_effects_form_positive(snowshoe_io):
     result = direct_effects(snowshoe_io, form="positive")
     assert isinstance(result, sp.MatrixBase)
     assert result.shape == (5, 5)
 
 
-def test_direct_effects_negative_form(snowshoe_io):
+def test_direct_effects_form_negative(snowshoe_io):
     result = direct_effects(snowshoe_io, form="negative")
     assert isinstance(result, sp.MatrixBase)
     assert result.shape == (5, 5)
 
 
-def test_direct_effects_invalid_form(snowshoe_io):
+def test_direct_effects_rejects_invalid_form(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid form"):
         direct_effects(snowshoe_io, form="invalid")
 
 
-def test_table_of_direct_effects(snowshoe_io):
+def test_table_of_direct_effects_shape(snowshoe_io):
     result = table_of_direct_effects(snowshoe_io)
     assert isinstance(result, pd.DataFrame)
     assert result.shape == (5, 5)
@@ -695,37 +695,37 @@ def test_table_of_direct_effects(snowshoe_io):
 # table_of_effects()
 # =============================================================================
 
-def test_table_of_effects_with_string_net_effects(snowshoe_io):
+def test_table_of_effects_generator_net_effects(snowshoe_io):
     result = table_of_effects(snowshoe_io, generator="net_effects")
     assert isinstance(result, pd.DataFrame)
 
 
-def test_table_of_effects_with_string_absolute_effects(snowshoe_io):
+def test_table_of_effects_generator_absolute_effects(snowshoe_io):
     result = table_of_effects(snowshoe_io, generator="absolute_effects")
     assert isinstance(result, pd.DataFrame)
 
 
-def test_table_of_effects_with_string_weighted_effects(snowshoe_io):
+def test_table_of_effects_generator_weighted_effects(snowshoe_io):
     result = table_of_effects(snowshoe_io, generator="weighted_effects")
     assert isinstance(result, pd.DataFrame)
 
 
-def test_table_of_effects_with_string_sign_determinacy_effects(snowshoe_io):
+def test_table_of_effects_generator_sign_determinacy_effects(snowshoe_io):
     result = table_of_effects(snowshoe_io, generator="sign_determinacy_effects")
     assert isinstance(result, pd.DataFrame)
 
 
-def test_table_of_effects_with_string_simulation_effects(snowshoe_io):
+def test_table_of_effects_generator_simulation_effects(snowshoe_io):
     result = table_of_effects(snowshoe_io, generator="simulation_effects")
     assert isinstance(result, pd.DataFrame)
 
 
-def test_table_of_effects_invalid_string_generator(snowshoe_io):
+def test_table_of_effects_rejects_invalid_generator(snowshoe_io):
     with pytest.raises(ValueError, match="Generator must be callable"):
         table_of_effects(snowshoe_io, generator="invalid_generator")
 
 
-def test_table_of_effects_with_lambda_no_name(snowshoe_io):
+def test_table_of_effects_generator_lambda(snowshoe_io):
     result = table_of_effects(snowshoe_io, generator=lambda G: net_effects(G))
     assert isinstance(result, pd.DataFrame)
     assert result.shape == (5, 5)
@@ -745,7 +745,7 @@ def test_table_of_effects_decimals_rounds(snowshoe_io):
     assert not full.equals(rounded)
 
 
-def test_simulation_effects_handles_singular_matrices(snowshoe_io):
+def test_simulation_effects_retries_singular_draws(snowshoe_io):
     original_inv = np.linalg.inv
     call_count = [0]
 
@@ -761,7 +761,7 @@ def test_simulation_effects_handles_singular_matrices(snowshoe_io):
         assert call_count[0] > 5
 
 
-def test_zero_observation_matches_draws_where_uncertain_link_is_absent(self_limited_pair):
+def test_marginal_likelihood_zero_observation_matches_absent_uncertain_link(self_limited_pair):
     G = self_limited_pair
     G.add_edge("A", "B", sign=1, dashes=True)
     averaged = marginal_likelihood(G, "A:+", "B:0", n_sim=400, seed=3, uncertain_interactions="sample")
@@ -778,12 +778,12 @@ def test_zero_observation_matches_draws_where_uncertain_link_is_absent(self_limi
 
 @pytest.mark.parametrize('option', ['n_sim', 'max_attempts'])
 @pytest.mark.parametrize('value', [0, -1, 1.5, True, np.bool_(False)])
-def test_get_simulations_requires_a_positive_integer(snowshoe, option, value):
+def test_get_simulations_rejects_invalid_counts(snowshoe, option, value):
     with pytest.raises(ValueError, match='positive integer'):
         get_simulations(snowshoe, **{option: value})
 
 
-def test_fixed_uncertain_strength_is_sampled_in_and_out(self_limited_pair):
+def test_get_simulations_presample_uncertain_link_sampled_in_and_out(self_limited_pair):
     G = self_limited_pair
     G.add_edge('A', 'B', sign=1, dashes=True)
     sims = get_simulations(
@@ -795,7 +795,7 @@ def test_fixed_uncertain_strength_is_sampled_in_and_out(self_limited_pair):
                           np.array([effect[1, 0] > 0 for effect in sims['effects']]))
 
 
-def test_tied_presampled_strengths_report_actual_draws(snowshoe):
+def test_get_simulations_tied_presample_reports_actual_draws(snowshoe):
     sims = get_simulations(snowshoe, n_sim=10, return_samples=True,
                            presample=lambda symbols: {sp.Symbol('a_R,R'): sp.Symbol('a_P,P')})
     assert np.array_equal(sims['samples']['a_R,R'], sims['samples']['a_P,P'])
@@ -828,7 +828,7 @@ def test_simulations_table_combines_existing_input_presses(category):
     assert nx.utils.graphs_equal(G, original)
 
 
-def test_nonfinite_responses_are_rejected():
+def test_get_simulations_rejects_nonfinite_responses():
     G = nx.DiGraph()
     G.add_node('A', category='state')
     G.add_edge('A', 'A', sign=-1)
@@ -837,7 +837,7 @@ def test_nonfinite_responses_are_rejected():
                         presample=lambda symbols: {sp.Symbol('a_A,A'): 1e-320})
 
 
-def test_simulation_results_and_graph_edits_do_not_reuse_stale_cache():
+def test_get_simulations_does_not_reuse_stale_cache():
     G = nx.DiGraph()
     G.add_node('A', category='state')
     G.add_edge('A', 'A', sign=-1)
@@ -850,7 +850,7 @@ def test_simulation_results_and_graph_edits_do_not_reuse_stale_cache():
     assert get_simulations(G, n_sim=np.int64(1))['effects'][0].shape == (2, 2)
 
 
-def test_structure_averaging_rejects_changes_to_node_roles():
+def test_get_simulations_rejects_category_change():
     graph = nx.DiGraph()
     graph.add_node('A', category='state')
     graph.add_node('B', category='state')
@@ -861,7 +861,7 @@ def test_structure_averaging_rejects_changes_to_node_roles():
         get_simulations(graph, n_sim=20, uncertain_interactions="sample", seed=42)
 
 
-def test_zero_presampled_output_link_disconnects_the_whole_output_chain():
+def test_get_simulations_zero_output_link_disconnects_output_chain():
     graph = nx.DiGraph()
     graph.add_edge('X', 'X', sign=-1)
     graph.add_edge('X', 'Y0', sign=1)
@@ -883,7 +883,7 @@ def test_get_simulations_structural_zero_cell(structural_zero_chain):
     assert np.array_equal(result, expected)
 
 
-def test_get_simulations_fork_is_always_stable(fork):
+def test_get_simulations_always_stable_fork(fork):
     sims = get_simulations(fork, n_sim=200, seed=42, perturb=('A', 1))
     result = (sims['prop_stable'], sims['attempts'], sims['n_stable'])
     expected = (1.0, 200, 200)
@@ -900,7 +900,7 @@ def test_get_simulations_sample_allows_isolating_a_self_limited_node(snowshoe):
     assert result == expected
 
 
-def test_get_simulations_rejects_unknown_uncertain_mode_snowshoe_dashed(snowshoe_dashed):
+def test_get_simulations_rejects_unknown_uncertain_interactions(snowshoe_dashed):
     with pytest.raises(ValueError, match="uncertain_interactions must be 'sample' or 'enumerate'"):
         get_simulations(snowshoe_dashed, n_sim=10, uncertain_interactions="unknown")
 
@@ -930,7 +930,7 @@ def test_simulate_enumerate_drops_structures_without_matches_fork(fork):
     assert result == expected
 
 
-def test_simulate_enumerate_raises_when_no_structure_matches_self_limited_pair(self_limited_pair):
+def test_simulate_enumerate_raises_without_matching_structure_self_limited_pair(self_limited_pair):
     G = self_limited_pair
     G.add_edge('A', 'B', sign=1, dashes=True)
     with pytest.warns(UserWarning, match="No matching draws"):
@@ -939,14 +939,14 @@ def test_simulate_enumerate_raises_when_no_structure_matches_self_limited_pair(s
                            uncertain_interactions="enumerate"))
 
 
-def test_get_simulations_enumerate_with_individual_edges_has_eight_structures_snowshoe_dashed(snowshoe_dashed):
+def test_get_simulations_enumerate_pair_reciprocal_false_snowshoe_dashed(snowshoe_dashed):
     sims = get_simulations(snowshoe_dashed, n_sim=5, seed=1, uncertain_interactions="enumerate", pair_reciprocal=False)
     result = (len(sims["effects"]), len(set(sims["structures"])))
     expected = (40, 8)
     assert result == expected
 
 
-def test_get_simulations_sample_drops_reciprocal_dashed_edges_together_snowshoe_dashed(snowshoe_dashed):
+def test_get_simulations_sample_pair_reciprocal_snowshoe_dashed(snowshoe_dashed):
     sims = get_simulations(snowshoe_dashed, n_sim=200, seed=1, return_samples=True)
     dropped_rp, dropped_pr = sims["samples"]["a_P,R"] == 0.0, sims["samples"]["a_R,P"] == 0.0
     result = (np.array_equal(dropped_rp, dropped_pr), dropped_rp.any(), (~dropped_rp).any())
@@ -954,7 +954,7 @@ def test_get_simulations_sample_drops_reciprocal_dashed_edges_together_snowshoe_
     assert result == expected
 
 
-def test_get_simulations_sample_can_drop_reciprocal_dashed_edges_separately_snowshoe_dashed(snowshoe_dashed):
+def test_get_simulations_sample_pair_reciprocal_false_snowshoe_dashed(snowshoe_dashed):
     sims = get_simulations(snowshoe_dashed, n_sim=200, seed=1, return_samples=True, pair_reciprocal=False)
     result = np.array_equal(sims["samples"]["a_P,R"] == 0.0, sims["samples"]["a_R,P"] == 0.0)
     expected = False

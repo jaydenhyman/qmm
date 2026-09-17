@@ -19,7 +19,7 @@ from qmm.extensions.life import (
 # =============================================================================
 
 @pytest.mark.parametrize("function", [birth_matrix, death_matrix])
-def test_birth_death_matrix_invalid_form_snowshoe(snowshoe, function):
+def test_birth_matrix_rejects_invalid_form(snowshoe, function):
     with pytest.raises(ValueError, match="^Invalid form"):
         function(snowshoe, form="invalid")
 
@@ -167,7 +167,7 @@ def test_life_expectancy_change_form_signed_birth_perturb_first_state_snowshoe(s
     assert result == expected
 
 
-def test_life_expectancy_change_invalid_perturb_node(snowshoe):
+def test_life_expectancy_change_rejects_invalid_perturb_node(snowshoe):
     with pytest.raises(ValueError, match="Perturbation node must be one of"):
         life_expectancy_change(snowshoe, form='signed', type='birth', perturb='InvalidNode')
 
@@ -344,7 +344,7 @@ def test_weighted_predictions_life_expectancy_birth_as_nan_false_snowshoe(snowsh
     assert result == expected
 
 
-def test_weighted_predictions_life_expectancy_birth_as_abs_true_snowshoe(snowshoe):
+def test_weighted_predictions_life_expectancy_birth_as_abs_snowshoe(snowshoe):
     result = weighted_predictions_life_expectancy(snowshoe, type='birth', as_abs=True)
     expected = sp.Matrix([
         [1, sp.nan, sp.nan],
@@ -415,7 +415,7 @@ def test_weighted_predictions_life_expectancy_birth_as_nan_false_mesocosm(mesoco
     assert result == expected
 
 
-def test_weighted_predictions_life_expectancy_birth_as_abs_true_mesocosm(mesocosm):
+def test_weighted_predictions_life_expectancy_birth_as_abs_mesocosm(mesocosm):
     result = weighted_predictions_life_expectancy(mesocosm, type='birth', as_abs=True)
     expected = sp.Matrix([
         [sp.Rational(1, 9),             sp.nan,            sp.nan,             sp.nan, sp.nan,            sp.nan,            sp.nan,            sp.nan],
@@ -443,7 +443,7 @@ def test_weighted_predictions_life_expectancy_death_as_nan_false_mesocosm(mesoco
     assert result == expected
 
 
-def test_weighted_predictions_life_expectancy_death_as_abs_true_mesocosm(mesocosm):
+def test_weighted_predictions_life_expectancy_death_as_abs_mesocosm(mesocosm):
     result = weighted_predictions_life_expectancy(mesocosm, type='death', as_abs=True)
     expected = sp.Matrix([
         [           sp.nan,            sp.nan,            sp.nan,            sp.nan,            sp.nan,            sp.nan,            sp.nan,            sp.nan],
@@ -457,7 +457,7 @@ def test_weighted_predictions_life_expectancy_death_as_abs_true_mesocosm(mesocos
     assert result == expected
 
 
-def test_weighted_predictions_life_expectancy_invalid_type_snowshoe(snowshoe):
+def test_weighted_predictions_life_expectancy_rejects_invalid_type(snowshoe):
     with pytest.raises(ValueError) as exc_info:
         weighted_predictions_life_expectancy(snowshoe, type='invalid')
     result = str(exc_info.value)
@@ -469,34 +469,29 @@ def test_weighted_predictions_life_expectancy_invalid_type_snowshoe(snowshoe):
 # Additional coverage tests
 # =============================================================================
 
-def test_birth_matrix_invalid_perturb_node(snowshoe):
+def test_birth_matrix_rejects_invalid_perturb_node(snowshoe):
     with pytest.raises(ValueError, match="Perturbation node must be one of"):
         birth_matrix(snowshoe, perturb="Invalid")
 
 
-def test_death_matrix_invalid_perturb_node(snowshoe):
+def test_death_matrix_rejects_invalid_perturb_node(snowshoe):
     with pytest.raises(ValueError, match="Perturbation node must be one of"):
         death_matrix(snowshoe, perturb="Invalid")
 
 
-def test_life_expectancy_change_invalid_type(snowshoe):
+def test_life_expectancy_change_rejects_invalid_type(snowshoe):
     with pytest.raises(ValueError, match="type must be either 'birth' or 'death'"):
         life_expectancy_change(snowshoe, type="invalid")
 
 
-def test_weighted_predictions_life_expectancy_invalid_type_coverage(snowshoe):
-    with pytest.raises(ValueError, match="type must be either 'birth' or 'death'"):
-        weighted_predictions_life_expectancy(snowshoe, type="invalid")
-
-
-def test_life_expectancy_change_death_input_equals_birth_input_plus_determinant_snowshoe_rp(snowshoe_rp):
+def test_life_expectancy_change_death_minus_birth_is_determinant_snowshoe_rp(snowshoe_rp):
     A = create_matrix(snowshoe_rp)
     result = sp.expand(life_expectancy_change(snowshoe_rp, type='death') - life_expectancy_change(snowshoe_rp, type='birth'))
     expected = (-A).det() * sp.eye(A.rows)
     assert result == expected
 
 
-def test_life_expectancy_counts_match_supplement_example_no_fixture():
+def test_net_life_expectancy_change_matches_supplement_example():
     G = list_to_digraph([[-1, -1, 0], [1, -1, -1], [0, 1, -1]], ['1', '2', '3'])
     result = (net_life_expectancy_change(G, type='birth'), absolute_life_expectancy_change(G, type='birth'),
               net_life_expectancy_change(G, type='death'), absolute_life_expectancy_change(G, type='death'))

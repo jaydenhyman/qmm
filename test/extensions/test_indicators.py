@@ -72,7 +72,7 @@ def test_mutual_information_accepts_a_list_of_models(snowshoe_rp):
 
 @pytest.mark.parametrize('uncertain_interactions', ['sample', 'enumerate'])
 @pytest.mark.parametrize('weights', ['equal', 'posterior'])
-def test_mutual_information_posterior_weights_and_bits(monkeypatch, uncertain_interactions, weights):
+def test_mutual_information_weights_options(monkeypatch, uncertain_interactions, weights):
     models = [nx.DiGraph(), nx.DiGraph()]
     for model in models:
         model.add_node('X', category='state')
@@ -122,7 +122,7 @@ def test_mutual_information_rejects_invalid_weight_or_base(snowshoe, kwargs):
 
 
 @pytest.mark.parametrize('weights', ['equal', 'posterior'])
-def test_mutual_information_opposite_signs_is_one_bit_no_fixture(weights):
+def test_mutual_information_opposite_signs_is_one_bit(weights):
     models = []
     for sign in (1, -1):
         G = nx.DiGraph()

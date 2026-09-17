@@ -114,7 +114,7 @@ def test_import_digraph_rejects_duplicate_node_ids(first, second):
     ({"arrows": {"to": {"type": "triangle"}}, "sign": -1}, 1, True),
     ({"arrows": {"to": {"type": "circle"}}, "sign": 1}, -1, True),
 ])
-def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
+def test_import_digraph_from_dict(attributes, expected, corrected):
     data = {
         "nodes": [{"id": "A"}],
         "edges": [{"id": "e1", "from": "A", "to": "A", **attributes}],
@@ -133,7 +133,7 @@ def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
 
 
 @pytest.mark.parametrize("path_type", [str, Path])
-def test_import_digraph_from_file_tmp_path(tmp_path, path_type):
+def test_import_digraph_from_file(tmp_path, path_type):
     data = {"nodes": [{"id": "X"}], "edges": [{"from": "X", "to": "X", "sign": -1}], "meta": {"title": "X"}}
     path = tmp_path / "model.json"
     path.write_text(json.dumps(data))
@@ -150,7 +150,7 @@ def test_import_digraph_does_not_parse_json_text():
         import_digraph(json.dumps(data))
 
 
-def test_import_digraph_node_attributes_inline_data():
+def test_import_digraph_keeps_attributes():
     data = {
         "nodes": [{"id": "A", "label": "Node A"}, {"id": "B"}],
         "edges": [{"from": "A", "to": "A", "sign": -1}, {"from": "A", "to": "B", "sign": 1}],
@@ -204,7 +204,7 @@ def test_define_input_output_equal_components_keep_state(snowshoe):
     assert result == expected
 
 
-def test_define_input_output_invalid_input_type_no_fixture():
+def test_define_input_output_rejects_non_graph():
     with pytest.raises(TypeError) as exc_info:
         define_input_output("not a graph")
     result = str(exc_info.value)
@@ -266,12 +266,12 @@ def test_define_input_output_importable():
 # =============================================================================
 
 @pytest.mark.parametrize("function", [create_matrix, adjoint_matrix, life_expectancy_change])
-def test_create_matrix_invalid_form_snowshoe(snowshoe, function):
+def test_create_matrix_rejects_invalid_form(snowshoe, function):
     with pytest.raises(ValueError, match="^Invalid form"):
         function(snowshoe, form="invalid")
 
 
-def test_create_matrix_invalid_matrix_type_snowshoe(snowshoe):
+def test_create_matrix_rejects_invalid_matrix_type(snowshoe):
     with pytest.raises(ValueError, match="^Invalid matrix type. Choose 'A', 'B', 'C', 'D'.$"):
         create_matrix(snowshoe, matrix_type="invalid")
 
@@ -470,7 +470,7 @@ def test_create_matrix_form_symbolic_mesocosm(mesocosm):
 # create_equations()
 # =============================================================================
 
-def test_create_output_equations_without_external_inputs():
+def test_create_equations_form_output_without_inputs():
     graph = nx.DiGraph()
     graph.add_node('X', category='state')
     graph.add_node('Y', category='output')
@@ -567,7 +567,7 @@ def test_create_equations_form_output_snowshoe_io(snowshoe_io):
     assert result == expected
 
 
-def test_create_equations_form_output_no_outputs_snowshoe(snowshoe):
+def test_create_equations_form_output_rejects_no_outputs(snowshoe):
     with pytest.raises(ValueError, match="No output nodes"):
         create_equations(snowshoe, form='output')
 
@@ -575,7 +575,7 @@ def test_create_equations_form_output_no_outputs_snowshoe(snowshoe):
 # nodes_table() and edges_table()
 # =============================================================================
 
-def test_nodes_table_snowshoe_io(snowshoe_io):
+def test_nodes_table_category_counts_snowshoe_io(snowshoe_io):
     result = nodes_table(snowshoe_io)
     assert len(result) == 7
     assert 'Node' in result.columns
@@ -589,7 +589,7 @@ def test_nodes_table_snowshoe_io(snowshoe_io):
     output_rows = result[result['Category'] == 'Output']
     assert len(output_rows) == 2
 
-def test_edges_table_snowshoe_io(snowshoe_io):
+def test_edges_table_columns_snowshoe_io(snowshoe_io):
     result = edges_table(snowshoe_io)
     assert len(result) > 0
     assert 'Edge' in result.columns
@@ -606,7 +606,7 @@ def test_create_matrix_rejects_invalid_nodes(disconnected_graph):
         create_matrix(disconnected_graph)
 
 
-def test_create_equations_form_invalid_snowshoe(snowshoe):
+def test_create_equations_rejects_invalid_form(snowshoe):
     with pytest.raises(ValueError, match="form must be either 'state' or 'output'"):
         create_equations(snowshoe, form='invalid')
 
@@ -626,7 +626,7 @@ def test_edges_table_non_standard_sign(non_standard_sign_graph):
     assert '0.5' in result['Sign'].values
 
 
-def test_define_input_output_keeps_components_unless_removed(snowshoe):
+def test_define_input_output_remove_disconnected(snowshoe):
     G = nx.DiGraph(snowshoe)
     G.add_edge('Z', 'Z', sign=-1)
     result = nx.get_node_attributes(define_input_output(G), "category")

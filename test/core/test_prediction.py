@@ -178,7 +178,7 @@ def test_table_of_predictions_symbolic_matrix(snowshoe):
     )
     pdt.assert_frame_equal(result, expected)
 
-def test_table_of_predictions_typeerror_nan_check(snowshoe):
+def test_table_of_predictions_nan_like_object_is_zero(snowshoe):
     class NanLike:
         def __eq__(self, other):
             return other == sp.nan
@@ -195,7 +195,7 @@ def test_table_of_predictions_typeerror_nan_check(snowshoe):
     pdt.assert_frame_equal(result, expected)
 
 
-def test_table_of_predictions_threshold_consistency_snowshoe(snowshoe):
+def test_table_of_predictions_is_deterministic(snowshoe):
     nodes = get_nodes(snowshoe, "state")
     wpm = weighted_predictions_matrix(snowshoe)
     base = table_of_predictions(wpm, t1=0.5, t2=1.0, index=nodes, columns=nodes)
@@ -286,7 +286,7 @@ def test_compare_predictions_single_difference_snowshoe(snowshoe):
     assert result.loc["C", "R"] == preds.loc["C", "R"]
 
 
-def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
+def test_compare_predictions_rejects_label_mismatch(snowshoe):
     nodes = get_nodes(snowshoe, "state")
     preds = table_of_predictions(
         weighted_predictions_matrix(snowshoe),
@@ -306,21 +306,21 @@ def test_compare_predictions_label_mismatch_snowshoe(snowshoe):
         compare_predictions(preds, shuffled)
 
 
-def test_compare_predictions_mismatched_columns():
+def test_compare_predictions_rejects_mismatched_columns():
     df1 = pd.DataFrame({'A': ['+', '-'], 'B': ['+', '+']}, index=['X', 'Y'])
     df2 = pd.DataFrame({'A': ['+', '-'], 'C': ['+', '+']}, index=['X', 'Y'])
     with pytest.raises(ValueError, match="same index and columns"):
         compare_predictions(df1, df2)
 
 
-def test_compare_predictions_mismatched_index():
+def test_compare_predictions_rejects_mismatched_index():
     df1 = pd.DataFrame({'A': ['+', '-'], 'B': ['+', '+']}, index=['X', 'Y'])
     df2 = pd.DataFrame({'A': ['+', '-'], 'B': ['+', '+']}, index=['X', 'Z'])
     with pytest.raises(ValueError, match="same index and columns"):
         compare_predictions(df1, df2)
 
 
-def test_compare_predictions_different_sizes():
+def test_compare_predictions_rejects_different_sizes():
     df1 = pd.DataFrame({'A': ['+', '-', '?']}, index=['X', 'Y', 'Z'])
     df2 = pd.DataFrame({'A': ['+', '-']}, index=['X', 'Y'])
     with pytest.raises(ValueError, match="same index and columns"):
@@ -354,7 +354,7 @@ def test_compare_predictions_numeric_values():
 # Additional tests for error handling and coverage
 # =============================================================================
 
-def test_apply_thresholds_invalid_t1_too_low(snowshoe):
+def test_apply_thresholds_rejects_t1_too_low(snowshoe):
     with pytest.raises(ValueError, match="t1 must be between 0 and 1"):
         table_of_predictions(
             weighted_predictions_matrix(snowshoe),
@@ -362,7 +362,7 @@ def test_apply_thresholds_invalid_t1_too_low(snowshoe):
             t2=0.95
         )
 
-def test_apply_thresholds_invalid_t1_too_high(snowshoe):
+def test_apply_thresholds_rejects_t1_too_high(snowshoe):
     with pytest.raises(ValueError, match="t1 must be between 0 and 1"):
         table_of_predictions(
             weighted_predictions_matrix(snowshoe),
@@ -370,7 +370,7 @@ def test_apply_thresholds_invalid_t1_too_high(snowshoe):
             t2=0.95
         )
 
-def test_apply_thresholds_invalid_t2_too_low(snowshoe):
+def test_apply_thresholds_rejects_t2_too_low(snowshoe):
     with pytest.raises(ValueError, match="t2 must be between 0 and 1"):
         table_of_predictions(
             weighted_predictions_matrix(snowshoe),
@@ -378,7 +378,7 @@ def test_apply_thresholds_invalid_t2_too_low(snowshoe):
             t2=-0.1
         )
 
-def test_apply_thresholds_invalid_t2_too_high(snowshoe):
+def test_apply_thresholds_rejects_t2_too_high(snowshoe):
     with pytest.raises(ValueError, match="t2 must be between 0 and 1"):
         table_of_predictions(
             weighted_predictions_matrix(snowshoe),
@@ -386,7 +386,7 @@ def test_apply_thresholds_invalid_t2_too_high(snowshoe):
             t2=1.2
         )
 
-def test_apply_thresholds_t1_greater_than_t2(snowshoe):
+def test_apply_thresholds_rejects_t1_greater_than_t2(snowshoe):
     with pytest.raises(ValueError, match="t1 must be less than or equal to t2"):
         table_of_predictions(
             weighted_predictions_matrix(snowshoe),
@@ -403,6 +403,6 @@ def test_table_of_predictions_dataframe_input(snowshoe):
     pdt.assert_frame_equal(result, expected)
 
 
-def test_qualitative_predictions_non_callable_generator(snowshoe):
+def test_qualitative_predictions_rejects_non_callable_generator(snowshoe):
     with pytest.raises(ValueError, match="Generator must be callable"):
         qualitative_predictions(snowshoe, generator="invalid_string")

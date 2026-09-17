@@ -69,7 +69,7 @@ def test_list_to_digraph_default_labels_simple_two_node(simple_two_node):
     assert result == expected
 
 
-def test_list_to_digraph_explicit_labels_no_fixture():
+def test_list_to_digraph_explicit_labels():
     A = [[-1, -1, 0], [1, 0, -1], [0, 1, -1]]
     G = list_to_digraph(A, ['R', 'C', 'P'])
     result = (list(G.nodes()), G['R']['R']['sign'], G['C']['R']['sign'], G['P']['C']['sign'])
@@ -77,14 +77,14 @@ def test_list_to_digraph_explicit_labels_no_fixture():
     assert result == expected
 
 
-def test_list_to_digraph_chain_structure_chain(chain):
+def test_list_to_digraph_structure_chain(chain):
     result = (list(chain.nodes()), chain.number_of_edges())
     expected = (['1', '2', '3', '4', '5'], 13)
     assert result == expected
 
 
 @pytest.mark.parametrize("bad_input", ["string", [[1, 2, 3], [4, 5, 6]]])
-def test_list_to_digraph_invalid_input_bad_input(bad_input):
+def test_list_to_digraph_rejects_invalid_input(bad_input):
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -93,7 +93,7 @@ def test_list_to_digraph_invalid_input_bad_input(bad_input):
     assert result is None
 
 
-def test_list_to_digraph_label_mismatch_no_fixture():
+def test_list_to_digraph_rejects_label_mismatch():
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -106,21 +106,21 @@ def test_list_to_digraph_label_mismatch_no_fixture():
 # load_digraph()
 # =============================================================================
 
-def test_load_digraph_snowshoe_nodes():
+def test_load_digraph_nodes_snowshoe():
     G = load_digraph("snowshoe")
     result = list(G.nodes())
     expected = ['R', 'C', 'P']
     assert result == expected
 
 
-def test_load_digraph_snowshoe_edges():
+def test_load_digraph_edges_snowshoe():
     G = load_digraph("snowshoe")
     result = G.number_of_edges()
     expected = 6
     assert result == expected
 
 
-def test_load_digraph_snowshoe_io_structure():
+def test_load_digraph_structure_snowshoe_io():
     G = load_digraph("snowshoe_io")
     result = (
         G.number_of_nodes(),
@@ -135,7 +135,7 @@ def test_load_digraph_snowshoe_io_structure():
     assert result == expected
 
 
-def test_load_digraph_invalid_model():
+def test_load_digraph_rejects_unknown_model():
     with pytest.raises(ValueError, match="Model 'invalid' not found"):
         load_digraph("invalid")
 
@@ -156,7 +156,7 @@ def test_digraph_to_list_serialization_chain(chain):
     assert expected == (True, True)
 
 
-def test_digraph_to_list_invalid_input_no_fixture():
+def test_digraph_to_list_rejects_non_graph():
     result = None
     expected = TypeError
     with pytest.raises(expected):
@@ -183,7 +183,7 @@ def test_get_nodes_defaults_missing_category_to_state():
     assert result == expected
 
 
-def test_get_nodes_all_categories_snowshoe_chain(snowshoe, chain):
+def test_get_nodes_category_all(snowshoe, chain):
     result = (get_nodes(snowshoe, 'all'), get_nodes(chain, 'all'))
     expected = (['R', 'C', 'P'], ['1', '2', '3', '4', '5'])
     assert result == expected
@@ -203,7 +203,7 @@ def test_get_nodes_by_category_snowshoe_io(snowshoe_io):
     assert result == expected
 
 
-def test_get_nodes_with_labels_flag_snowshoe_io(snowshoe_io):
+def test_get_nodes_labels_snowshoe_io(snowshoe_io):
     result = (
         get_nodes(snowshoe_io, 'state', labels=True),
         get_nodes(snowshoe_io, 'input', labels=True),
@@ -217,13 +217,13 @@ def test_get_nodes_with_labels_flag_snowshoe_io(snowshoe_io):
     assert result == expected
 
 
-def test_get_nodes_invalid_category_snowshoe_io(snowshoe_io):
+def test_get_nodes_unknown_category_returns_empty(snowshoe_io):
     result = get_nodes(snowshoe_io, 'invalid')
     expected = []
     assert result == expected
 
 
-def test_get_nodes_invalid_input_type_no_fixture():
+def test_get_nodes_rejects_non_graph():
     result = None
     expected = TypeError
     with pytest.raises(expected):
@@ -235,7 +235,7 @@ def test_get_nodes_invalid_input_type_no_fixture():
 # get_weight()
 # =============================================================================
 
-def test_get_weight_ratios_inline_matrices():
+def test_get_weight_ratios():
     net = sp.Matrix([[2, 0], [6, 8]])
     absolute = sp.Matrix([[4, 0], [12, 16]])
     result = get_weight(net, absolute)
@@ -245,7 +245,7 @@ def test_get_weight_ratios_inline_matrices():
     assert result == expected
 
 
-def test_get_weight_custom_no_effect_inline_matrices():
+def test_get_weight_no_effect():
     net = sp.Matrix([[2, 0], [6, 8]])
     absolute = sp.Matrix([[4, 0], [12, 16]])
     w = get_weight(net, absolute, no_effect=sp.Integer(1))
@@ -254,7 +254,7 @@ def test_get_weight_custom_no_effect_inline_matrices():
     assert result == expected
 
 
-def test_get_weight_shape_mismatch_no_fixture():
+def test_get_weight_rejects_shape_mismatch():
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -267,7 +267,7 @@ def test_get_weight_shape_mismatch_no_fixture():
 # get_positive()
 # =============================================================================
 
-def test_get_positive_single_entry_inline_matrices():
+def test_get_positive_single_entry():
     net = sp.Matrix([[2]])
     absolute = sp.Matrix([[6]])
     result = get_positive(net, absolute)
@@ -287,7 +287,7 @@ def test_get_positive_feedback_terms_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_get_positive_shape_mismatch_no_fixture():
+def test_get_positive_rejects_shape_mismatch():
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -300,7 +300,7 @@ def test_get_positive_shape_mismatch_no_fixture():
 # get_negative()
 # =============================================================================
 
-def test_get_negative_single_entry_inline_matrices():
+def test_get_negative_single_entry():
     net = sp.Matrix([[2]])
     absolute = sp.Matrix([[6]])
     result = get_negative(net, absolute)
@@ -320,7 +320,7 @@ def test_get_negative_feedback_terms_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_get_negative_shape_mismatch_no_fixture():
+def test_get_negative_rejects_shape_mismatch():
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -333,31 +333,31 @@ def test_get_negative_shape_mismatch_no_fixture():
 # sign_determinacy()
 # =============================================================================
 
-def test_sign_determinacy_matrix_type_inline_matrices():
+def test_sign_determinacy_returns_matrix():
     result = sign_determinacy(sp.Matrix([[sp.Rational(1, 2)]]), sp.Matrix([[10]]))
     expected = isinstance(result, sp.Matrix)
     assert expected is True
 
 
-def test_sign_determinacy_zero_weight_inline_matrices():
+def test_sign_determinacy_zero_weight():
     result = sign_determinacy(sp.Matrix([[0]]), sp.Matrix([[10]]))
     expected = sp.Matrix([[sp.Rational(1, 2)]])
     assert result == expected
 
 
-def test_sign_determinacy_unit_weight_inline_matrices():
+def test_sign_determinacy_unit_weight():
     result = sign_determinacy(sp.Matrix([[1]]), sp.Matrix([[10]]))
     expected = sp.Matrix([[1]])
     assert result == expected
 
 
-def test_sign_determinacy_negative_weight_inline_matrices():
+def test_sign_determinacy_negative_weight():
     result = sign_determinacy(sp.Matrix([[-1]]), sp.Matrix([[10]]))
     expected = sp.Matrix([[-1]])
     assert result == expected
 
 
-def test_sign_determinacy_zero_total_inline_matrices():
+def test_sign_determinacy_zero_total():
     result = sign_determinacy(sp.Matrix([[sp.Rational(1, 2)]]), sp.Matrix([[0]]))
     expected = sp.Matrix([[sp.nan]])
     assert result == expected
@@ -369,13 +369,13 @@ def test_sign_determinacy_zero_total_inline_matrices():
     (0.7, 50, "average"),
     (0.7, 50, "95_bound"),
 ])
-def test_sign_determinacy_bounds_parameterized_inline_scalars(w, t, method):
+def test_sign_determinacy_bounds(w, t, method):
     result = sign_determinacy(sp.Matrix([[w]]), sp.Matrix([[t]]), method=method)
     expected = (0.5 <= float(result[0, 0]) <= 1.0)
     assert expected is True
 
 
-def test_sign_determinacy_overflow_guard_inline_scalars():
+def test_sign_determinacy_overflow_guard_method_average():
     w = sp.Matrix([[0.7]])
     t = sp.Matrix([[2000]])
     result = sign_determinacy(w, t, method="average")
@@ -383,7 +383,7 @@ def test_sign_determinacy_overflow_guard_inline_scalars():
     assert result[0, 0] == expected
 
 
-def test_sign_determinacy_hosack_2008_constants_inline_matrices():
+def test_sign_determinacy_hosack_2008_constants():
     weights = sp.Matrix([[sp.Rational(1, 2), sp.Rational(-1, 4)], [sp.Rational(3, 4), sp.Rational(1, 10)]])
     totals = sp.Matrix([[4, 8], [20, 100]])
     result = [sign_determinacy(weights, totals, method=method) for method in ("average", "95_bound")]
@@ -406,7 +406,7 @@ def test_sign_determinacy_hosack_2008_constants_inline_matrices():
     )
 
 
-def test_sign_determinacy_overflow_guard_95_bound_inline_scalars():
+def test_sign_determinacy_overflow_guard_method_95_bound():
     w = sp.Matrix([[0.7]])
     t = sp.Matrix([[2000]])
     result = sign_determinacy(w, t, method="95_bound")
@@ -414,7 +414,7 @@ def test_sign_determinacy_overflow_guard_95_bound_inline_scalars():
     assert result[0, 0] == expected
 
 
-def test_sign_determinacy_invalid_method_no_fixture():
+def test_sign_determinacy_rejects_invalid_method():
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -427,25 +427,25 @@ def test_sign_determinacy_invalid_method_no_fixture():
 # _sign_string()
 # =============================================================================
 
-def test_sign_string_positive_edge_simple_ab_positive(simple_ab_positive):
+def test_sign_string_positive_edge(simple_ab_positive):
     result = _sign_string(simple_ab_positive, ['A', 'B'])
     expected = '+'
     assert result == expected
 
 
-def test_sign_string_negative_edge_simple_xy_negative(simple_xy_negative):
+def test_sign_string_negative_edge(simple_xy_negative):
     result = _sign_string(simple_xy_negative, ['X', 'Y'])
     expected = '\u2212'
     assert result == expected
 
 
-def test_sign_string_chain_edges_chain(chain):
+def test_sign_string_edges_chain(chain):
     result = (_sign_string(chain, ['1', '2']), _sign_string(chain, ['2', '1']))
     expected = ('+', '\u2212')
     assert result == expected
 
 
-def test_sign_string_zero_product_no_fixture():
+def test_sign_string_zero_product():
     G = nx.DiGraph()
     G.add_edge('A', 'B', sign=0)
     result = _sign_string(G, ['A', 'B'])
@@ -457,12 +457,12 @@ def test_sign_string_zero_product_no_fixture():
 # _parse_perturbations()
 # =============================================================================
 
-def test_parse_perturbations_invalid_node_multi(snowshoe):
+def test_parse_perturbations_rejects_unknown_node_in_list(snowshoe):
     with pytest.raises(ValueError, match="Unknown perturbation node"):
         simulations_table(snowshoe, perturb='R:+, Invalid:+', observe='')
 
 
-def test_parse_perturbations_empty_string(snowshoe):
+def test_parse_perturbations_rejects_empty_string(snowshoe):
     with pytest.raises(ValueError, match="Perturbation string cannot be empty"):
         marginal_likelihood(snowshoe, perturb='   ', observe='R:+')
 
@@ -485,26 +485,26 @@ def test_parse_perturbations_skips_blank_entries_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_parse_perturbations_invalid_node_snowshoe(snowshoe):
+def test_parse_perturbations_rejects_unknown_node(snowshoe):
     with pytest.raises(ValueError, match="Unknown perturbation node"):
         _parse_perturbations(snowshoe, "Invalid:+")
 
 
-def test_check_signs_rejects_non_unit_no_fixture():
+def test_check_signs_rejects_non_unit():
     G = nx.DiGraph()
     G.add_edge("A", "B", sign=2)
     with pytest.raises(ValueError, match="Edge signs must be"):
         _check_signs(G)
 
 
-def test_check_signs_accepts_unit_no_fixture():
+def test_check_signs_accepts_unit():
     G = nx.DiGraph()
     G.add_edge("A", "B", sign=1)
     G.add_edge("B", "A", sign=-1)
     assert _check_signs(G) is None
 
 
-def test_check_direct_io_edges_rejects_feedthrough_no_fixture():
+def test_check_direct_io_edges_rejects_feedthrough():
     G = nx.DiGraph()
     G.add_node("Inp", category="input")
     G.add_node("Out", category="output")
@@ -517,13 +517,13 @@ def test_check_direct_io_edges_rejects_feedthrough_no_fixture():
 # _parse_observations()
 # =============================================================================
 
-def test_parse_observations_empty_input_no_fixture():
+def test_parse_observations_empty_string():
     result = _parse_observations('')
     expected = tuple()
     assert result == expected
 
 
-def test_parse_observations_multiple_values_no_fixture():
+def test_parse_observations_multiple_values():
     result = _parse_observations('A:+, B:-')
     expected = (('A', 1), ('B', -1))
     assert result == expected
@@ -536,18 +536,18 @@ def test_parse_observations_multiple_values_no_fixture():
     ('D', (('D', 1),)),
     (' E : - ', (('E', -1),)),
 ])
-def test_parse_observations_signs_params(text, expected):
+def test_parse_observations_signs(text, expected):
     result = _parse_observations(text)
     assert result == expected
 
 
 @pytest.mark.parametrize('text', ['  ', ':+', ' : -', 'A:+,'])
-def test_parse_observations_requires_a_node_name(text):
+def test_parse_observations_rejects_missing_node_name(text):
     with pytest.raises(ValueError, match='Missing node name'):
         _parse_observations(text)
 
 
-def test_parse_observations_invalid_sign_no_fixture():
+def test_parse_observations_rejects_invalid_sign():
     with pytest.raises(ValueError, match="Sign must be"):
         _parse_observations('X:invalid')
 
@@ -556,18 +556,18 @@ def test_parse_observations_invalid_sign_no_fixture():
 # _random_sampler()
 # =============================================================================
 
-def test_random_sampler_invalid_distribution_no_fixture():
+def test_random_sampler_rejects_invalid_distribution():
     with pytest.raises(ValueError, match="Invalid distribution"):
         _random_sampler("invalid_dist", 10)
 
 
-def test_random_sampler_uniform_range_no_fixture():
+def test_random_sampler_dist_uniform_range():
     result = _random_sampler("uniform", 10)
     assert result.shape == (10,)
     assert (result >= 0).all() and (result <= 1).all()
 
 
-def test_random_sampler_uniform_two_oom_range_no_fixture():
+def test_random_sampler_dist_uniform_two_oom_range():
     result = _random_sampler("uniform_two_oom", 10)
     assert result.shape == (10,)
     assert (result >= 0.01).all() and (result <= 1).all()
@@ -583,7 +583,7 @@ def test_get_dashed_alternatives_variants_carry_no_dashes_snowshoe_dashed(snowsh
     assert result == expected
 
 
-def test_get_dashed_alternatives_keeps_reciprocal_dashed_edges_together_snowshoe_dashed(snowshoe_dashed):
+def test_get_dashed_alternatives_pair_reciprocal_snowshoe_dashed(snowshoe_dashed):
     variants = get_dashed_alternatives(snowshoe_dashed)
     result = (len(variants), sum(g.has_edge('R', 'P') == g.has_edge('P', 'R') for g in variants), len(get_dashed_alternatives(snowshoe_dashed, combinations=False)))
     expected = (4, 4, 3)
@@ -597,14 +597,14 @@ def test_get_dashed_alternatives_no_dashed_edges_snowshoe(snowshoe):
     assert qmm.get_dashed_alternatives is get_dashed_alternatives
 
 
-def test_get_dashed_alternatives_combinations_true_snowshoe_dashed(snowshoe_dashed):
+def test_get_dashed_alternatives_combinations_unpaired_snowshoe_dashed(snowshoe_dashed):
     result = get_dashed_alternatives(snowshoe_dashed, combinations=True, pair_reciprocal=False)
     assert len(result) == 8
     assert result[0].number_of_edges() == 6
     assert result[7].number_of_edges() == 9
 
 
-def test_get_dashed_alternatives_combinations_false_snowshoe_dashed(snowshoe_dashed):
+def test_get_dashed_alternatives_combinations_false_unpaired_snowshoe_dashed(snowshoe_dashed):
     result = get_dashed_alternatives(snowshoe_dashed, combinations=False, pair_reciprocal=False)
     assert len(result) == 4 
     assert result[0].number_of_edges() == 6
@@ -623,23 +623,23 @@ def test_get_dashed_alternatives_combinations_false_snowshoe_dashed(snowshoe_das
 # =============================================================================
 
 
-def test_perm_not_array_no_fixture():
+def test_perm_rejects_non_array():
     with pytest.raises(TypeError, match="NumPy array"):
         perm([[1, 2], [3, 4]])
 
 
-def test_perm_non_square_no_fixture():
+def test_perm_rejects_non_square():
     with pytest.raises(ValueError, match="square"):
         perm(np.array([[1, 2, 3], [4, 5, 6]]))
 
 
-def test_perm_contains_nan_no_fixture():
+def test_perm_rejects_nan():
     with pytest.raises(ValueError, match="NaN"):
         perm(np.array([[1, np.nan], [3, 4]]))
 
 
 @pytest.mark.parametrize("n", [63, 64, 65, 127, 128, 129])
-def test_perm_arbitrary_width_masks(n):
+def test_perm_identity_beyond_63(n):
     A = np.eye(n, dtype=int)
     assert perm(A) == 1
     assert perm(A, levels=True) == [comb(n, k) for k in range(n + 1)]
@@ -701,7 +701,7 @@ def test_perm_normalizes_matrix_subclass():
     assert perm(A, levels=True) == [1, 5, 10]
 
 
-def test_perm_signed_and_huge_integer_independent_oracle():
+def test_perm_matches_direct_permanent_huge_integers():
     rng = np.random.default_rng(9187)
     for n in range(6):
         A = rng.integers(-2, 3, size=(n, n)).astype(object) * (10**25 + 7)
@@ -722,7 +722,7 @@ def test_perm_signed_and_huge_integer_independent_oracle():
             ]
 
 
-def test_perm_small_matrices_no_fixture():
+def test_perm_small_matrices():
     cases = [
         (np.array([]).reshape(0, 0), 1),
         (np.array([[5.0]]), 5),
@@ -734,7 +734,7 @@ def test_perm_small_matrices_no_fixture():
         assert perm(A) == expected
 
 
-def test_perm_exact_beyond_float_precision_no_fixture():
+def test_perm_exact_beyond_float_precision():
     n = 19
     assert perm(np.ones((n, n), dtype=int)) == factorial(n)
     A = np.array([[1 if abs(i - j) <= 1 else 0 for j in range(40)] for i in range(40)])
@@ -762,7 +762,7 @@ def test_perm_object_array_numpy_booleans_remain_exact():
     assert perm(A) == 2**63
 
 
-def test_perm_matches_sympy_permanent_no_fixture():
+def test_perm_matches_sympy_permanent():
     rng = np.random.default_rng(7)
     for _ in range(20):
         n = int(rng.integers(1, 7))
@@ -813,7 +813,7 @@ def test_perm_matches_absolute_determinants(model):
     assert sp.Matrix(result) == absolute_determinants(G)
 
 
-def test_perm_levels_matches_perm_of_principal_submatrices_no_fixture():
+def test_perm_levels_matches_perm_of_principal_submatrices():
     rng = np.random.default_rng(13)
     for _ in range(10):
         n = int(rng.integers(1, 7))
@@ -824,7 +824,7 @@ def test_perm_levels_matches_perm_of_principal_submatrices_no_fixture():
             assert levels[k] == expected
 
 
-def test_perm_source_matches_perm_of_minors_no_fixture():
+def test_perm_source_matches_perm_of_minors():
     rng = np.random.default_rng(17)
     for _ in range(10):
         n = int(rng.integers(2, 8))

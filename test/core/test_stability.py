@@ -44,7 +44,7 @@ def test_simulation_stability_zero_strengths_fail_both_hurwitz_criteria():
     assert results['Hurwitz criterion i only'] == results['Hurwitz criterion ii only'] == '0.00%'
 
 
-def test_stability_analysis_reports_all_three_analyses_with_supplied_strengths(snowshoe):
+def test_stability_analysis_reports_all_sections_with_presample(snowshoe):
     result = stability_analysis(snowshoe, n_sim=2, presample=np.ones((2, 3, 3)))
     assert list(result.columns) == ['Test', 'Definition', 'Result']
     assert result.index.tolist() == list(range(17))
@@ -60,13 +60,13 @@ def test_stability_analysis_reports_all_three_analyses_with_supplied_strengths(s
 # _colour_test()
 # =============================================================================
 
-def test_colour_test_pass_colour_pass(colour_pass):
+def test_colour_test_pass(colour_pass):
     result = _colour_test(colour_pass)
     expected = 'Pass'
     assert result == expected
 
 
-def test_colour_test_fail_colour_fail(colour_fail):
+def test_colour_test_fail(colour_fail):
     result = _colour_test(colour_fail)
     expected = 'Fail'
     assert result == expected
@@ -103,7 +103,7 @@ def test_sign_stability_classification_class_ii(class_ii):
     expected = False
     assert result == expected
 
-def test_sign_stability_fail_condition_i_snowshoe(snowshoe):
+def test_sign_stability_fail_condition_i(snowshoe):
     G = snowshoe.copy()
     G.add_edge('C', 'C', sign=1)
     df = sign_stability(G)
@@ -232,20 +232,14 @@ def test_system_feedback_form_symbolic_all_levels_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_system_feedback_form_signed_chain_repeat_chain(chain):
-    result = system_feedback(chain, level=None, form='signed')
-    expected = sp.Matrix([[-1], [-5], [-14], [-22], [-20], [-8]])
-    assert result == expected
-
-
-def test_feedback_matches_disjoint_cycle_expansion_snowshoe_rp(snowshoe_rp):
+def test_system_feedback_matches_disjoint_cycle_expansion_snowshoe_rp(snowshoe_rp):
     feedback, counts = cycle_expansion(snowshoe_rp)
     result = (system_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp, method='polynomial'))
     expected = (feedback, counts, counts)
     assert result == expected
 
 
-def test_feedback_counts_cancelled_terms_mutualism_no_fixture():
+def test_absolute_feedback_counts_cancelled_terms_mutualism():
     G = list_to_digraph([[-1, 1], [1, -1]], ['1', '2'])
     result = (net_feedback(G), absolute_feedback(G), weighted_feedback(G))
     expected = (sp.Matrix([-1, -2, 0]), sp.Matrix([1, 2, 2]), sp.Matrix([-1, -1, 0]))
@@ -272,43 +266,43 @@ def test_net_feedback_signed_default_chain(chain):
 # absolute_feedback()
 # =============================================================================
 
-def test_absolute_feedback_level_0_default_form_snowshoe(snowshoe):
+def test_absolute_feedback_level_0_snowshoe(snowshoe):
     result = absolute_feedback(snowshoe, level=0)
     expected = sp.Matrix([[1]])
     assert result == expected
 
 
-def test_absolute_feedback_all_levels_default_form_snowshoe(snowshoe):
+def test_absolute_feedback_all_levels_snowshoe(snowshoe):
     result = absolute_feedback(snowshoe)
     expected = sp.Matrix([[1], [2], [3], [2]])
     assert result == expected
 
 
-def test_absolute_feedback_combinations_method_level_2_snowshoe(snowshoe):
+def test_absolute_feedback_method_combinations_level_2_snowshoe(snowshoe):
     result = absolute_feedback(snowshoe, level=2, method="combinations")
     expected = sp.Matrix([[3]])
     assert result == expected
 
 
-def test_absolute_feedback_polynomial_method_level_2_snowshoe(snowshoe):
+def test_absolute_feedback_method_polynomial_level_2_snowshoe(snowshoe):
     result = absolute_feedback(snowshoe, level=2, method="polynomial")
     expected = sp.Matrix([[3]])
     assert result == expected
 
 
-def test_absolute_feedback_polynomial_all_levels_snowshoe(snowshoe):
+def test_absolute_feedback_method_polynomial_all_levels_snowshoe(snowshoe):
     result = absolute_feedback(snowshoe, method="polynomial")
     expected = sp.Matrix([[1], [2], [3], [2]])
     assert result == expected
 
 
-def test_absolute_feedback_exact_for_large_counts_no_fixture():
+def test_absolute_feedback_exact_for_large_counts():
     n = 20
     G = list_to_digraph([[-1 if i == j else 1 for j in range(n)] for i in range(n)])
     assert absolute_feedback(G, level=n)[0] == factorial(n)
 
 
-def test_absolute_feedback_all_levels_default_form_chain(chain):
+def test_absolute_feedback_all_levels_chain(chain):
     result = absolute_feedback(chain)
     expected = sp.Matrix([[1], [5], [14], [22], [20], [8]])
     assert result == expected
@@ -318,13 +312,13 @@ def test_absolute_feedback_all_levels_default_form_chain(chain):
 # weighted_feedback()
 # =============================================================================
 
-def test_weighted_feedback_default_form_signed_snowshoe(snowshoe):
+def test_weighted_feedback_default_snowshoe(snowshoe):
     result = weighted_feedback(snowshoe)
     expected = sp.Matrix([[-1], [-1], [-1], [-1]])
     assert result == expected
 
 
-def test_weighted_feedback_default_form_signed_chain(chain):
+def test_weighted_feedback_default_chain(chain):
     result = weighted_feedback(chain)
     expected = sp.Matrix([[-1], [-1], [-1], [-1], [-1], [-1]])
     assert result == expected
@@ -334,14 +328,14 @@ def test_weighted_feedback_default_form_signed_chain(chain):
 # _hurwitz_matrix()
 # =============================================================================
 
-def test_hurwitz_matrix_level_0_symbolic_feedback_snowshoe(snowshoe):
+def test_hurwitz_matrix_level_0_snowshoe(snowshoe):
     fb = system_feedback(snowshoe, level=None, form='symbolic')
     result = _hurwitz_matrix(fb, level=0)
     expected = sp.Matrix([[1]])
     assert result == expected
 
 
-def test_hurwitz_matrix_level_2_symbolic_snowshoe(snowshoe):
+def test_hurwitz_matrix_level_2_snowshoe(snowshoe):
     fb = system_feedback(snowshoe, level=None, form='symbolic')
     result = _hurwitz_matrix(fb, level=2)
     a_RR = sp.Symbol('a_R,R')
@@ -397,7 +391,7 @@ def test_hurwitz_determinants_form_signed_chain(chain):
     assert result == expected
 
 
-def test_hurwitz_determinants_form_symbolic_large_graph_large_six_node(large_six_node):
+def test_hurwitz_determinants_form_symbolic_rejects_large_six_node(large_six_node):
     result = None
     expected = ValueError
     with pytest.raises(expected):
@@ -411,7 +405,7 @@ def _hurwitz_from_coefficients(coefficients, level):
     return sp.Matrix(level, level, lambda i, j: coefficients[2 * j - i + 1] if 0 <= 2 * j - i + 1 <= n else 0)
 
 
-def test_hurwitz_determinants_match_polynomial_coefficients_snowshoe_rp_mesocosm(snowshoe_rp, mesocosm):
+def test_hurwitz_determinants_match_polynomial_coefficients(snowshoe_rp, mesocosm):
     lam = sp.Symbol('lambda')
     symbolic = create_matrix(snowshoe_rp)
     signed = create_matrix(mesocosm, 'signed')
@@ -451,7 +445,7 @@ def _jeffries_colouring_exists(signed):
     return False
 
 
-def test_colour_test_matches_exhaustive_colouring_no_fixture():
+def test_colour_test_matches_exhaustive_colouring():
     rng = np.random.default_rng(3)
     result = []
     expected = []
@@ -470,7 +464,7 @@ def test_colour_test_matches_exhaustive_colouring_no_fixture():
     assert result == expected
 
 
-def test_sign_stability_neutral_chain_has_imaginary_eigenvalues_no_fixture():
+def test_sign_stability_neutral_chain_has_imaginary_eigenvalues():
     A = [[0, 1, 0, 0, 0], [-1, 0, 1, 0, 0], [0, -1, -1, 1, 0], [0, 0, -1, 0, 1], [0, 0, 0, -1, 0]]
     G = list_to_digraph(A, ['1', '2', '3', '4', '5'])
     df = sign_stability(G)
@@ -508,7 +502,7 @@ def test_net_determinants_level_2_chain(chain):
     assert result == expected
 
 
-def test_net_determinants_invalid_level_chain(chain):
+def test_net_determinants_rejects_invalid_level(chain):
     with pytest.raises(ValueError):
         net_determinants(chain, level=100)
 
@@ -535,7 +529,7 @@ def test_absolute_determinants_level_2_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_absolute_determinants_invalid_level_snowshoe(snowshoe):
+def test_absolute_determinants_rejects_invalid_level(snowshoe):
     with pytest.raises(ValueError):
         absolute_determinants(snowshoe, level=100)
 
@@ -627,7 +621,7 @@ def test_determinants_metrics_values_snowshoe(snowshoe):
 # conditional_stability()
 # =============================================================================
 
-def test_create_model_c_is_the_dambacher_chain_no_fixture():
+def test_create_model_c_is_the_dambacher_chain():
     chain = [[0, 1, 0, 0, 0], [-1, 0, 1, 0, 0], [0, -1, 0, 1, 0], [0, 0, -1, 0, 1], [0, 0, 0, -1, -1]]
     result = nx.is_isomorphic(_create_model_c(5), list_to_digraph(chain, ['1', '2', '3', '4', '5']),
                               edge_match=lambda a, b: a['sign'] == b['sign'])
@@ -635,21 +629,21 @@ def test_create_model_c_is_the_dambacher_chain_no_fixture():
     assert result == expected
 
 
-def test_conditional_stability_sign_class_snowshoe(snowshoe):
+def test_conditional_stability_sign_stable_snowshoe(snowshoe):
     df = conditional_stability(snowshoe)
     result = df.loc[df['Test'] == 'Model class', 'Result'].iloc[0]
     expected = 'Sign stable'
     assert result == expected
 
 
-def test_conditional_stability_sign_class_chain(chain):
+def test_conditional_stability_sign_stable_chain(chain):
     df = conditional_stability(chain)
     result = df.loc[df['Test'] == 'Model class', 'Result'].iloc[0]
     expected = 'Sign stable'
     assert result == expected
 
 
-def test_conditional_stability_class_ii_class_ii(class_ii):
+def test_conditional_stability_class_ii(class_ii):
     df = conditional_stability(class_ii)
     result = df.loc[df['Test'] == 'Model class', 'Result'].iloc[0]
     expected = 'Class II'
@@ -748,7 +742,7 @@ def test_simulation_stability_unstable_equals_hurwitz_failures(snowshoe_rp):
     assert result == pytest.approx(expected)
 
 
-def test_simulation_stability_with_presample(snowshoe):
+def test_simulation_stability_presample(snowshoe):
     n_sim = 5
     presample = np.random.uniform(0.01, 1, (n_sim, 3, 3))
     result = simulation_stability(snowshoe, n_sim=n_sim, presample=presample)
@@ -758,38 +752,38 @@ def test_simulation_stability_with_presample(snowshoe):
     assert len(result) == 6
 
 
-def test_simulation_stability_presample_wrong_shape(snowshoe):
+def test_simulation_stability_rejects_presample_wrong_shape(snowshoe):
     presample = np.random.uniform(0.01, 1, (5, 2, 2))
     with pytest.raises(ValueError, match="presample must have shape"):
         simulation_stability(snowshoe, n_sim=5, presample=presample)
 
 
-def test_system_feedback_invalid_form(snowshoe):
+def test_system_feedback_rejects_invalid_form(snowshoe):
     with pytest.raises(ValueError, match="^Invalid form"):
         system_feedback(snowshoe, form="invalid")
 
 
-def test_system_feedback_invalid_level_negative(snowshoe):
+def test_system_feedback_rejects_negative_level(snowshoe):
     with pytest.raises(ValueError, match="Level must be between"):
         system_feedback(snowshoe, level=-1)
 
 
-def test_absolute_feedback_invalid_level_negative(snowshoe):
+def test_absolute_feedback_rejects_negative_level(snowshoe):
     with pytest.raises(ValueError, match="Level must be between"):
         absolute_feedback(snowshoe, level=-1)
 
 
-def test_absolute_feedback_invalid_method(snowshoe):
+def test_absolute_feedback_rejects_invalid_method(snowshoe):
     with pytest.raises(ValueError, match="method must be either 'combinations' or 'polynomial'"):
         absolute_feedback(snowshoe, method="invalid")
 
 
-def test_hurwitz_determinants_invalid_form(snowshoe):
+def test_hurwitz_determinants_rejects_invalid_form(snowshoe):
     with pytest.raises(ValueError, match="^Invalid form"):
         hurwitz_determinants(snowshoe, form="invalid")
 
 
-def test_sign_stability_jeffries_counterexample_no_fixture():
+def test_sign_stability_jeffries_counterexample():
     G = list_to_digraph([[-1, 1, 0], [0, 0, -1], [0, 1, 0]], ["1", "2", "3"])
     result = sign_stability(G).set_index("Test")["Result"]
     assert all(result[f"Condition {c}"] for c in ["i", "ii", "iii", "iv", "v"])
@@ -797,7 +791,7 @@ def test_sign_stability_jeffries_counterexample_no_fixture():
     assert not result["Sign stable"]
 
 
-def test_simulation_stability_positive_self_effect_fails_criterion_i_no_fixture():
+def test_simulation_stability_positive_self_effect_fails_criterion_i():
     G = list_to_digraph([[1, 0], [0, -1]], ["a", "b"])
     result = simulation_stability(G, n_sim=200).set_index("Test")["Result"]
     assert result["Stable matrices"] == "0.00%"
@@ -809,12 +803,12 @@ def test_conditional_stability_tied_maximum_is_class_ii():
     assert conditional_stability(G)["Result"].iloc[-1] == "Class II"
 
 
-def test_conditional_stability_missing_feedback_raises():
+def test_conditional_stability_rejects_missing_feedback():
     with pytest.raises(ValueError, match="^No feedback terms at level 1$"):
         conditional_stability(list_to_digraph([[0, -1], [1, 0]], ["A", "B"]))
 
 
-def test_stability_analysis_keeps_available_sections_when_conditional_is_unavailable():
+def test_stability_analysis_keeps_sections_when_conditional_unavailable():
     G = list_to_digraph([[0, -1], [1, 0]], ["A", "B"])
     presample = np.ones((2, 2, 2))
     result = stability_analysis(G, n_sim=2, presample=presample).set_index("Test")["Result"]
@@ -825,7 +819,7 @@ def test_stability_analysis_keeps_available_sections_when_conditional_is_unavail
     assert result["Model class"] == "Unavailable: No feedback terms at level 1"
 
 
-def test_sign_stability_and_level_zero_feedback_beyond_63_states():
+def test_sign_stability_beyond_63_states():
     G = list_to_digraph((-np.eye(64)).astype(int).tolist(), [f"n{i}" for i in range(64)])
     assert sign_stability(G)["Result"].iloc[-1]
     assert absolute_feedback(G, level=0) == sp.Matrix([1])
@@ -837,7 +831,7 @@ def test_absolute_feedback_beyond_63_states():
     assert absolute_feedback(G, level=64) == sp.Matrix([1])
 
 
-def test_first_level_feedback_uses_diagonal(monkeypatch):
+def test_absolute_feedback_level_1_uses_diagonal(monkeypatch):
     def unexpected_count(*args, **kwargs):
         pytest.fail("First-level feedback only needs diagonal entries")
     monkeypatch.setattr("qmm.core.stability.perm", unexpected_count)
@@ -845,7 +839,7 @@ def test_first_level_feedback_uses_diagonal(monkeypatch):
     assert absolute_feedback(G, level=1) == sp.Matrix([16])
 
 
-def test_cycle_cover_matching_agrees_with_exact_count():
+def test_has_cycle_cover_agrees_with_exact_count():
     rng = np.random.RandomState(0)
     for _ in range(300):
         n = rng.randint(1, 7)
@@ -853,7 +847,7 @@ def test_cycle_cover_matching_agrees_with_exact_count():
         assert _has_cycle_cover(A) == (perm(A) > 0)
 
 
-def test_stability_results_follow_graph_attributes_and_own_values():
+def test_weighted_feedback_follows_graph_edits():
     G = list_to_digraph([[-1]])
     result = weighted_feedback(G)
     result[1] = 999
@@ -862,7 +856,7 @@ def test_stability_results_follow_graph_attributes_and_own_values():
     assert weighted_feedback(G) == sp.Matrix([-1, 1])
 
 
-def test_symbolic_hurwitz_limit_precedes_expansion(monkeypatch):
+def test_hurwitz_determinants_size_limit_precedes_expansion(monkeypatch):
     def unexpected_expansion(*args, **kwargs):
         pytest.fail("The unsupported symbolic system should be rejected before expansion")
 
@@ -895,7 +889,7 @@ def test_simulation_stability_hurwitz_checks_independent_of_overall_scale(scale)
 
 
 @pytest.mark.parametrize("n_sim", [0, -1, 1.5, True])
-def test_simulation_stability_requires_positive_integer_count(n_sim):
+def test_simulation_stability_rejects_invalid_counts(n_sim):
     with pytest.raises(ValueError, match="n_sim must be a positive integer"):
         simulation_stability(list_to_digraph([[-1]]), n_sim=n_sim)
 

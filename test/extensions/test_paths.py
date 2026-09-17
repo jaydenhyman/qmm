@@ -47,7 +47,7 @@ def test_get_cycles_form_symbolic_snowshoe_io(snowshoe_io):
 # cycles_table
 # =============================================================================
 
-def test_cycles_table_symbolic_loops_snowshoe_io(snowshoe_io):
+def test_cycles_table_default_snowshoe_io(snowshoe_io):
     result = list(cycles_table(snowshoe_io)["Cycle"])
     expected = [
         "P $\\multimap$ P",
@@ -135,7 +135,7 @@ def test_get_paths_form_binary_inp1_out1_snowshoe_io(snowshoe_io):
     assert sp.Matrix(result["Product"].tolist()) == expected
 
 
-def test_get_paths_direct_input_output_symbolic_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+def test_get_paths_includes_direct_io_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
     result = get_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1", form="symbolic")
     d_Inp1_Out1 = sp.Symbol('d_Out1,Inp1')
     expected = any(d_Inp1_Out1 in product.free_symbols for product in result["Product"])
@@ -157,28 +157,28 @@ def test_path_metrics_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
         path_metrics(snowshoe_io_with_direct_edge, "Inp1", "Out1")
 
 
-def test_get_paths_symbolic_output_to_output_edge_output_to_output_graph(output_to_output_graph):
+def test_get_paths_single_path_output_to_output_graph(output_to_output_graph):
     result = len(get_paths(output_to_output_graph, 'A', 'Out2', form='symbolic'))
     expected = 1
     assert result == expected
 
 
-def test_get_paths_invalid_source_snowshoe_io(snowshoe_io):
+def test_get_paths_rejects_invalid_source(snowshoe_io):
     with pytest.raises(ValueError):
         get_paths(snowshoe_io, "Invalid", "Out1")
 
 
-def test_get_paths_invalid_target_snowshoe_io(snowshoe_io):
+def test_get_paths_rejects_invalid_target(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid target node"):
         get_paths(snowshoe_io, "Inp1", "Invalid")
 
 
-def test_get_paths_rejects_output_source_snowshoe_io(snowshoe_io):
+def test_get_paths_rejects_output_source(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid source node"):
         get_paths(snowshoe_io, "Out1", "R")
 
 
-def test_get_paths_rejects_input_target_snowshoe_io(snowshoe_io):
+def test_get_paths_rejects_input_target(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid target node"):
         get_paths(snowshoe_io, "R", "Inp1")
 
@@ -212,7 +212,7 @@ def test_paths_table_labels_fall_back_to_ids_snowshoe_io(snowshoe_io):
     assert result[0] == "Input $\\rightarrow$ R $\\rightarrow$ Consumer $\\rightarrow$ P $\\rightarrow$ Output"
 
 
-def test_paths_table_invalid_source_snowshoe_io(snowshoe_io):
+def test_paths_table_rejects_invalid_source(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid source node"):
         paths_table(snowshoe_io, "Invalid", "Out1")
 
@@ -245,7 +245,7 @@ def test_complementary_feedback_form_symbolic_inp1_out1_snowshoe_io(snowshoe_io)
     assert sp.Matrix(result["Feedback"].tolist()) == expected
 
 
-def test_complementary_feedback_invalid_source_snowshoe_io(snowshoe_io):
+def test_complementary_feedback_rejects_invalid_source(snowshoe_io):
     with pytest.raises(ValueError):
         complementary_feedback(snowshoe_io, "Invalid", "Out1")
 
@@ -257,12 +257,12 @@ def test_complementary_feedback_source_eq_target_snowshoe_io(snowshoe_io):
     assert sp.Matrix(result["Feedback"].tolist()) == expected
 
 
-def test_complementary_feedback_invalid_form_feedback_test_graph(feedback_test_graph):
+def test_complementary_feedback_rejects_invalid_form_feedback_test_graph(feedback_test_graph):
     with pytest.raises(ValueError):
         complementary_feedback(feedback_test_graph, 'A', 'B', form='invalid')
 
 
-def test_complementary_feedback_invalid_form_no_path(snowshoe_io):
+def test_complementary_feedback_rejects_invalid_form_snowshoe_io(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid form"):
         complementary_feedback(snowshoe_io, 'Inp1', 'Out1', form='invalid')
 
@@ -328,7 +328,7 @@ def test_system_paths_source_eq_target_snowshoe_io(snowshoe_io):
 # weighted_paths
 # =============================================================================
 
-def test_weighted_paths_signed_inp1_out1_snowshoe_io(snowshoe_io):
+def test_weighted_paths_inp1_out1_snowshoe_io(snowshoe_io):
     result = weighted_paths(snowshoe_io, "Inp1", "Out1")
     expected = sp.Matrix([
         [ 1],
@@ -344,19 +344,19 @@ def test_weighted_paths_signed_inp1_out1_snowshoe_io(snowshoe_io):
     assert sp.Matrix(result["Weight"].tolist()) == expected
 
 
-def test_weighted_paths_nan_feedback_snowshoe_io(snowshoe_io):
+def test_weighted_paths_returns_dataframe_snowshoe_io(snowshoe_io):
     result = weighted_paths(snowshoe_io, "Inp1", "Out1")
     expected = (isinstance(result, pd.DataFrame), len(result))
     assert expected == (True, 4)
 
 
-def test_weighted_paths_nan_feedback_replacement_nan_feedback_graph(nan_feedback_graph):
+def test_weighted_paths_zero_weight_nan_feedback_graph(nan_feedback_graph):
     result = weighted_paths(nan_feedback_graph, 'A', 'B')
     assert list(result["Path"]) == [("A", "B")]
     assert result["Weight"].iloc[0] == 0
 
 
-def test_weighted_paths_invalid_source_snowshoe_io(snowshoe_io):
+def test_weighted_paths_rejects_invalid_source(snowshoe_io):
     with pytest.raises(ValueError):
         weighted_paths(snowshoe_io, "Invalid", "Out1")
 
@@ -415,12 +415,12 @@ def test_path_metrics_zero_complementary_feedback_nan_feedback_graph(nan_feedbac
     (path_metrics, ["Length", "Path", "Sign", "Complementary subsystem", "Net feedback", "Absolute feedback",
                     "Positive feedback", "Negative feedback", "Weighted feedback", "Weighted path", "System path"]),
 ])
-def test_path_functions_without_a_path_return_empty_tables_snowshoe_io_na(snowshoe_io_na, function, columns):
+def test_path_functions_no_path_return_empty_tables_snowshoe_io_na(snowshoe_io_na, function, columns):
     result = function(snowshoe_io_na, "R", "N")
     assert result.empty and list(result.columns) == columns
 
 
-def test_path_metrics_invalid_source_snowshoe_io(snowshoe_io):
+def test_path_metrics_rejects_invalid_source(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid source node"):
         path_metrics(snowshoe_io, "Invalid", "Out1")
 
@@ -450,7 +450,7 @@ def test_system_paths_matches_cumulative_effects(snowshoe_io_na, form):
 # pathway_effects
 # =============================================================================
 
-def test_pathway_effects_terms_sum_mesocosm(mesocosm):
+def test_simulate_pathway_effects_terms_sum_mesocosm(mesocosm):
     responders = get_nodes(mesocosm, "state") + get_nodes(mesocosm, "output")
     for target in ["P", "A1", "C2"]:
         paths, terms, sims = _simulate_pathway_effects(mesocosm, "P", target, 200, "uniform", 3, "sample", True)
@@ -460,7 +460,7 @@ def test_pathway_effects_terms_sum_mesocosm(mesocosm):
         assert np.allclose(result[1], expected[1])
 
 
-def test_pathway_effects_terms_sum_inp1_r_snowshoe_io(snowshoe_io):
+def test_simulate_pathway_effects_terms_sum_inp1_r_snowshoe_io(snowshoe_io):
     responders = get_nodes(snowshoe_io, "state") + get_nodes(snowshoe_io, "output")
     paths, terms, sims = _simulate_pathway_effects(snowshoe_io, "Inp1", "R", 150, "uniform", 5, "sample", True)
     result = terms.sum(axis=1)
@@ -469,7 +469,7 @@ def test_pathway_effects_terms_sum_inp1_r_snowshoe_io(snowshoe_io):
     assert np.allclose(result, expected)
 
 
-def test_pathway_effects_terms_sum_inp1_out1_snowshoe_io(snowshoe_io):
+def test_simulate_pathway_effects_terms_sum_inp1_out1_snowshoe_io(snowshoe_io):
     responders = get_nodes(snowshoe_io, "state") + get_nodes(snowshoe_io, "output")
     paths, terms, sims = _simulate_pathway_effects(snowshoe_io, "Inp1", "Out1", 150, "uniform", 5, "sample", True)
     result = (len(paths), terms.sum(axis=1))
@@ -504,7 +504,7 @@ def test_pathway_effects_self_response_snowshoe(snowshoe):
     ) == expected
 
 
-def test_pathway_effects_uncertain_edges_snowshoe_dashed(snowshoe_dashed):
+def test_pathway_effects_sample_snowshoe_dashed(snowshoe_dashed):
     result = pathway_effects(snowshoe_dashed, "R", "P", n_sim=300, seed=2, uncertain_interactions="sample")
     direct = result[result["Length"] == 1].iloc[0]
     assert direct["Zero"] > 0.2
@@ -512,17 +512,17 @@ def test_pathway_effects_uncertain_edges_snowshoe_dashed(snowshoe_dashed):
     assert result["Contribution"].sum() == pytest.approx(1.0)
 
 
-def test_pathway_effects_invalid_target_snowshoe(snowshoe):
+def test_pathway_effects_rejects_invalid_target(snowshoe):
     with pytest.raises(ValueError, match="Invalid target node"):
         pathway_effects(snowshoe, "R", "X", n_sim=10)
 
 
-def test_pathway_effects_rejects_output_source_snowshoe_io(snowshoe_io):
+def test_pathway_effects_rejects_output_source(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid source node"):
         pathway_effects(snowshoe_io, "Out1", "R", n_sim=10)
 
 
-def test_pathway_effects_rejects_input_target_snowshoe_io(snowshoe_io):
+def test_pathway_effects_rejects_input_target(snowshoe_io):
     with pytest.raises(ValueError, match="Invalid target node"):
         pathway_effects(snowshoe_io, "Inp1", "Inp1", n_sim=10)
 
@@ -539,7 +539,7 @@ def test_pathway_effects_empty_observe_matches_unconditional_snowshoe_io(snowsho
     pd.testing.assert_frame_equal(result, expected)
 
 
-def test_pathway_effects_observe_out1_positive_raises_positive_share_snowshoe_io(snowshoe_io):
+def test_pathway_effects_observe_raises_positive_share_snowshoe_io(snowshoe_io):
     kwargs = dict(source="Inp1", target="Out1", n_sim=400, seed=1)
     prior = pathway_effects(snowshoe_io, **kwargs)
     posterior = pathway_effects(snowshoe_io, observe="Out1:+", **kwargs)
@@ -549,17 +549,17 @@ def test_pathway_effects_observe_out1_positive_raises_positive_share_snowshoe_io
     assert posterior_pos > prior_pos
 
 
-def test_pathway_effects_observe_no_matches_snowshoe_io(snowshoe_io):
+def test_pathway_effects_rejects_observe_with_no_matches(snowshoe_io):
     with pytest.raises(RuntimeError, match="Maximum iterations reached"):
         pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=50, seed=1, observe="Out1:0")
 
 
-def test_pathway_effects_observe_unknown_node_snowshoe_io(snowshoe_io):
+def test_pathway_effects_rejects_unknown_observe_node(snowshoe_io):
     with pytest.raises(ValueError, match="Unknown observation node"):
         pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=10, observe="Missing:+")
 
 
-def test_tables_are_fresh_objects_snowshoe_io(snowshoe_io):
+def test_cycles_table_returns_fresh_objects(snowshoe_io):
     first = cycles_table(snowshoe_io)
     first["Cycle"] = "edited"
     assert list(cycles_table(snowshoe_io)["Cycle"]) != ["edited"] * len(first)
@@ -568,13 +568,13 @@ def test_tables_are_fresh_objects_snowshoe_io(snowshoe_io):
     assert list(paths_table(snowshoe_io, "Inp1", "Out1")["Path"]) != ["edited"] * len(paths)
 
 
-def test_pathway_effects_no_route_returns_empty_table(self_limited_pair):
+def test_pathway_effects_no_path_returns_empty_table(self_limited_pair):
     G = self_limited_pair
     result = pathway_effects(G, "A", "B", n_sim=10)
     assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"]
 
 
-def test_pathway_effects_reflects_changed_edge_sign(self_limited_pair):
+def test_pathway_effects_follows_graph_edits(self_limited_pair):
     G = self_limited_pair
     G.add_edge("A", "B", sign=1)
     assert pathway_effects(G, "A", "B", n_sim=10).loc[0, "Positive"] == 1
@@ -584,7 +584,7 @@ def test_pathway_effects_reflects_changed_edge_sign(self_limited_pair):
     assert result.loc[0, "Negative"] == 1
 
 
-def test_system_paths_sum_to_adjoint_with_cycle_expansion_complements_snowshoe_rp(snowshoe_rp):
+def test_system_paths_sum_to_adjoint_snowshoe_rp(snowshoe_rp):
     states = get_nodes(snowshoe_rp, 'state')
     adjoint = cumulative_effects(snowshoe_rp)
     result = []
@@ -600,7 +600,7 @@ def test_system_paths_sum_to_adjoint_with_cycle_expansion_complements_snowshoe_r
     assert result == expected
 
 
-def test_pathway_effects_terms_match_system_paths_numerators_snowshoe_rp(snowshoe_rp):
+def test_simulate_pathway_effects_terms_match_system_paths_snowshoe_rp(snowshoe_rp):
     A = create_matrix(snowshoe_rp)
     symbols = sorted(A.free_symbols, key=str)
     paths, terms, sims = _simulate_pathway_effects(snowshoe_rp, 'R', 'P', 5, 'uniform', 1, "sample", True)
@@ -623,7 +623,7 @@ def test_pathway_effects_sims_link_fixed_to_zero_present(self_limited_pair):
     assert result == expected
 
 
-def test_pathway_effects_sims_observe_contradicting_captured_observation(self_limited_pair):
+def test_pathway_effects_sims_rejects_contradicting_observe(self_limited_pair):
     G = self_limited_pair
     G.add_edge("A", "B", sign=1)
     sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), observe=(("B", 1),), return_samples=True)
@@ -650,13 +650,13 @@ def test_pathway_effects_sims_observe_matches_fresh_run_snowshoe_dashed(snowshoe
     assert result.equals(expected)
 
 
-def test_pathway_effects_sims_observe_requires_every_observation_snowshoe_dashed(snowshoe_dashed):
+def test_pathway_effects_sims_observe_requires_every_observation(snowshoe_dashed):
     sims = get_simulations(snowshoe_dashed, n_sim=50, seed=2, perturb=("R", 1), return_samples=True)
     with pytest.raises(ValueError, match="No simulations match"):
         pathway_effects(snowshoe_dashed, "R", "P", observe="C:-,C:+", sims=sims)
 
 
-def test_pathway_effects_sims_observe_unknown_node_snowshoe(snowshoe):
+def test_pathway_effects_sims_rejects_unknown_observe_node(snowshoe):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
     with pytest.raises(ValueError, match="Unknown observation node"):
         pathway_effects(snowshoe, "R", "P", observe="Missing:+", sims=sims)
@@ -675,7 +675,7 @@ def test_pathway_effects_sims_observe_matches_valid_draws_snowshoe_io(snowshoe_i
     assert result.equals(expected)
 
 
-def test_pathway_effects_sims_matrix_observe_requires_perturbation_snowshoe(snowshoe):
+def test_pathway_effects_sims_rejects_observe_without_perturbation(snowshoe):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, return_samples=True)
     with pytest.raises(ValueError, match="require a perturbation"):
         pathway_effects(snowshoe, "R", "P", observe="C:+", sims=sims)
@@ -691,7 +691,7 @@ def test_pathway_effects_sims_negative_press(self_limited_pair):
     assert result == expected
 
 
-def test_pathway_effects_terms_sum_sims_negative_press_snowshoe_dashed(snowshoe_dashed):
+def test_simulate_pathway_effects_terms_sum_sims_negative_press_snowshoe_dashed(snowshoe_dashed):
     sims = get_simulations(snowshoe_dashed, n_sim=200, seed=1, perturb=("R", -1), return_samples=True)
     paths, terms, _ = _simulate_pathway_effects(snowshoe_dashed, "R", "P", 200, "uniform", 1, "sample", True, sims=sims)
     result = terms.sum(axis=1)
@@ -700,7 +700,7 @@ def test_pathway_effects_terms_sum_sims_negative_press_snowshoe_dashed(snowshoe_
     assert np.allclose(result, expected)
 
 
-def test_pathway_effects_terms_sum_sims_matrix_mesocosm(mesocosm):
+def test_simulate_pathway_effects_terms_sum_sims_matrix_mesocosm(mesocosm):
     nodes = get_nodes(mesocosm, "state")
     sims = get_simulations(mesocosm, n_sim=100, seed=3, return_samples=True)
     paths, terms, _ = _simulate_pathway_effects(mesocosm, "P", "C2", 100, "uniform", 3, "sample", True, sims=sims)
@@ -710,7 +710,7 @@ def test_pathway_effects_terms_sum_sims_matrix_mesocosm(mesocosm):
 
 
 @pytest.mark.parametrize("perturb", [(("R", 1), ("P", -1)), ("P", 1), (("R", 1), ("R", 1))])
-def test_pathway_effects_sims_rejects_other_press_snowshoe(snowshoe, perturb):
+def test_pathway_effects_sims_rejects_other_press(snowshoe, perturb):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=perturb, return_samples=True)
     with pytest.raises(ValueError, match="press only R"):
         pathway_effects(snowshoe, "R", "C", sims=sims)
@@ -741,7 +741,7 @@ def test_pathway_effects_sims_rejects_changed_edge_sign(self_limited_pair):
         pathway_effects(G, "A", "B", sims=sims)
 
 
-def test_pathway_effects_sims_rejects_other_node_order_snowshoe(snowshoe):
+def test_pathway_effects_sims_rejects_other_node_order(snowshoe):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
     G = nx.DiGraph()
     G.add_nodes_from(reversed(list(snowshoe.nodes(data=True))))
@@ -750,7 +750,7 @@ def test_pathway_effects_sims_rejects_other_node_order_snowshoe(snowshoe):
         pathway_effects(G, "R", "P", sims=sims)
 
 
-def test_pathway_effects_sims_rejects_extra_node_snowshoe(snowshoe):
+def test_pathway_effects_sims_rejects_extra_node(snowshoe):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
     G = nx.DiGraph(snowshoe)
     G.add_node("X", category="state")
@@ -760,7 +760,7 @@ def test_pathway_effects_sims_rejects_extra_node_snowshoe(snowshoe):
 
 
 @pytest.mark.parametrize("key", ["structures", "samples"])
-def test_pathway_effects_sims_rejects_misaligned_arrays_snowshoe(snowshoe, key):
+def test_pathway_effects_sims_rejects_misaligned_arrays(snowshoe, key):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1), return_samples=True)
     if key == "structures":
         sims["structures"] = sims["structures"][:1]
@@ -770,13 +770,13 @@ def test_pathway_effects_sims_rejects_misaligned_arrays_snowshoe(snowshoe, key):
         pathway_effects(snowshoe, "R", "P", sims=sims)
 
 
-def test_pathway_effects_sims_require_samples_snowshoe(snowshoe):
+def test_pathway_effects_sims_rejects_missing_samples(snowshoe):
     sims = get_simulations(snowshoe, n_sim=10, seed=1, perturb=("R", 1))
     with pytest.raises(ValueError, match="return_samples"):
         pathway_effects(snowshoe, "R", "P", sims=sims)
 
 
-def test_pathway_effects_dropped_link_absent_and_zero_strength_link_present(self_limited_pair):
+def test_pathway_effects_present_counts_zero_strength_not_dropped(self_limited_pair):
     G = self_limited_pair
     G.add_edge("A", "B", sign=1, dashes=True)
     sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), return_samples=True, uncertain_interactions="enumerate",
@@ -807,7 +807,7 @@ def test_pathway_effects_present_requires_every_uncertain_link_fork(fork):
     assert result == expected
 
 
-def test_pathway_effects_present_with_64_uncertain_links_chain():
+def test_pathway_effects_present_with_64_uncertain_links():
     nodes = [f"N{i:02d}" for i in range(65)]
     G = nx.DiGraph()
     G.add_nodes_from(nodes, category="state")
@@ -820,7 +820,7 @@ def test_pathway_effects_present_with_64_uncertain_links_chain():
     assert result == expected
 
 
-def test_pathway_effects_present_path_without_complementary_feedback_snowshoe_rp(snowshoe_rp):
+def test_pathway_effects_present_without_complementary_feedback_snowshoe_rp(snowshoe_rp):
     table = pathway_effects(snowshoe_rp, "R", "P", n_sim=50, seed=1)
     result = table.loc[table["Length"] == 1, ["Present", "Zero", "Contribution"]].values.tolist()
     expected = [[1.0, 1.0, 0.0]]
@@ -834,7 +834,7 @@ def test_pathway_effects_structurally_zero_response_singular_complement(singular
     assert result == expected
 
 
-def test_pathway_effects_zero_share_matches_zero_response_uncertain_self_effects(singular_complement):
+def test_pathway_effects_zero_share_matches_zero_response(singular_complement):
     G = singular_complement
     G.add_edge("X", "X", sign=-1, dashes=True)
     G.add_edge("Y", "Y", sign=-1, dashes=True)

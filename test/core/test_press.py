@@ -32,7 +32,7 @@ def test_absolute_feedback_matrix_beyond_63_states():
     assert absolute_feedback_matrix(graph, perturb="65") == sp.eye(65)[:, 64]
 
 
-def test_press_results_follow_graph_edits_and_are_independent():
+def test_press_functions_follow_graph_edits():
     graph = list_to_digraph([[-1, 0], [1, -1]], ids=["A", "B"])
     for function in (adjoint_matrix, absolute_feedback_matrix,
                      weighted_predictions_matrix, sign_determinacy_matrix):
@@ -236,7 +236,7 @@ def test_absolute_feedback_matrix_perturb_P_mesocosm(mesocosm):
 # weighted_predictions_matrix()
 # =============================================================================
 
-def test_weighted_predictions_matrix_as_nan_false_abs_true_snowshoe(snowshoe):
+def test_weighted_predictions_matrix_as_nan_false_as_abs_snowshoe(snowshoe):
     result = weighted_predictions_matrix(snowshoe, as_nan=False, as_abs=True)
     expected = sp.Matrix([
         [1, 1, 1],
@@ -245,7 +245,7 @@ def test_weighted_predictions_matrix_as_nan_false_abs_true_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_true_abs_true_snowshoe(snowshoe):
+def test_weighted_predictions_matrix_as_abs_snowshoe(snowshoe):
     result = weighted_predictions_matrix(snowshoe, as_nan=True, as_abs=True)
     expected = sp.Matrix([
         [1, 1, 1],
@@ -254,16 +254,7 @@ def test_weighted_predictions_matrix_as_nan_true_abs_true_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_false_abs_true_repeat_snowshoe(snowshoe):
-    result = weighted_predictions_matrix(snowshoe, as_nan=False, as_abs=True)
-    expected = sp.Matrix([
-        [1, 1, 1],
-        [1, 1, 1],
-        [1, 1, 1]])
-    assert result == expected
-
-
-def test_weighted_predictions_matrix_as_nan_true_signed_snowshoe(snowshoe):
+def test_weighted_predictions_matrix_default_snowshoe(snowshoe):
     result = weighted_predictions_matrix(snowshoe, as_nan=True, as_abs=False)
     expected = sp.Matrix([
         [1, -1,  1],
@@ -279,7 +270,7 @@ def test_weighted_predictions_matrix_perturb_R_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_false_abs_true_chain(chain):
+def test_weighted_predictions_matrix_as_nan_false_as_abs_chain(chain):
     result = weighted_predictions_matrix(chain, as_nan=False, as_abs=True)
     expected = sp.Matrix([
         [1, 1, 1, 1, 1],
@@ -290,7 +281,7 @@ def test_weighted_predictions_matrix_as_nan_false_abs_true_chain(chain):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_true_signed_chain(chain):
+def test_weighted_predictions_matrix_default_chain(chain):
     result = weighted_predictions_matrix(chain, as_nan=True, as_abs=False)
     expected = sp.Matrix([
         [1, -1,  1, -1,  1],
@@ -308,7 +299,7 @@ def test_weighted_predictions_matrix_perturb_3_chain(chain):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_false_abs_true_mesocosm(mesocosm):
+def test_weighted_predictions_matrix_as_nan_false_as_abs_mesocosm(mesocosm):
     result = weighted_predictions_matrix(mesocosm, as_nan=False, as_abs=True)
     expected = sp.Matrix([
         [                1, sp.Rational(1, 7),  sp.Rational(1, 9),                  1,                 0,                 1,  sp.Rational(1, 5),                 0],
@@ -322,7 +313,7 @@ def test_weighted_predictions_matrix_as_nan_false_abs_true_mesocosm(mesocosm):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_true_signed_mesocosm(mesocosm):
+def test_weighted_predictions_matrix_default_mesocosm(mesocosm):
     result = weighted_predictions_matrix(mesocosm, as_nan=True, as_abs=False)
     expected = np.array([
         [  1.0, -0.14,  0.11,  -1.0,   0.0,   1.0, -0.20,   0.0],
@@ -343,7 +334,7 @@ def test_weighted_predictions_matrix_perturb_P_mesocosm(mesocosm):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_true_missing_paths_snowshoe_io_na(snowshoe_io_na):
+def test_weighted_predictions_matrix_missing_paths_snowshoe_io_na(snowshoe_io_na):
     result = weighted_predictions_matrix(snowshoe_io_na, as_nan=True, as_abs=False)
     expected = sp.Matrix([
         [     1,     -1,      1, 1],
@@ -353,7 +344,7 @@ def test_weighted_predictions_matrix_as_nan_true_missing_paths_snowshoe_io_na(sn
     assert result == expected
 
 
-def test_weighted_predictions_matrix_fill_missing_paths_snowshoe_io_na(snowshoe_io_na):
+def test_weighted_predictions_matrix_as_nan_false_missing_paths_snowshoe_io_na(snowshoe_io_na):
     result = weighted_predictions_matrix(snowshoe_io_na, as_nan=False, as_abs=False)
     expected = sp.Matrix([
         [1, -1,  1, 1],
@@ -363,7 +354,7 @@ def test_weighted_predictions_matrix_fill_missing_paths_snowshoe_io_na(snowshoe_
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_true_as_abs_false_snowshoe_na(snowshoe_na):
+def test_weighted_predictions_matrix_default_snowshoe_na(snowshoe_na):
     result = weighted_predictions_matrix(snowshoe_na, as_nan=True, as_abs=False)
     expected = sp.Matrix([
         [     1,     -1,  0],
@@ -372,7 +363,7 @@ def test_weighted_predictions_matrix_as_nan_true_as_abs_false_snowshoe_na(snowsh
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na):
+def test_weighted_predictions_matrix_as_abs_snowshoe_na(snowshoe_na):
     result = weighted_predictions_matrix(snowshoe_na, as_nan=True, as_abs=True)
     expected = sp.Matrix([
         [     1,      1, 0],
@@ -381,7 +372,7 @@ def test_weighted_predictions_matrix_as_nan_true_as_abs_true_snowshoe_na(snowsho
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_false_as_abs_false_snowshoe_na(snowshoe_na):
+def test_weighted_predictions_matrix_as_nan_false_snowshoe_na(snowshoe_na):
     result = weighted_predictions_matrix(snowshoe_na, as_nan=False, as_abs=False)
     expected = sp.Matrix([
         [1, -1,  0],
@@ -390,7 +381,7 @@ def test_weighted_predictions_matrix_as_nan_false_as_abs_false_snowshoe_na(snows
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_nan_false_as_abs_true_snowshoe_na(snowshoe_na):
+def test_weighted_predictions_matrix_as_nan_false_as_abs_snowshoe_na(snowshoe_na):
     result = weighted_predictions_matrix(snowshoe_na, as_nan=False, as_abs=True)
     expected = sp.Matrix([
         [1, 1, 0],
@@ -399,7 +390,7 @@ def test_weighted_predictions_matrix_as_nan_false_as_abs_true_snowshoe_na(snowsh
     assert result == expected
 
 
-def test_weighted_predictions_terms_count_adjoint_monomials_omnivory(omnivory):
+def test_weighted_predictions_matrix_counts_adjoint_monomials_omnivory(omnivory):
     adjoint = adjoint_matrix(omnivory)
     net = adjoint_matrix(omnivory, form='signed')
     absolute = absolute_feedback_matrix(omnivory)
@@ -412,7 +403,7 @@ def test_weighted_predictions_terms_count_adjoint_monomials_omnivory(omnivory):
     assert result == expected
 
 
-def test_weighted_predictions_certify_signs_snowshoe_rp(snowshoe_rp):
+def test_weighted_predictions_matrix_certifies_signs_snowshoe_rp(snowshoe_rp):
     adjoint = adjoint_matrix(snowshoe_rp)
     weights = weighted_predictions_matrix(snowshoe_rp)
     symbols = sorted(adjoint.free_symbols, key=str)
@@ -506,7 +497,7 @@ def test_sign_determinacy_matrix_as_nan_false_snowshoe(snowshoe):
     assert result == expected
 
 
-def test_sign_determinacy_matrix_as_abs_true_chain(chain):
+def test_sign_determinacy_matrix_as_abs_chain(chain):
     result = sign_determinacy_matrix(chain, as_abs=True)
     expected = sp.Matrix([
         [1, 1, 1, 1, 1],
@@ -517,7 +508,7 @@ def test_sign_determinacy_matrix_as_abs_true_chain(chain):
     assert result == expected
 
 
-def test_sign_determinacy_matrix_as_nan_true_as_abs_false_snowshoe_na(snowshoe_na):
+def test_sign_determinacy_matrix_default_snowshoe_na(snowshoe_na):
     result = sign_determinacy_matrix(snowshoe_na, as_nan=True, as_abs=False)
     expected = sp.Matrix([
         [     1,     -1, sp.Rational(1, 2)],
@@ -526,7 +517,7 @@ def test_sign_determinacy_matrix_as_nan_true_as_abs_false_snowshoe_na(snowshoe_n
     assert result == expected
 
 
-def test_sign_determinacy_matrix_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na):
+def test_sign_determinacy_matrix_as_abs_snowshoe_na(snowshoe_na):
     result = sign_determinacy_matrix(snowshoe_na, as_nan=True, as_abs=True)
     expected = sp.Matrix([
         [     1,      1, sp.Rational(1, 2)],
@@ -535,7 +526,7 @@ def test_sign_determinacy_matrix_as_nan_true_as_abs_true_snowshoe_na(snowshoe_na
     assert result == expected
 
 
-def test_sign_determinacy_matrix_as_nan_false_as_abs_false_snowshoe_na(snowshoe_na):
+def test_sign_determinacy_matrix_as_nan_false_snowshoe_na(snowshoe_na):
     result = sign_determinacy_matrix(snowshoe_na, as_nan=False, as_abs=False)
     expected = sp.Matrix([
         [1, -1, sp.Rational(1, 2)],
@@ -544,7 +535,7 @@ def test_sign_determinacy_matrix_as_nan_false_as_abs_false_snowshoe_na(snowshoe_
     assert result == expected
 
 
-def test_sign_determinacy_matrix_as_nan_false_as_abs_true_snowshoe_na(snowshoe_na):
+def test_sign_determinacy_matrix_as_nan_false_as_abs_snowshoe_na(snowshoe_na):
     result = sign_determinacy_matrix(snowshoe_na, as_nan=False, as_abs=True)
     expected = sp.Matrix([
         [1, 1, sp.Rational(1, 2)],
@@ -643,7 +634,7 @@ def test_numerical_simulations_mode_absolute_snowshoe(snowshoe):
 
 
 @pytest.mark.parametrize("dist", ['uniform', 'weak', 'moderate', 'strong'])
-def test_numerical_simulations_distribution_options_snowshoe_dist(snowshoe, dist):
+def test_numerical_simulations_dist_options(snowshoe, dist):
     result = numerical_simulations(snowshoe, n_sim=100, dist=dist, seed=42)
     expected = (3, 3)
     assert result.shape == expected
@@ -723,12 +714,12 @@ def test_numerical_simulations_mode_positive_snowshoe_na(snowshoe_na):
     assert np.allclose(result_arr[~nan_mask], expected[~nan_mask], atol=0.1)
 
 
-def test_numerical_simulations_invalid_mode(snowshoe):
+def test_numerical_simulations_rejects_invalid_mode(snowshoe):
     with pytest.raises(ValueError, match="Invalid mode"):
         numerical_simulations(snowshoe, n_sim=100, seed=42, mode="signed")
 
 
-def test_numerical_simulations_linalg_retries_snowshoe(snowshoe):
+def test_numerical_simulations_retries_singular_draws(snowshoe):
     original = np.linalg.inv
     count = [0]
     def mock_inv(x):
@@ -742,7 +733,7 @@ def test_numerical_simulations_linalg_retries_snowshoe(snowshoe):
         assert result.shape == expected
 
 
-def test_numerical_simulations_no_stable_matrices_snowshoe(snowshoe):
+def test_numerical_simulations_n_sim_zero_is_nan(snowshoe):
     result = numerical_simulations(snowshoe, n_sim=0, seed=42)
     assert result.shape == (3, 3)
     for i in range(3):
@@ -768,11 +759,11 @@ def test_numerical_simulations_mode_match_adjoint_mesocosm(mesocosm):
 # Additional coverage tests
 # =============================================================================
 
-def test_adjoint_matrix_invalid_perturb_node(snowshoe):
+def test_adjoint_matrix_rejects_invalid_perturb_node(snowshoe):
     with pytest.raises(ValueError, match="Perturbation node must be one of"):
         adjoint_matrix(snowshoe, perturb="Invalid")
 
 
-def test_absolute_feedback_matrix_invalid_perturb_node(snowshoe):
+def test_absolute_feedback_matrix_rejects_invalid_perturb_node(snowshoe):
     with pytest.raises(ValueError, match="Perturbation node must be one of"):
         absolute_feedback_matrix(snowshoe, perturb="Invalid")

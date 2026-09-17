@@ -60,7 +60,7 @@ def io_and_state_model(request):
     ("io_branched", "signed"),
     ("io_branched", "binary"),
 ], indirect=["io_and_state_model"])
-def test_cumulative_effects_match_self_limited_state_adjoint_io_and_state_model(io_and_state_model, form):
+def test_cumulative_effects_match_self_limited_state_adjoint(io_and_state_model, form):
     G, H, symbols = io_and_state_model
     nodes = get_nodes(H, "state")
     rows = [nodes.index(node) for node in get_nodes(G, "state") + get_nodes(G, "output")]
@@ -73,7 +73,7 @@ def test_cumulative_effects_match_self_limited_state_adjoint_io_and_state_model(
 
 @pytest.mark.parametrize("io_and_state_model",
                          ["snowshoe_io", "io_chain", "io_long_chain", "io_branched"], indirect=True)
-def test_input_and_output_blocks_match_self_limited_state_series_io_and_state_model(io_and_state_model):
+def test_create_matrix_io_blocks_match_self_limited_state_series(io_and_state_model):
     G, H, symbols = io_and_state_model
     states, inputs, outputs = (get_nodes(G, kind) for kind in ("state", "input", "output"))
     index = {node: i for i, node in enumerate(get_nodes(H, "state"))}
@@ -119,7 +119,7 @@ def test_structural_sensitivity_sums_to_level_times_feedback_chain(chain, sensit
 # =============================================================================
 
 @pytest.mark.parametrize("model", ["snowshoe", "snowshoe_rp", "chain"])
-def test_adjoint_diagonal_matches_feedback_of_the_remaining_subsystem(model):
+def test_adjoint_matrix_diagonal_matches_remaining_subsystem_feedback(model):
     G = load_digraph(model)
     nodes = get_nodes(G, "state")
     adjoint = adjoint_matrix(G, form="symbolic")
@@ -132,7 +132,7 @@ def test_adjoint_diagonal_matches_feedback_of_the_remaining_subsystem(model):
 
 
 @pytest.mark.parametrize("model", ["snowshoe_rp", "chain"])
-def test_perturb_argument_matches_the_full_matrix_column(model):
+def test_adjoint_matrix_perturb_matches_full_matrix_column(model):
     G = load_digraph(model)
     nodes = get_nodes(G, "state")
     matrices = [
@@ -154,7 +154,7 @@ def test_perturb_argument_matches_the_full_matrix_column(model):
 # =============================================================================
 
 @pytest.mark.parametrize("model", ["snowshoe_rp", "chain"])
-def test_disjoint_cycle_combinations_match_system_feedback(model):
+def test_system_feedback_matches_disjoint_cycle_combinations(model):
     G = load_digraph(model)
     result, _ = cycle_expansion(G)
     expected = system_feedback(G).applyfunc(sp.expand)
@@ -184,7 +184,7 @@ def test_weighted_paths_match_the_weight_of_system_paths(model, source, target):
     ("mesocosm", "A1", "C2"),
     ("chain", "1", "3"),
 ])
-def test_binary_complementary_feedback_counts_symbolic_terms(model, source, target):
+def test_complementary_feedback_form_binary_counts_symbolic_terms(model, source, target):
     G = load_digraph(model)
     symbolic = complementary_feedback(G, source, target, form="symbolic")["Feedback"]
     result = [len(feedback.as_ordered_terms()) if feedback else 0 for feedback in symbolic]
@@ -197,7 +197,7 @@ def test_binary_complementary_feedback_counts_symbolic_terms(model, source, targ
 # =============================================================================
 
 @pytest.mark.parametrize("model", ["snowshoe_rp", "chain", "mesocosm"])
-def test_birth_and_death_matrices_decompose_the_interaction_matrix(model):
+def test_birth_matrix_and_death_matrix_decompose_interaction_matrix(model):
     G = load_digraph(model)
     result = (
         sp.expand(birth_matrix(G) - death_matrix(G)),

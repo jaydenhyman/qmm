@@ -19,7 +19,7 @@ from qmm.extensions.validation import (
 # marginal_likelihood
 # =============================================================================
 
-def test_marginal_likelihood(mesocosm):
+def test_marginal_likelihood_default_mesocosm(mesocosm):
     result = marginal_likelihood(mesocosm, perturb='P:+', observe='A1:+', seed=42)
     expected = 0.3461
     assert np.allclose(result, expected)
@@ -34,12 +34,12 @@ def test_marginal_likelihood_four_observations(mesocosm):
     expected = 0.47
     assert np.allclose(result, expected)
 
-def test_marginal_likelihood_reproducibility(mesocosm):
+def test_marginal_likelihood_reproducible_seed(mesocosm):
     result = marginal_likelihood(mesocosm, perturb='P:+', observe='A1:+', seed=42)
     expected = marginal_likelihood(mesocosm, perturb='P:+', observe='A1:+', seed=42)
     assert np.allclose(result, expected)
 
-def test_marginal_likelihood_invalid_perturbation(mesocosm):
+def test_marginal_likelihood_rejects_invalid_perturbation(mesocosm):
     with pytest.raises(ValueError) as exc_info:
         marginal_likelihood(mesocosm, perturb='Invalid:+', observe='A1:+')
     assert "Unknown perturbation node" in str(exc_info.value)
@@ -62,7 +62,7 @@ def test_marginal_likelihood_zero_observation_no_edge(snowshoe_io_na):
 # compare_model_alternatives
 # =============================================================================
 
-def test_compare_model_alternatives_alternative_structure(snowshoe_dashed):
+def test_compare_model_alternatives_combinations(snowshoe_dashed):
     df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=True)
     expected_data = {
         'Marginal likelihood': [0.52, 0.47, 0.0, 0.0],
@@ -106,7 +106,7 @@ def test_compare_model_alternatives_no_dashed_edges(snowshoe):
 # posterior_predictions
 # =============================================================================
 
-def test_posterior_predictions(mesocosm):
+def test_posterior_predictions_default_mesocosm(mesocosm):
     result = posterior_predictions(mesocosm, perturb='P:+', observe='A1:+', seed=42)
     expected = [
         1.0,
@@ -124,7 +124,7 @@ def test_posterior_predictions(mesocosm):
         with pytest.raises(ValueError, match="Invalid mode"):
             posterior_predictions(None, perturb='P:+', mode=mode)
 
-def test_posterior_predictions_complex_observations(mesocosm):
+def test_posterior_predictions_three_observations(mesocosm):
     result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', dist='uniform', seed=42)
     expected = [
         1.0,
@@ -138,7 +138,7 @@ def test_posterior_predictions_complex_observations(mesocosm):
     ]
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
 
-def test_posterior_predictions_positive(mesocosm):
+def test_posterior_predictions_mode_positive(mesocosm):
     result = posterior_predictions(mesocosm, perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42, mode="positive")
     expected = [
         1.0,
@@ -153,7 +153,7 @@ def test_posterior_predictions_positive(mesocosm):
     assert np.allclose(np.array(result.tolist(), dtype=float).ravel(), expected)
 
 
-def test_posterior_predictions_no_matching_simulations_raises(mesocosm):
+def test_posterior_predictions_rejects_no_matching_simulations(mesocosm):
     with pytest.raises(RuntimeError, match="Maximum iterations reached"):
         posterior_predictions(mesocosm, perturb='P:+', observe='A1:-, A2:-, AP:-, H1:-, H2:-, C1:-, C2:-', n_sim=100, seed=42)
 
@@ -170,7 +170,7 @@ def test_posterior_predictions_structural_no_path_stays_nan(self_limited_pair):
 # diagnose_observations
 # =============================================================================
 
-def test_diagnose_observations_input_only(snowshoe_io):
+def test_diagnose_observations_perturb_nodes_input(snowshoe_io):
     df = diagnose_observations(snowshoe_io, observe='R:+, C:+', n_sim=100, perturb_nodes='input', seed=42)
     expected_data = {
         'Input': ['Inp1', 'Inp1', 'Inp2', 'Inp2'],
@@ -182,33 +182,33 @@ def test_diagnose_observations_input_only(snowshoe_io):
     assert result == expected
 
 
-def test_diagnose_observations_state_only(snowshoe_io):
+def test_diagnose_observations_perturb_nodes_state(snowshoe_io):
     df = diagnose_observations(snowshoe_io, observe='R:+', n_sim=100, perturb_nodes='state', seed=42)
     result = set(df['Input'].unique())
     expected = {'R', 'C', 'P'}
     assert result == expected
 
 
-def test_diagnose_observations_comma_separated_nodes(snowshoe_io):
+def test_diagnose_observations_perturb_nodes_comma_separated(snowshoe_io):
     df = diagnose_observations(snowshoe_io, observe='R:+', n_sim=100, perturb_nodes='R, C', seed=42)
     result = set(df['Input'].unique())
     expected = {'R', 'C'}
     assert result == expected
 
 
-def test_diagnose_observations_default_nodes(snowshoe_io):
+def test_diagnose_observations_perturb_nodes_default(snowshoe_io):
     df = diagnose_observations(snowshoe_io, observe='R:+', n_sim=100, seed=42)
     result = set(df['Input'].unique())
     expected = {'R', 'C', 'P', 'Inp1', 'Inp2'}
     assert result == expected
 
 
-def test_diagnose_observations_with_errors(snowshoe_io):
+def test_diagnose_observations_rejects_unknown_observe_node(snowshoe_io):
     with pytest.raises(ValueError, match="Unknown observation node"):
         diagnose_observations(snowshoe_io, observe='InvalidNode:+', n_sim=100, perturb_nodes='input', seed=42)
 
 
-def test_diagnose_observations_all_errors_empty_df(minimal_error_graph):
+def test_diagnose_observations_all_errors_returns_dataframe(minimal_error_graph):
     df = diagnose_observations(minimal_error_graph, observe='A:+', n_sim=10, perturb_nodes='A', seed=42)
     result = isinstance(df, pd.DataFrame)
     expected = True
@@ -219,7 +219,7 @@ def test_diagnose_observations_all_errors_empty_df(minimal_error_graph):
 # bayes_factors
 # =============================================================================
 
-def test_bayes_factors(mesocosm_alt_models):
+def test_bayes_factors_three_observations(mesocosm_alt_models):
     G, G_alt = mesocosm_alt_models
     df = bayes_factors((G, G_alt), perturb='P:+', n_sim=100, observe='AP:+, C2:+, H2:+', dist='uniform', seed=42)
     result = (
@@ -231,7 +231,7 @@ def test_bayes_factors(mesocosm_alt_models):
     expected = (['Model A/Model B'], True, True, True)
     assert result == expected
 
-def test_bayes_factors_more_observations(mesocosm_alt_models):
+def test_bayes_factors_four_observations(mesocosm_alt_models):
     G, G_alt = mesocosm_alt_models
     df = bayes_factors((G, G_alt), perturb='P:+', n_sim=100, observe='A2:+, AP:+, C2:+, H2:+', dist='uniform', seed=42)
     result = (
@@ -264,7 +264,7 @@ def test_bayes_factors_custom_names(bayes_models):
     assert result == expected
 
 
-def test_bayes_factor_is_undefined_when_both_models_reject_observations():
+def test_bayes_factors_undefined_when_both_likelihoods_zero():
     G = nx.DiGraph()
     G.add_node('A', category='state')
     G.add_edge('A', 'A', sign=-1)
@@ -274,13 +274,13 @@ def test_bayes_factor_is_undefined_when_both_models_reject_observations():
 
 
 @pytest.mark.parametrize('perturb_nodes', [[], 'input'])
-def test_diagnose_observations_without_candidate_inputs_has_named_empty_columns(snowshoe, perturb_nodes):
+def test_diagnose_observations_no_candidates_returns_empty_table(snowshoe, perturb_nodes):
     result = diagnose_observations(snowshoe, 'R:+', n_sim=1, perturb_nodes=perturb_nodes)
     assert result.empty
     assert list(result.columns) == ['Input', 'Sign', 'Marginal likelihood']
 
 
-def test_diagnose_observations_accepts_an_explicit_node_list(snowshoe):
+def test_diagnose_observations_perturb_nodes_list(snowshoe):
     result = diagnose_observations(snowshoe, 'R:+', n_sim=3, perturb_nodes=['R'])
     assert result['Input'].tolist() == ['R', 'R']
     assert result['Sign'].tolist() == ['+', '-']
@@ -293,13 +293,13 @@ def test_marginal_likelihood_structural_zero_cell(structural_zero_chain):
     assert result == expected
 
 
-def test_marginal_likelihood_fork_is_half_by_symmetry(fork):
+def test_marginal_likelihood_is_half_by_symmetry_fork(fork):
     result = marginal_likelihood(fork, 'A:+', 'B:+', n_sim=4000, seed=42)
     expected = 0.5
     assert abs(result - expected) <= 3 * (0.25 / 4000) ** 0.5
 
 
-def test_marginal_likelihood_fork_certain_response_is_exactly_one(fork):
+def test_marginal_likelihood_certain_response_is_one_fork(fork):
     result = marginal_likelihood(fork, 'A:+', 'C:+', n_sim=200, seed=42)
     expected = 1.0
     assert result == expected
@@ -311,7 +311,7 @@ def test_marginal_likelihood_divides_by_stable_draws(mesocosm):
     assert result == expected
 
 
-def test_compare_model_alternatives_fork_dashed_route(fork):
+def test_compare_model_alternatives_dashed_route_fork(fork):
     G = fork.copy()
     G['C']['B']['dashes'] = True
     G.nodes['B']['category'] = 'input'
@@ -324,13 +324,13 @@ def test_compare_model_alternatives_fork_dashed_route(fork):
     assert nx.utils.graphs_equal(G, original)
 
 
-def test_posterior_predictions_fork_conditioned_on_observation(fork):
+def test_posterior_predictions_conditioned_on_observation_fork(fork):
     result = [posterior_predictions(fork, 'A:+', observe, n_sim=200, seed=42).tolist() for observe in ('B:+', 'B:-')]
     expected = [[[1.0], [1.0], [1.0]], [[1.0], [-1.0], [1.0]]]
     assert result == expected
 
 
-def test_diagnose_observations_fork_ranks_the_certain_press_first(fork):
+def test_diagnose_observations_ranks_certain_press_first_fork(fork):
     df = diagnose_observations(fork, 'B:-', perturb_nodes=['A', 'C'], n_sim=4000, seed=42)
     result = (df['Input'][0], df['Sign'][0], df['Marginal likelihood'][0], df['Marginal likelihood'][3])
     expected = ('C', '+', 1.0, 0.0)
@@ -338,7 +338,7 @@ def test_diagnose_observations_fork_ranks_the_certain_press_first(fork):
     assert all(abs(x - 0.5) <= 3 * (0.25 / 4000) ** 0.5 for x in df.loc[df['Input'] == 'A', 'Marginal likelihood'])
 
 
-def test_bayes_factors_fork_against_single_route(fork):
+def test_bayes_factors_against_single_route_fork(fork):
     other = fork.copy()
     other.remove_edge('C', 'B')
     df = bayes_factors([fork, other], 'A:+', 'B:+', n_sim=4000, seed=42)
@@ -407,7 +407,7 @@ def test_posterior_predictions_enumerate_skips_structure_without_matches_fork(fo
     assert result == expected
 
 
-def test_compare_model_alternatives_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowshoe_dashed):
+def test_compare_model_alternatives_pairs_reciprocal_edges_snowshoe_dashed(snowshoe_dashed):
     df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=50, seed=1)
     result = (len(df), all((row[('R', 'P')] == "\u2713") == (row[('P', 'R')] == "\u2713") for _, row in df.iterrows()))
     expected = (4, True)

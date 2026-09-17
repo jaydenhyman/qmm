@@ -48,7 +48,7 @@ def test_absolute_feedback_matrix_perturb_2_omnivory(omnivory):
     assert result == expected
 
 
-def test_weighted_predictions_matrix_as_abs_true_omnivory(omnivory):
+def test_weighted_predictions_matrix_as_abs_omnivory(omnivory):
     result = weighted_predictions_matrix(omnivory, as_abs=True)
     expected = sp.Matrix([
         [1, 1, 1],
@@ -57,7 +57,7 @@ def test_weighted_predictions_matrix_as_abs_true_omnivory(omnivory):
     assert result == expected
 
 
-def test_press_results_follow_node_order_omnivory(omnivory):
+def test_adjoint_matrix_follows_node_order_omnivory(omnivory):
     G = nx.DiGraph()
     G.add_nodes_from((node, omnivory.nodes[node]) for node in ['3', '1', '2'])
     G.add_edges_from(omnivory.edges(data=True))

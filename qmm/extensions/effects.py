@@ -4,6 +4,7 @@ import numpy as np
 import pandas as pd
 import sympy as sp
 import itertools
+import warnings
 import networkx as nx
 from ..core.helper import (
     _build_model_variant,
@@ -277,7 +278,8 @@ def get_simulations(
 
     Raises:
         ValueError: Invalid sampling options or incompatible node categories.
-        RuntimeError: A batch cannot reach n_sim within max_attempts.
+        RuntimeError: A batch cannot reach n_sim within max_attempts. An enumerated
+            structure with no matching draw is dropped with a warning; if none remain, raises.
 
     Examples:
         ```python
@@ -445,6 +447,7 @@ def _simulate(
     }
 
     variants = itertools.product((False, True), repeat=len(interactions)) if uncertain_interactions == "enumerate" else (None,)
+    yielded = False
     for present in variants:
         effects, valid_sims, samples, structure_ids = [], [], [], []
         attempts, drawn = 0, 0
@@ -468,6 +471,9 @@ def _simulate(
                 if return_samples:
                     samples.append(values)
             drawn += effect is not None and (not condition or valid_sims[-1])
+        if drawn == 0 and present is not None and condition and observe:
+            warnings.warn(f"No matching draws for structure {get_zero_effect_mask(present)[0]}", stacklevel=2)
+            continue
         if drawn < n_sim:
             label = f" for structure {get_zero_effect_mask(present)[0]}" if present is not None else ""
             raise RuntimeError(f"Maximum iterations reached{label}. Matched {drawn}/{n_sim} draws.")
@@ -497,7 +503,10 @@ def _simulate(
                     idx = sampled_index[sym]
                     result_samples[str(sym)] = sample_array[:, idx].copy()
             result["samples"] = result_samples
+        yielded = True
         yield result
+    if not yielded:
+        raise RuntimeError("No structure matched the observations")
 
 
 def _sign_counts(effects) -> Tuple[np.ndarray, np.ndarray]:

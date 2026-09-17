@@ -409,6 +409,15 @@ def test_posterior_predictions_enumerate_averages_structures_equally(fork):
     assert result == expected
 
 
+def test_posterior_predictions_enumerate_skips_structure_without_matches_fork(fork):
+    G = nx.DiGraph(fork)
+    G['A']['B']['dashes'] = True
+    with pytest.warns(UserWarning, match="No matching draws for structure 0"):
+        result = posterior_predictions(G, 'A:+', 'B:+', n_sim=20, seed=1, uncertain_interactions="enumerate")
+    expected = sp.Matrix([1.0, 1.0, 1.0])
+    assert result == expected
+
+
 def test_compare_model_alternatives_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowshoe_dashed):
     df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=50, seed=1)
     result = (len(df), all((row[('R', 'P')] == "\u2713") == (row[('P', 'R')] == "\u2713") for _, row in df.iterrows()))

@@ -919,6 +919,26 @@ def test_simulate_enumerate_yields_each_structure_snowshoe_dashed(snowshoe_dashe
                         presample=lambda symbols: strengths)
 
 
+def test_simulate_enumerate_drops_structures_without_matches_fork(fork):
+    G = nx.DiGraph(fork)
+    G['A']['B']['dashes'] = True
+    with pytest.warns(UserWarning, match="^No matching draws for structure 0$"):
+        batches = list(_simulate(G, n_sim=20, seed=1, perturb=('A', 1), observe=(('B', 1),),
+                                 uncertain_interactions="enumerate"))
+    result = [(batch["structures"][0], sum(batch["valid_sims"])) for batch in batches]
+    expected = [(1, 20)]
+    assert result == expected
+
+
+def test_simulate_enumerate_raises_when_no_structure_matches_self_limited_pair(self_limited_pair):
+    G = self_limited_pair
+    G.add_edge('A', 'B', sign=1, dashes=True)
+    with pytest.warns(UserWarning, match="No matching draws"):
+        with pytest.raises(RuntimeError, match="^No structure matched the observations$"):
+            list(_simulate(G, n_sim=5, seed=1, perturb=('A', 1), observe=(('B', -1),),
+                           uncertain_interactions="enumerate"))
+
+
 def test_get_simulations_enumerate_with_individual_edges_has_eight_structures_snowshoe_dashed(snowshoe_dashed):
     sims = get_simulations(snowshoe_dashed, n_sim=5, seed=1, uncertain_interactions="enumerate", pair_reciprocal=False)
     result = (len(sims["effects"]), len(set(sims["structures"])))

@@ -40,9 +40,13 @@ def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
     if not isinstance(data, Mapping):
         with open(data, "r") as file:
             data = json.load(file)
+    if "nodes" not in data or "edges" not in data:
+        raise ValueError("Model needs nodes and edges")
     G = nx.DiGraph()
     G.graph.update({k: v for k, v in data.items() if k not in ("nodes", "edges")})
     for node in data["nodes"]:
+        if "id" not in node:
+            raise ValueError(f"Node needs id: {node}")
         if str(node["id"]) in G:
             raise ValueError(f"Duplicate node: {node['id']}")
         att = {k: v for k, v in node.items() if k != "id"}
@@ -50,6 +54,8 @@ def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
             att["title"] = None
         G.add_node(str(node["id"]), **att)
     for edge in data["edges"]:
+        if "from" not in edge or "to" not in edge:
+            raise ValueError(f"Edge needs from and to: {edge}")
         source, target = str(edge["from"]), str(edge["to"])
         if source not in G or target not in G:
             raise ValueError(f"Unknown node: {source} -> {target}")
@@ -66,6 +72,7 @@ def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
             att["sign"] = sign
         if type(att.get("sign")) not in (int, float) or att["sign"] not in (-1, 1):
             raise ValueError(f"Invalid sign: {source} -> {target}")
+        att["sign"] = int(att["sign"])
         if "dashes" not in att:
             att["dashes"] = False
         if "title" not in att:

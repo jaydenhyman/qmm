@@ -83,15 +83,19 @@ def test_import_digraph_rejects_duplicate_edges(first, second):
         import_digraph(data)
 
 
-@pytest.mark.parametrize("source, target", [("A", "B"), ("B", "A")])
-def test_import_digraph_rejects_undeclared_endpoints(source, target):
-    data = {
-        "nodes": [{"id": "A"}],
-        "edges": [{"from": source, "to": target, "sign": 1}],
-    }
-    expected = f"Unknown node: {source} -> {target}"
-    with pytest.raises(ValueError, match=expected):
+@pytest.mark.parametrize("data, expected", [
+    ({"nodes": [{"id": "A"}]}, "Model needs nodes and edges"),
+    ({"edges": []}, "Model needs nodes and edges"),
+    ({"nodes": [{"label": "A"}], "edges": []}, "Node needs id: {'label': 'A'}"),
+    ({"nodes": [{"id": "A"}], "edges": [{"to": "A", "sign": 1}]}, "Edge needs from and to: {'to': 'A', 'sign': 1}"),
+    ({"nodes": [{"id": "A"}], "edges": [{"from": "A", "to": "B", "sign": 1}]}, "Unknown node: A -> B"),
+    ({"nodes": [{"id": "A"}], "edges": [{"from": "B", "to": "A", "sign": 1}]}, "Unknown node: B -> A"),
+])
+def test_import_digraph_rejects_incomplete_models(data, expected):
+    with pytest.raises(ValueError) as error:
         import_digraph(data)
+    result = str(error.value)
+    assert result == expected
 
 
 @pytest.mark.parametrize("first, second", [("A", "A"), (1, "1")])
@@ -104,7 +108,7 @@ def test_import_digraph_rejects_duplicate_node_ids(first, second):
 
 @pytest.mark.parametrize("attributes, expected, corrected", [
     ({"sign": 1}, 1, False),
-    ({"sign": -1.0}, -1.0, False),
+    ({"sign": -1.0}, -1, False),
     ({"arrows": {"to": {"type": "triangle"}}}, 1, False),
     ({"arrows": {"to": {"type": "circle"}}, "sign": -1}, -1, False),
     ({"arrows": {"to": {"type": "triangle"}}, "sign": -1}, 1, True),
@@ -120,6 +124,7 @@ def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
         G = import_digraph(data)
     result = create_matrix(G, form="signed")
     assert result == sp.Matrix([[expected]])
+    assert create_matrix(G, form="symbolic") == sp.Matrix([[expected * sp.Symbol("a_A,A")]])
     assert G["A"]["A"] == {**attributes, "id": "e1", "sign": expected,
                             "dashes": False, "title": None}
     assert len(caught) == int(corrected)

@@ -2,6 +2,7 @@
 
 import json
 import warnings
+from pathlib import Path
 from unittest.mock import patch
 import networkx as nx
 import pytest
@@ -36,7 +37,7 @@ def test_import_digraph_rejects_invalid_signs_and_arrows(attributes):
         "edges": [{"from": "A", "to": "A", **attributes}],
     }
     with pytest.raises(ValueError, match="A.*A"):
-        import_digraph(data, file_path=False)
+        import_digraph(data)
 
 
 @pytest.mark.parametrize("reverse", [False, True])
@@ -50,7 +51,7 @@ def test_import_digraph_derives_roles(reverse):
     if reverse:
         data["nodes"].reverse()
         data["edges"].reverse()
-    graph = import_digraph(data, file_path=False)
+    graph = import_digraph(data)
     result = nx.get_node_attributes(graph, "category")
     expected = {"I": "input", "S": "state", "O": "output"}
     assert result == expected
@@ -66,7 +67,7 @@ def test_import_digraph_rejects_disconnected_model():
     }
     expected = r"Disconnected model: \['A', 'B'\]; \['Z'\]"
     with pytest.raises(ValueError, match=expected):
-        import_digraph(data, file_path=False)
+        import_digraph(data)
 
 
 @pytest.mark.parametrize("first, second", [("B", "B"), ("A", "A"), (1, "1")])
@@ -77,7 +78,7 @@ def test_import_digraph_rejects_duplicate_edges(first, second):
     }
     expected = f"Duplicate edge: A -> {second}"
     with pytest.raises(ValueError, match=expected):
-        import_digraph(data, file_path=False)
+        import_digraph(data)
 
 
 @pytest.mark.parametrize("source, target", [("A", "B"), ("B", "A")])
@@ -88,7 +89,7 @@ def test_import_digraph_rejects_undeclared_endpoints(source, target):
     }
     expected = f"Unknown node: {source} -> {target}"
     with pytest.raises(ValueError, match=expected):
-        import_digraph(data, file_path=False)
+        import_digraph(data)
 
 
 @pytest.mark.parametrize("first, second", [("A", "A"), (1, "1")])
@@ -96,7 +97,7 @@ def test_import_digraph_rejects_duplicate_node_ids(first, second):
     data = {"nodes": [{"id": first}, {"id": second}], "edges": []}
     expected = f"Duplicate node: {second}"
     with pytest.raises(ValueError, match=expected):
-        import_digraph(data, file_path=False)
+        import_digraph(data)
 
 
 @pytest.mark.parametrize("attributes, expected, corrected", [
@@ -114,7 +115,7 @@ def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
     }
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always")
-        G = import_digraph(data, file_path=False)
+        G = import_digraph(data)
     result = create_matrix(G, form="signed")
     assert result == sp.Matrix([[expected]])
     assert G["A"]["A"] == {**attributes, "id": "e1", "sign": expected,
@@ -124,13 +125,22 @@ def test_import_digraph_from_dict_inline_data(attributes, expected, corrected):
         assert "A -> A" in str(caught[0].message)
 
 
-def test_import_digraph_from_file_tmp_path(tmp_path):
+@pytest.mark.parametrize("path_type", [str, Path])
+def test_import_digraph_from_file_tmp_path(tmp_path, path_type):
+    data = {"nodes": [{"id": "X"}], "edges": [{"from": "X", "to": "X", "sign": -1}], "meta": {"title": "X"}}
     path = tmp_path / "model.json"
-    path.write_text(json.dumps({"nodes": [{"id": "X"}], "edges": [{"from": "X", "to": "X", "sign": -1}]}))
-    G = import_digraph(str(path), file_path=True)
-    result = G.number_of_nodes()
-    expected = 1
-    assert result == expected
+    path.write_text(json.dumps(data))
+    result = import_digraph(path_type(path))
+    expected = import_digraph(data)
+    assert result.graph == expected.graph
+    assert list(result.nodes(data=True)) == list(expected.nodes(data=True))
+    assert list(result.edges(data=True)) == list(expected.edges(data=True))
+
+
+def test_import_digraph_does_not_parse_json_text():
+    data = {"nodes": [{"id": "X"}], "edges": [{"from": "X", "to": "X", "sign": -1}]}
+    with pytest.raises(OSError):
+        import_digraph(json.dumps(data))
 
 
 def test_import_digraph_node_attributes_inline_data():
@@ -141,7 +151,7 @@ def test_import_digraph_node_attributes_inline_data():
         "references": ["Source"],
         "custom": {"units": "biomass"},
     }
-    G = import_digraph(data, file_path=False)
+    G = import_digraph(data)
     result = G.nodes['A']['label']
     expected = 'Node A'
     assert result == expected

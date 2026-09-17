@@ -1,5 +1,7 @@
 # Reference
 
+## Core module
+
 ::: qmm.core.structure
     options:
       show_root_heading: true

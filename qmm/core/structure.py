@@ -2,6 +2,7 @@
 
 import json
 import warnings
+from collections.abc import Mapping
 from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
@@ -9,12 +10,11 @@ import sympy as sp
 from .helper import get_nodes, _edge_prefix, _check_direct_io_edges, _check_signs
 
 
-def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph:
+def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
     """Import a JSON model and convert to a NetworkX DiGraph with sign attributes.
 
     Args:
         data: Path to JSON file or dictionary containing model structure
-        file_path: If True, data is a file path. If False, data is a dictionary
 
     Returns:
         nx.DiGraph: Signed directed graph (signed digraph)
@@ -29,15 +29,15 @@ def import_digraph(data: Union[str, dict], file_path: bool = True) -> nx.DiGraph
             {"from": "A", "to": "B", "arrows": {"to": {"type": "triangle"}}}
         ]
         }
-        list(import_digraph(model_dict, file_path=False).nodes())
+        list(import_digraph(model_dict).nodes())
         # ['A', 'B']
 
-        G = import_digraph(model_dict, file_path=False)
+        G = import_digraph(model_dict)
         list(G.edges(data='sign'))
         # [('A', 'A', -1), ('A', 'B', 1)]
         ```
     """
-    if file_path:
+    if not isinstance(data, Mapping):
         with open(data, "r") as file:
             data = json.load(file)
     G = nx.DiGraph()

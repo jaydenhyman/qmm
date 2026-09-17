@@ -65,7 +65,7 @@ def test_marginal_likelihood_zero_observation_no_edge(snowshoe_io_na):
 def test_compare_model_alternatives_alternative_structure(snowshoe_dashed):
     df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=True)
     expected_data = {
-        'Marginal likelihood': ['0.520', '0.470', '0.000', '0.000'],
+        'Marginal likelihood': [0.52, 0.47, 0.0, 0.0],
         ('R', 'P'): ['\u2713', '\u2713', '', ''],
         ('P', 'R'): ['\u2713', '\u2713', '', ''],
         ('C', 'C'): ['\u2713', '', '', '\u2713']
@@ -77,10 +77,10 @@ def test_compare_model_alternatives_alternative_structure(snowshoe_dashed):
 def test_compare_model_alternatives_combinations_false(snowshoe_dashed):
     df = compare_model_alternatives(snowshoe_dashed, perturb='C:+', observe='P:-', n_sim=100, seed=42, combinations=False)
     expected_data = {
-        'Marginal likelihood': ['0.520', '0.000'],
-        ('R', 'P'): ['\u2713', ''],
-        ('C', 'C'): ['\u2713', ''],
-        ('P', 'R'): ['\u2713', '']
+        'Marginal likelihood': [0.47, 0.0, 0.0],
+        ('R', 'P'): ['\u2713', '', ''],
+        ('P', 'R'): ['\u2713', '', ''],
+        ('C', 'C'): ['', '', '\u2713']
     }
     result = df.to_dict('list')
     expected = expected_data
@@ -96,7 +96,7 @@ def test_compare_model_alternatives_no_dashed_edges(snowshoe):
     G.nodes['C']['category'] = 'input'
     original = G.copy()
     result = compare_model_alternatives(G, perturb='R:+', observe='C:+', n_sim=5)
-    expected = pd.DataFrame({'Marginal likelihood': ['1.000']})
+    expected = pd.DataFrame({'Marginal likelihood': [1.0]})
     assert result.equals(expected)
     assert nx.utils.graphs_equal(G, original)
 
@@ -318,7 +318,7 @@ def test_compare_model_alternatives_fork_dashed_route(fork):
     original = G.copy()
     df = compare_model_alternatives(G, 'A:+', 'B:+', n_sim=4000, seed=42, combinations=False)
     result = (df['Marginal likelihood'][0], df[('C', 'B')][0], df[('C', 'B')][1])
-    expected = ('1.000', '', '✓')
+    expected = (1.0, '', '✓')
     assert result == expected
     assert abs(float(df['Marginal likelihood'][1]) - 0.5) <= 3 * (0.25 / 4000) ** 0.5
     assert nx.utils.graphs_equal(G, original)

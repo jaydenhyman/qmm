@@ -6,7 +6,6 @@ import pandas as pd
 from .effects import _simulate
 from ..core.structure import define_input_output
 from ..core.helper import (
-    _build_model_variant,
     _group_uncertain_edges,
     get_dashed_alternatives,
     get_nodes,
@@ -85,7 +84,7 @@ def compare_model_alternatives(
         n_sim: Stable draws per structure.
         dist: Distribution for sampling
         seed: Random seed
-        combinations: If True, evaluate every combination of uncertain interactions. If False, only compare the full model vs. all dashed edges removed.
+        combinations: If True, evaluate every combination of uncertain interactions. If False, compare the model without uncertain interactions against each single interaction added.
         pair_reciprocal: If True, a reciprocal pair of dashed edges is one uncertain interaction kept or dropped together.
 
     Returns:
@@ -102,20 +101,14 @@ def compare_model_alternatives(
         G = nx.DiGraph(load_digraph("snowshoe_io"))
         G.add_edge('R', 'P', sign=1, dashes=True)
         compare_model_alternatives(G, perturb='Inp1:+', observe='Out1:+', n_sim=1000, combinations=False)
-        #   Marginal likelihood (R, P)
-        # 0               0.815      ✓
-        # 1               0.526
+        #    Marginal likelihood (R, P)
+        # 0                0.815      ✓
+        # 1                0.526
         ```
     """
     G = define_input_output(G)
-    interactions = _group_uncertain_edges(G, pair_reciprocal)
-    dashed_edges = [edge for group in interactions for edge in group]
-    if not interactions:
-        variants = [G]
-    elif combinations:
-        variants = get_dashed_alternatives(G, combinations=True, pair_reciprocal=pair_reciprocal)
-    else:
-        variants = [_build_model_variant(G, interactions, [True] * len(interactions)), _build_model_variant(G, interactions, [False] * len(interactions))]
+    dashed_edges = [edge for group in _group_uncertain_edges(G, pair_reciprocal) for edge in group]
+    variants = get_dashed_alternatives(G, combinations=combinations, pair_reciprocal=pair_reciprocal)
     edge_presence = [[g.has_edge(u, v) for u, v in dashed_edges] for g in variants]
 
     variants = [define_input_output(g) for g in variants]
@@ -131,9 +124,7 @@ def compare_model_alternatives(
         for i in range(len(variants))
     ]
     df = pd.DataFrame(rows, columns=["Marginal likelihood"] + edge_cols)
-    df = df.sort_values("Marginal likelihood", ascending=False, kind="mergesort").reset_index(drop=True)
-    df["Marginal likelihood"] = df["Marginal likelihood"].apply(lambda x: f"{x:.3f}")
-    return df
+    return df.sort_values("Marginal likelihood", ascending=False, kind="mergesort").reset_index(drop=True)
 
 def posterior_predictions(
     G: nx.DiGraph,

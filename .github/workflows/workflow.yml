@@ -2,7 +2,7 @@ name: Python Package using uv
 
 on:
   push:
-    branches: [ '*' ]
+    branches: [ '**' ]
   release:
     types: [created]
 
@@ -43,7 +43,7 @@ jobs:
   publish:
     needs: build-linux
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'  # Only publish from main branch
+    if: github.event_name == 'release'
     steps:
       - uses: actions/checkout@v4
       - name: Set up Python

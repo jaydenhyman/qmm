@@ -231,8 +231,9 @@ def sign_determinacy_effects(
         # [  1,   1, -1, 1/2,  1]])
         ```
     """
+    net = net_effects(G)
     absolute = absolute_effects(G)
-    return sign_determinacy(weighted_effects(G), absolute, method=method)
+    return sign_determinacy(get_weight(net, absolute), absolute, method=method)
 
 
 def get_simulations(

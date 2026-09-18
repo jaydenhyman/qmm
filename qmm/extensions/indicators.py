@@ -8,13 +8,14 @@ from ..core.structure import define_input_output
 from .effects import _simulate
 from typing import Union, List, Literal
 
-def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, seed: int = 42, include_null: bool = False, uncertain_interactions: Literal["sample", "enumerate"] = "sample", pair_reciprocal: bool = True, weights: Literal["equal", "posterior"] = "equal", base: float = np.e) -> pd.DataFrame:
+def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str, n_sim: int = 10000, dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"] = "uniform", seed: int = 42, include_null: bool = False, uncertain_interactions: Literal["sample", "enumerate"] = "sample", pair_reciprocal: bool = True, weights: Literal["equal", "posterior"] = "equal", base: float = np.e) -> pd.DataFrame:
     """Calculate mutual information of variables for alternative models.
 
     Args:
         models: One or more NetworkX DiGraphs representing alternative models
         perturb: Comma-separated node:sign pairs applied simultaneously with equal unit magnitudes
         n_sim: Stable simulations per model, or per structure when uncertain_interactions='enumerate'.
+        dist: Distribution of interaction strengths.
         seed: Random seed
         include_null: If True, include a null model with equal probability (1/3)
             of positive, negative, or zero response across simulations
@@ -71,7 +72,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         node_indices = [response_nodes.index(node) for node in nodes]
         sign_probabilities = np.zeros((len(nodes), 3))
         stability, batches = 0.0, 0
-        for sims in _simulate(G, n_sim=n_sim, seed=seed, perturb=perturb_tuple,
+        for sims in _simulate(G, n_sim=n_sim, dist=dist, seed=seed, perturb=perturb_tuple,
                               uncertain_interactions=uncertain_interactions, pair_reciprocal=pair_reciprocal):
             effects = np.sign(np.asarray(sims["effects"])[:, node_indices])
             sign_probabilities += (effects[..., None] == (-1, 0, 1)).mean(axis=0)

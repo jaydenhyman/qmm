@@ -19,7 +19,6 @@ from qmm.core.stability import (
     determinants_metrics,
     conditional_stability,
     simulation_stability,
-    stability_analysis,
     system_feedback,
     net_feedback,
     absolute_feedback,
@@ -42,18 +41,6 @@ def test_simulation_stability_zero_strengths_fail_both_hurwitz_criteria():
     assert results['Unstable matrices'] == '100.00%'
     assert results['Hurwitz criterion i'] == results['Hurwitz criterion ii'] == '100.00%'
     assert results['Hurwitz criterion i only'] == results['Hurwitz criterion ii only'] == '0.00%'
-
-
-def test_stability_analysis_reports_all_sections_with_presample(snowshoe):
-    result = stability_analysis(snowshoe, n_sim=2, presample=np.ones((2, 3, 3)))
-    assert list(result.columns) == ['Test', 'Definition', 'Result']
-    assert result.index.tolist() == list(range(17))
-    assert result['Test'].is_unique
-    results = result.set_index('Test')['Result']
-    assert bool(results['Sign stable'])
-    assert 'Model class' in results
-    assert results['Stable matrices'] == '100.00%'
-    assert results['Unstable matrices'] == '0.00%'
 
 
 # =============================================================================
@@ -806,17 +793,6 @@ def test_conditional_stability_tied_maximum_is_class_ii():
 def test_conditional_stability_rejects_missing_feedback():
     with pytest.raises(ValueError, match="^No feedback terms at level 1$"):
         conditional_stability(list_to_digraph([[0, -1], [1, 0]], ["A", "B"]))
-
-
-def test_stability_analysis_keeps_sections_when_conditional_unavailable():
-    G = list_to_digraph([[0, -1], [1, 0]], ["A", "B"])
-    presample = np.ones((2, 2, 2))
-    result = stability_analysis(G, n_sim=2, presample=presample).set_index("Test")["Result"]
-    expected = simulation_stability(G, n_sim=2, presample=presample).set_index("Test")["Result"]
-    assert result["Sign stable"] == sign_stability(G)["Result"].iloc[-1]
-    assert result["Stable matrices"] == expected["Stable matrices"]
-    assert result["Weighted feedback"] == "Unavailable: No feedback terms at level 1"
-    assert result["Model class"] == "Unavailable: No feedback terms at level 1"
 
 
 def test_sign_stability_beyond_63_states():

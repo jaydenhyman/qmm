@@ -21,7 +21,6 @@ from .core.stability import (
     determinants_metrics,
     conditional_stability,
     simulation_stability,
-    stability_analysis,
 )
 
 from .core.press import (
@@ -134,7 +133,6 @@ __all__ = [
     "determinants_metrics",
     "conditional_stability",
     "simulation_stability",
-    "stability_analysis",
     "adjoint_matrix",
     "absolute_feedback_matrix",
     "weighted_predictions_matrix",

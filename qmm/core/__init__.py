@@ -23,7 +23,6 @@ from .stability import (
     determinants_metrics,
     conditional_stability,
     simulation_stability,
-    stability_analysis,
 )
 
 from .press import (
@@ -73,7 +72,6 @@ __all__ = [
     "determinants_metrics",
     "conditional_stability",
     "simulation_stability",
-    "stability_analysis",
     # press.py
     "adjoint_matrix",
     "absolute_feedback_matrix",

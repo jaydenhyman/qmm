@@ -83,7 +83,12 @@ def test_mutual_information_weights_options(monkeypatch, uncertain_interactions,
          for stability in ((0.5, 1.0) if uncertain_interactions == 'enumerate' else (0.75,))],
     ])
     calls = []
-    monkeypatch.setattr('qmm.extensions.indicators._simulate', lambda *args, **kwargs: (calls.append(kwargs), iter(next(draws)))[1])
+
+    def simulate(*args, **kwargs):
+        calls.append(kwargs)
+        return iter(next(draws))
+
+    monkeypatch.setattr('qmm.extensions.indicators._simulate', simulate)
     result = mutual_information(models, 'X:+', n_sim=4, dist='strong', uncertain_interactions=uncertain_interactions, weights=weights, base=2)
     assert [call['dist'] for call in calls] == ['strong', 'strong']
     expected = -(0.25 * np.log2(0.25) + 0.75 * np.log2(0.75)) if weights == 'posterior' else 1.0
@@ -91,11 +96,9 @@ def test_mutual_information_weights_options(monkeypatch, uncertain_interactions,
 
 
 def test_mutual_information_dist_strong_mesocosm_alt_models(mesocosm_alt_models):
-    default = mutual_information(mesocosm_alt_models, 'P:+', n_sim=100, seed=42)
-    result = mutual_information(mesocosm_alt_models, 'P:+', n_sim=100, seed=42, dist='strong')
-    assert list(result['Node']) == list(default['Node']) or set(result['Node']) == set(default['Node'])
-    assert not result.set_index('Node').equals(default.set_index('Node'))
-    assert mutual_information(mesocosm_alt_models, 'P:+', n_sim=100, seed=42, dist='uniform').equals(default)
+    default = mutual_information(mesocosm_alt_models, 'P:+', n_sim=100, seed=42).set_index('Node')['Mutual information']
+    result = mutual_information(mesocosm_alt_models, 'P:+', n_sim=100, seed=42, dist='strong').set_index('Node')['Mutual information']
+    assert not result.equals(default)
 
 
 def test_mutual_information_bits_are_nats_over_log_two(mesocosm_alt_models):

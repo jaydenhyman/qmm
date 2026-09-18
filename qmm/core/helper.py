@@ -340,7 +340,7 @@ def sign_determinacy(
     if method not in ["average", "95_bound"]:
         raise ValueError("Invalid method. Choose 'average' or '95_bound'.")
     MAX_PROB = sp.Float('0.999999')
-    bw, bwt, offset = (3.45962, 0.03417, 1) if method == "average" else (9.766, 0.139, 1253.992)
+    bw, bwt, odds_scale = (3.45962, 0.03417, 1) if method == "average" else (9.766, 0.139, 1253.992)
 
     def compute_prob(w, t):
         if t == sp.Integer(0):
@@ -348,7 +348,8 @@ def sign_determinacy(
         exponent = bw * float(w) + bwt * float(w) * float(t)
         if exponent > 700:
             return MAX_PROB
-        prob = max(sp.Rational(1, 2), sp.Float(np.exp(exponent) / (offset + np.exp(exponent))))
+        odds = np.exp(exponent)
+        prob = max(sp.Rational(1, 2), sp.Float(odds / (odds_scale + odds)))
         return MAX_PROB if prob >= MAX_PROB else prob
 
     def calc_prob(i, j):

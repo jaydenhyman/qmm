@@ -599,7 +599,7 @@ def test_simulations_table_no_valid_sims(snowshoe_io):
 def test_simulations_table_counts_match_structure(snowshoe_io_na):
     result = simulations_table(snowshoe_io_na, perturb="P:+", n_sim=100, seed=42)
     expected_columns = [
-        "Model",
+        "Structure",
         "Effect on",
         "Negative",
         "Zero",
@@ -609,7 +609,7 @@ def test_simulations_table_counts_match_structure(snowshoe_io_na):
         "Attempts",
     ]
     assert result.columns.tolist() == expected_columns
-    assert (result["Model"] == 1).all()
+    assert (result["Structure"] == 1).all()
 
     tmat = sp.matrix2numpy(absolute_effects(snowshoe_io_na)).astype(int)
     response_nodes = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "output")
@@ -977,7 +977,7 @@ def test_get_simulations_zeroes_cells_after_dropping_a_self_effect(structural_ze
 
 
 def test_simulations_table_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowshoe_dashed):
-    result = simulations_table(snowshoe_dashed, perturb="C:+", n_sim=20, seed=1)["Model"].nunique()
+    result = simulations_table(snowshoe_dashed, perturb="C:+", n_sim=20, seed=1)["Structure"].nunique()
     expected = 4
     assert result == expected
 

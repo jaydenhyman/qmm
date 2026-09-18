@@ -43,7 +43,7 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
         G2 = G1.copy()
         G2.remove_edge('C', 'P')
         mutual_information((G1, G2), perturb='R:+', n_sim=1000)
-        #   Node  Mutual Information
+        #   Node  Mutual information
         # 0    P            0.693147
         # 1    R            0.693147
         # 2    C            0.153711
@@ -98,4 +98,4 @@ def mutual_information(models: Union[nx.DiGraph, List[nx.DiGraph]], perturb: str
                  for j in range(3)
                  if joint[k, j] > 0) / np.log(base)
         mi_vals.append(max(0, mi))
-    return pd.DataFrame({"Node": nodes, "Mutual Information": mi_vals}).sort_values("Mutual Information", ascending=False).reset_index(drop=True)
+    return pd.DataFrame({"Node": nodes, "Mutual information": mi_vals}).sort_values("Mutual information", ascending=False).reset_index(drop=True)

@@ -606,18 +606,18 @@ def simulations_table(
         pair_reciprocal: If True, a reciprocal pair of dashed edges is one uncertain interaction kept or dropped together
 
     Returns:
-        pd.DataFrame: Table of counts for negative, no effect, and positive responses
+        pd.DataFrame: Table of counts for negative, zero, and positive responses
 
     Examples:
         ```python
         from qmm import load_digraph, simulations_table
         simulations_table(load_digraph("snowshoe_io"), perturb='Inp1:+', n_sim=1000)
-        #    model effect_on  negative  no_effect  positive  valid_sims  stable_sims  attempts
-        # 0      1         R         0          0      1000        1000         1000      1000
-        # 1      1         C       513          0       487        1000         1000      1000
-        # 2      1         P       513          0       487        1000         1000      1000
-        # 3      1      Out1       474          0       526        1000         1000      1000
-        # 4      1      Out2       513          0       487        1000         1000      1000
+        #    Model Effect on  Negative  Zero  Positive  Valid draws  Stable draws  Attempts
+        # 0      1         R         0     0      1000         1000          1000      1000
+        # 1      1         C       513     0       487         1000          1000      1000
+        # 2      1         P       513     0       487         1000          1000      1000
+        # 3      1      Out1       474     0       526         1000          1000      1000
+        # 4      1      Out2       513     0       487         1000          1000      1000
         ```
     """
     G = define_input_output(G)
@@ -654,22 +654,22 @@ def simulations_table(
         else:
             negative = np.zeros(node_count, dtype=int)
             positive = np.zeros(node_count, dtype=int)
-        no_effect = valid_count - negative - positive
+        zero = valid_count - negative - positive
 
         for i, node in enumerate(response_nodes):
             row = {
-                "model": model_idx,
-                "effect_on": node,
-                "negative": int(negative[i]),
-                "no_effect": int(no_effect[i]),
-                "positive": int(positive[i]),
-                "valid_sims": int(valid_count),
-                "stable_sims": int(sims["n_stable"]),
-                "attempts": int(sims["attempts"]),
+                "Model": model_idx,
+                "Effect on": node,
+                "Negative": int(negative[i]),
+                "Zero": int(zero[i]),
+                "Positive": int(positive[i]),
+                "Valid draws": int(valid_count),
+                "Stable draws": int(sims["n_stable"]),
+                "Attempts": int(sims["attempts"]),
             }
             rows.append(row)
 
-    cols = ["model", "effect_on", "negative", "no_effect", "positive", "valid_sims", "stable_sims", "attempts"]
+    cols = ["Model", "Effect on", "Negative", "Zero", "Positive", "Valid draws", "Stable draws", "Attempts"]
     return pd.DataFrame(rows, columns=cols)
 
 

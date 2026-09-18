@@ -234,6 +234,6 @@ def test_marginal_likelihood_matches_the_simulated_sign_proportion_mesocosm(meso
 
 
 def test_mutual_information_of_identical_models_is_zero_snowshoe(snowshoe):
-    result = mutual_information([snowshoe, snowshoe], "R:+", n_sim=200)["Mutual Information"].tolist()
+    result = mutual_information([snowshoe, snowshoe], "R:+", n_sim=200)["Mutual information"].tolist()
     expected = [0] * len(get_nodes(snowshoe, "state"))
     assert result == expected

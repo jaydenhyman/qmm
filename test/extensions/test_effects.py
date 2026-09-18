@@ -591,25 +591,25 @@ def test_simulations_table_rejects_invalid_nodes():
 
 def test_simulations_table_no_valid_sims(snowshoe_io):
     result = simulations_table(snowshoe_io, perturb="P:+", observe="C:0", n_sim=50, seed=42)
-    assert result["valid_sims"].eq(0).all()
-    assert result["negative"].eq(0).all()
-    assert result["positive"].eq(0).all()
+    assert result["Valid draws"].eq(0).all()
+    assert result["Negative"].eq(0).all()
+    assert result["Positive"].eq(0).all()
 
 
 def test_simulations_table_counts_match_structure(snowshoe_io_na):
     result = simulations_table(snowshoe_io_na, perturb="P:+", n_sim=100, seed=42)
     expected_columns = [
-        "model",
-        "effect_on",
-        "negative",
-        "no_effect",
-        "positive",
-        "valid_sims",
-        "stable_sims",
-        "attempts",
+        "Model",
+        "Effect on",
+        "Negative",
+        "Zero",
+        "Positive",
+        "Valid draws",
+        "Stable draws",
+        "Attempts",
     ]
     assert result.columns.tolist() == expected_columns
-    assert (result["model"] == 1).all()
+    assert (result["Model"] == 1).all()
 
     tmat = sp.matrix2numpy(absolute_effects(snowshoe_io_na)).astype(int)
     response_nodes = get_nodes(snowshoe_io_na, "state") + get_nodes(snowshoe_io_na, "output")
@@ -617,15 +617,15 @@ def test_simulations_table_counts_match_structure(snowshoe_io_na):
     p_idx = perturb_nodes.index("P")
 
     for _, row in result.iterrows():
-        node_idx = response_nodes.index(row["effect_on"])
+        node_idx = response_nodes.index(row["Effect on"])
         has_effect = tmat[node_idx, p_idx] != 0
         if has_effect:
-            assert row["no_effect"] == 0
-            assert row["negative"] + row["positive"] == row["valid_sims"]
+            assert row["Zero"] == 0
+            assert row["Negative"] + row["Positive"] == row["Valid draws"]
         else:
-            assert row["no_effect"] == row["valid_sims"]
-            assert row["negative"] == 0
-            assert row["positive"] == 0
+            assert row["Zero"] == row["Valid draws"]
+            assert row["Negative"] == 0
+            assert row["Positive"] == 0
 
 
 def test_simulations_table_rejects_category_change(dashed_role_change):
@@ -801,14 +801,14 @@ def test_get_simulations_tied_presample_reports_actual_draws(snowshoe):
     assert np.array_equal(sims['samples']['a_R,R'], sims['samples']['a_P,P'])
 
 
-def test_simulations_table_counts_cancelled_presses_as_no_effect(self_limited_pair):
+def test_simulations_table_counts_cancelled_presses_as_zero(self_limited_pair):
     G = self_limited_pair
     G.add_edge('A', 'B', sign=1)
     result = simulations_table(G, 'A:+, B:-', n_sim=5,
                                presample=lambda symbols: {symbol: 1 for symbol in symbols})
-    row = result.set_index('effect_on').loc['B']
-    assert row['no_effect'] == row['valid_sims'] == 5
-    assert result[['negative', 'no_effect', 'positive']].sum(axis=1).equals(result['valid_sims'])
+    row = result.set_index('Effect on').loc['B']
+    assert row['Zero'] == row['Valid draws'] == 5
+    assert result[['Negative', 'Zero', 'Positive']].sum(axis=1).equals(result['Valid draws'])
 
 
 @pytest.mark.parametrize('category', ['output', 'input', 'state'])
@@ -822,9 +822,9 @@ def test_simulations_table_combines_existing_input_presses(category):
     G.nodes['Y']['category'] = category
     original = G.copy()
     result = simulations_table(G, 'I1:+, I2:+', n_sim=5)
-    assert list(result['effect_on']) == ['X', 'Y']
-    assert list(result['positive']) == [5, 5]
-    assert list(result['no_effect']) == [0, 0]
+    assert list(result['Effect on']) == ['X', 'Y']
+    assert list(result['Positive']) == [5, 5]
+    assert list(result['Zero']) == [0, 0]
     assert nx.utils.graphs_equal(G, original)
 
 
@@ -977,7 +977,7 @@ def test_get_simulations_zeroes_cells_after_dropping_a_self_effect(structural_ze
 
 
 def test_simulations_table_pairs_reciprocal_dashed_edges_snowshoe_dashed(snowshoe_dashed):
-    result = simulations_table(snowshoe_dashed, perturb="C:+", n_sim=20, seed=1)["model"].nunique()
+    result = simulations_table(snowshoe_dashed, perturb="C:+", n_sim=20, seed=1)["Model"].nunique()
     expected = 4
     assert result == expected
 

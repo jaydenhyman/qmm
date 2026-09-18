@@ -283,14 +283,10 @@ def weighted_predictions_life_expectancy(
         # [1, 0, 0]])
         ```
     """
-    if type == "birth":
-        net = net_life_expectancy_change(G, type="birth")
-        absolute = absolute_life_expectancy_change(G, type="birth")
-    elif type == "death":
-        net = net_life_expectancy_change(G, type="death")
-        absolute = absolute_life_expectancy_change(G, type="death")
-    else:
+    if type not in ("birth", "death"):
         raise ValueError("type must be either 'birth' or 'death'")
+    net = net_life_expectancy_change(G, type=type)
+    absolute = absolute_life_expectancy_change(G, type=type)
     if as_nan:
         weighted = get_weight(net, absolute)
     else:

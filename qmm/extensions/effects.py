@@ -231,8 +231,9 @@ def sign_determinacy_effects(
         # [  1,   1, -1, 1/2,  1]])
         ```
     """
+    net = net_effects(G)
     absolute = absolute_effects(G)
-    return sign_determinacy(get_weight(net_effects(G), absolute), absolute, method=method)
+    return sign_determinacy(get_weight(net, absolute), absolute, method=method)
 
 
 def get_simulations(
@@ -612,12 +613,12 @@ def simulations_table(
         ```python
         from qmm import load_digraph, simulations_table
         simulations_table(load_digraph("snowshoe_io"), perturb='Inp1:+', n_sim=1000)
-        #    Structure Effect on  Negative  Zero  Positive  Valid draws  Stable draws  Attempts
-        # 0          1         R         0     0      1000         1000          1000      1000
-        # 1          1         C       513     0       487         1000          1000      1000
-        # 2          1         P       513     0       487         1000          1000      1000
-        # 3          1      Out1       474     0       526         1000          1000      1000
-        # 4          1      Out2       513     0       487         1000          1000      1000
+        #    Model Effect on  Negative  Zero  Positive  Valid draws  Stable draws  Attempts
+        # 0      1         R         0     0      1000         1000          1000      1000
+        # 1      1         C       513     0       487         1000          1000      1000
+        # 2      1         P       513     0       487         1000          1000      1000
+        # 3      1      Out1       474     0       526         1000          1000      1000
+        # 4      1      Out2       513     0       487         1000          1000      1000
         ```
     """
     G = define_input_output(G)
@@ -630,7 +631,7 @@ def simulations_table(
     observations = _parse_observations(observe) if observe else None
     rows = []
 
-    for structure, g in enumerate(variants, start=1):
+    for model_idx, g in enumerate(variants, start=1):
         response_nodes = get_nodes(g, "state") + get_nodes(g, "output")
         if not response_nodes:
             continue
@@ -658,7 +659,7 @@ def simulations_table(
 
         for i, node in enumerate(response_nodes):
             row = {
-                "Structure": structure,
+                "Model": model_idx,
                 "Effect on": node,
                 "Negative": int(negative[i]),
                 "Zero": int(zero[i]),
@@ -669,7 +670,7 @@ def simulations_table(
             }
             rows.append(row)
 
-    cols = ["Structure", "Effect on", "Negative", "Zero", "Positive", "Valid draws", "Stable draws", "Attempts"]
+    cols = ["Model", "Effect on", "Negative", "Zero", "Positive", "Valid draws", "Stable draws", "Attempts"]
     return pd.DataFrame(rows, columns=cols)
 
 

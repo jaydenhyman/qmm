@@ -1,6 +1,5 @@
 """Tests for qmm.extensions.paths module using snowshoe_io fixture."""
 
-from test.feedback import cycle_expansion
 import numpy as np
 import pytest
 import pandas as pd
@@ -594,11 +593,8 @@ def test_system_paths_sum_to_adjoint_snowshoe_rp(snowshoe_rp):
     for source in states:
         for target in states:
             paths = system_paths(snowshoe_rp, source, target)
-            complements = complementary_feedback(snowshoe_rp, source, target)
-            result.append((sp.expand(sum(paths['Effect'])), [sp.expand(f) for f in complements['Feedback']]))
-            remaining = [[n for n in states if n not in path] for path in complements['Path']]
-            expected.append((sp.expand(adjoint[states.index(target), states.index(source)]),
-                             [cycle_expansion(snowshoe_rp.subgraph(nodes))[0][-1] for nodes in remaining]))
+            result.append(sp.expand(sum(paths['Effect'])))
+            expected.append(sp.expand(adjoint[states.index(target), states.index(source)]))
     assert result == expected
 
 

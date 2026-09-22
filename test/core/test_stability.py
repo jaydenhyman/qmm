@@ -4,15 +4,15 @@ from qmm.core.stability import _has_cycle_cover
 from math import factorial
 
 import itertools
-from test.feedback import cycle_expansion
 import pytest
 import sympy as sp
 import numpy as np
 import pandas as pd
 import networkx as nx
 
-from qmm.core.helper import list_to_digraph, perm
+from qmm.core.helper import get_nodes, list_to_digraph, perm
 from qmm.core.structure import create_matrix
+from qmm.extensions.paths import get_cycles
 from qmm.core.stability import (
     sign_stability,
     feedback_metrics,
@@ -220,7 +220,17 @@ def test_system_feedback_form_symbolic_all_levels_snowshoe(snowshoe):
 
 
 def test_system_feedback_matches_disjoint_cycle_expansion_snowshoe_rp(snowshoe_rp):
-    feedback, counts = cycle_expansion(snowshoe_rp)
+    cycles = get_cycles(snowshoe_rp)
+    n = len(get_nodes(snowshoe_rp, 'state'))
+    feedback = [sp.Integer(-1)] + [sp.Integer(0)] * n
+    counts = [1] + [0] * n
+    for size in range(1, n + 1):
+        for combination in itertools.combinations(zip(cycles['Cycle'], cycles['Product']), size):
+            covered = [node for cycle, _ in combination for node in cycle]
+            if len(covered) == len(set(covered)):
+                feedback[len(covered)] += (-1) ** (size + 1) * sp.prod([product for _, product in combination])
+                counts[len(covered)] += 1
+    feedback, counts = sp.Matrix(feedback).applyfunc(sp.expand), sp.Matrix(counts)
     result = (system_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp), absolute_feedback(snowshoe_rp, method='polynomial'))
     expected = (feedback, counts, counts)
     assert result == expected

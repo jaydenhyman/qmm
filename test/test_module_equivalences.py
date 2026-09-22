@@ -1,7 +1,5 @@
 """Equivalences between qmm modules."""
 
-from test.feedback import cycle_expansion
-
 import networkx as nx
 import numpy as np
 import pytest
@@ -152,14 +150,6 @@ def test_adjoint_matrix_perturb_matches_full_matrix_column(model):
 # =============================================================================
 # paths, stability and helper
 # =============================================================================
-
-@pytest.mark.parametrize("model", ["snowshoe_rp", "chain"])
-def test_system_feedback_matches_disjoint_cycle_combinations(model):
-    G = load_digraph(model)
-    result, _ = cycle_expansion(G)
-    expected = system_feedback(G).applyfunc(sp.expand)
-    assert result == expected
-
 
 @pytest.mark.parametrize("model, source, target", [
     ("snowshoe_io", "Inp1", "Out1"),

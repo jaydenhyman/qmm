@@ -141,19 +141,40 @@ def test_get_paths_includes_direct_io_edge_snowshoe_io_with_direct_edge(snowshoe
     assert expected
 
 
-def test_system_paths_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        system_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+def test_paths_table_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    table = paths_table(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+    result = table[table["Length"] == 1].values.tolist()
+    expected = [[1, "Inp1 $\\rightarrow$ Out1", "+"]]
+    assert result == expected
 
 
-def test_weighted_paths_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        weighted_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+def test_complementary_feedback_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    table = complementary_feedback(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+    result = table[table["Path"].map(len) == 2].values.tolist()
+    expected = [[("Inp1", "Out1"), system_feedback(snowshoe_io_with_direct_edge, level=3)[0]]]
+    assert result == expected
 
 
-def test_path_metrics_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        path_metrics(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+def test_system_paths_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    table = system_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+    result = table[table["Path"].map(len) == 2].values.tolist()
+    A = create_matrix(snowshoe_io_with_direct_edge)
+    expected = [[("Inp1", "Out1"), sp.expand(sp.Symbol("d_Out1,Inp1") * (-A).det())]]
+    assert result == expected
+
+
+def test_weighted_paths_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    table = weighted_paths(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+    result = table[table["Path"].map(len) == 2].values.tolist()
+    expected = [[("Inp1", "Out1"), 1]]
+    assert result == expected
+
+
+def test_path_metrics_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    table = path_metrics(snowshoe_io_with_direct_edge, "Inp1", "Out1")
+    result = table[table["Length"] == 1].values.tolist()
+    expected = [[1, ("Inp1", "Out1"), "+", ("R", "C", "P"), -2, 2, 0, 2, -1, 1, 2]]
+    assert result == expected
 
 
 def test_get_paths_single_path_output_to_output_graph(output_to_output_graph):
@@ -436,14 +457,16 @@ def test_path_metrics_self_response_snowshoe_io(snowshoe_io):
 # system_paths vs cumulative_effects comparison tests
 # =============================================================================
 
+@pytest.mark.parametrize("model", ["snowshoe_io_na", "snowshoe_io_with_direct_edge", "io_chain_with_direct_edge"])
 @pytest.mark.parametrize("form", ["symbolic", "signed", "binary"])
-def test_system_paths_matches_cumulative_effects(snowshoe_io_na, form):
-    states, inputs, outputs = get_nodes(snowshoe_io_na, "state"), get_nodes(snowshoe_io_na, "input"), get_nodes(snowshoe_io_na, "output")
+def test_system_paths_matches_cumulative_effects(request, model, form):
+    G = request.getfixturevalue(model)
+    states, inputs, outputs = get_nodes(G, "state"), get_nodes(G, "input"), get_nodes(G, "output")
     rows, cols = states + outputs, states + inputs
-    cum = cumulative_effects(snowshoe_io_na, form=form)
+    cum = cumulative_effects(G, form=form)
     for i, tgt in enumerate(rows):
         for j, src in enumerate(cols):
-            result = sp.expand(sum(system_paths(snowshoe_io_na, src, tgt, form=form)["Effect"]))
+            result = sp.expand(sum(system_paths(G, src, tgt, form=form)["Effect"]))
             assert sp.simplify(result - sp.expand(cum[i, j])) == 0
 
 
@@ -476,6 +499,15 @@ def test_simulate_pathway_effects_terms_sum_inp1_out1_snowshoe_io(snowshoe_io):
     result = (len(paths), terms.sum(axis=1))
     expected = (4, np.array([effect[responders.index("Out1")] for effect in sims["effects"]]))
     assert result[0] == expected[0]
+    assert np.allclose(result[1], expected[1])
+
+
+def test_simulate_pathway_effects_direct_term_equals_d_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    responders = get_nodes(snowshoe_io_with_direct_edge, "state") + get_nodes(snowshoe_io_with_direct_edge, "output")
+    paths, terms, sims = _simulate_pathway_effects(snowshoe_io_with_direct_edge, "Inp1", "Out1", 150, "uniform", 5, "sample", True)
+    result = (terms[:, paths.index(["Inp1", "Out1"])], terms.sum(axis=1))
+    expected = (sims["samples"]["d_Out1,Inp1"], np.array([effect[responders.index("Out1")] for effect in sims["effects"]]))
+    assert np.allclose(result[0], expected[0])
     assert np.allclose(result[1], expected[1])
 
 
@@ -528,9 +560,11 @@ def test_pathway_effects_rejects_input_target(snowshoe_io):
         pathway_effects(snowshoe_io, "Inp1", "Inp1", n_sim=10)
 
 
-def test_pathway_effects_rejects_direct_io_edge(snowshoe_io_with_direct_edge):
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        pathway_effects(snowshoe_io_with_direct_edge, "Inp1", "Out1", n_sim=10)
+def test_pathway_effects_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    table = pathway_effects(snowshoe_io_with_direct_edge, "Inp1", "Out1", n_sim=300, seed=1)
+    result = table[table["Length"] == 1].values.tolist()
+    expected = [[1, ("Inp1", "Out1"), "+", 1.0, 1.0, 0.0, 0.0, pytest.approx(0.339999, abs=1e-6)]]
+    assert result == expected
 
 
 def test_pathway_effects_empty_observe_matches_unconditional_snowshoe_io(snowshoe_io):

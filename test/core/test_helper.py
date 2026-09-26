@@ -25,7 +25,6 @@ from qmm.core.helper import (
     _parse_perturbations,
     _parse_observations,
     _check_signs,
-    _check_direct_io_edges,
     _random_sampler,
     perm,
     get_dashed_alternatives,
@@ -502,15 +501,6 @@ def test_check_signs_accepts_unit():
     G.add_edge("A", "B", sign=1)
     G.add_edge("B", "A", sign=-1)
     assert _check_signs(G) is None
-
-
-def test_check_direct_io_edges_rejects_feedthrough():
-    G = nx.DiGraph()
-    G.add_node("Inp", category="input")
-    G.add_node("Out", category="output")
-    G.add_edge("Inp", "Out", sign=1)
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        _check_direct_io_edges(G)
 
 
 # =============================================================================

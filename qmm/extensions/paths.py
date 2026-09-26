@@ -15,7 +15,6 @@ from ..core.helper import (
     _sign_string,
     _arrows,
     _edge_prefix,
-    _check_direct_io_edges,
     _parse_observations,
 )
 from .effects import get_simulations
@@ -318,7 +317,6 @@ def system_paths(
         # 3        (Inp1, C, Out1)   a_P,P*a_R,R*b_C,Inp1*c_Out1,C
         ```
     """
-    _check_direct_io_edges(G)
     path = get_paths(G, source, target, form=form)
     feedback = complementary_feedback(G, source, target, form=form)
     path_m = sp.Matrix(path["Product"].tolist())
@@ -356,7 +354,6 @@ def weighted_paths(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         # 3        (Inp1, C, Out1)      1
         ```
     """
-    _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     state_nodes = get_nodes(G, "state")
     path_nodes = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
@@ -399,7 +396,6 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         # 3       2        (Inp1, C, Out1)    +                 (R, P)           -1                 1                 0                 1                -1             1           1
         ```
     """
-    _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     state_nodes = get_nodes(G, "state")
     if not nx.has_path(G, source, target):
@@ -446,7 +442,6 @@ def _simulate_pathway_effects(
     sims: Optional[dict] = None,
 ) -> Tuple[list, np.ndarray, dict]:
     """Pathways from source to target and their effect in each stable simulation."""
-    _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     state_nodes = get_nodes(G, "state")
     path_nodes = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
@@ -551,7 +546,6 @@ def pathway_effects(
         # 1       1     (R, P)    +      1.0       0.0       0.0   1.0           0.0
         ```
     """
-    _check_direct_io_edges(G)
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
         return pd.DataFrame(columns=["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"])

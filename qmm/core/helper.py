@@ -432,15 +432,6 @@ def _edge_prefix(G: nx.DiGraph, source: str, target: str) -> str:
     return "d" if src_in and tgt_out else "b" if src_in else "c" if tgt_out else "a"
 
 
-def _check_direct_io_edges(G: nx.DiGraph) -> None:
-    """Raise on any direct input->output edge."""
-    inputs, outputs = get_nodes(G, "input"), get_nodes(G, "output")
-    for inp in inputs:
-        for out in outputs:
-            if G.has_edge(inp, out):
-                raise ValueError(f"Direct input to output edge ({inp} to {out}) not supported.")
-
-
 def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:
     """Calculate the permanent of a square matrix.
 

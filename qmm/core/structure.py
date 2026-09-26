@@ -7,7 +7,7 @@ from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
 import sympy as sp
-from .helper import get_nodes, _edge_prefix, _check_direct_io_edges, _check_signs
+from .helper import get_nodes, _edge_prefix, _check_signs
 
 
 def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
@@ -194,9 +194,9 @@ def create_matrix(
     if invalid:
         raise ValueError(f"Invalid nodes: {invalid}")
 
-    def sign(source: str, target: str, prefix: str) -> Union[sp.Symbol, int]:
+    def sign(source: str, target: str) -> Union[sp.Symbol, int]:
         if form == "symbolic":
-            return sp.Symbol(f"{prefix}_{target},{source}") * G[source][target].get("sign", 1)
+            return sp.Symbol(f"{_edge_prefix(G, source, target)}_{target},{source}") * G[source][target].get("sign", 1)
         elif form == "signed":
             return G[source][target].get("sign", 1)
         else:
@@ -205,32 +205,29 @@ def create_matrix(
     def product(path: List[str]) -> Union[sp.Symbol, int]:
         effect = 1
         for i in range(len(path) - 1):
-            effect *= sign(path[i], path[i + 1], prefix)
+            effect *= sign(path[i], path[i + 1])
         return effect
 
     state_n = get_nodes(G, "state")
     input_n = get_nodes(G, "input")
     output_n = get_nodes(G, "output")
-    matrix_configs: Dict[str, Tuple[List[str], List[str], str, str]] = {
-        "A": (state_n, state_n, "a", "state"),
-        "B": (state_n, input_n, "b", "input"),
-        "C": (output_n, state_n, "c", "output"),
-        "D": (output_n, input_n, "d", "input"),
+    matrix_configs: Dict[str, Tuple[List[str], List[str], Tuple[str, ...]]] = {
+        "A": (state_n, state_n, ("state",)),
+        "B": (state_n, input_n, ("input",)),
+        "C": (output_n, state_n, ("output",)),
+        "D": (output_n, input_n, ("input", "output")),
     }
     if matrix_type not in matrix_configs:
         raise ValueError("Invalid matrix type. Choose 'A', 'B', 'C', 'D'.")
-    rows, cols, prefix, category = matrix_configs[matrix_type]
+    rows, cols, categories = matrix_configs[matrix_type]
     matrix = sp.zeros(len(rows), len(cols))
-    if matrix_type == "D":
-        _check_direct_io_edges(G)
-        return matrix
     for i, target in enumerate(rows):
         for j, source in enumerate(cols):
             if matrix_type == "A":
                 if G.has_edge(source, target):
-                    matrix[i, j] = sign(source, target, prefix)
+                    matrix[i, j] = sign(source, target)
             else:
-                graph = G.subgraph([n for n in G if n in (source, target) or G.nodes[n].get("category") == category])
+                graph = G.subgraph([n for n in G if n in (source, target) or G.nodes[n].get("category") in categories])
                 paths = nx.all_simple_paths(graph, source, target)
                 matrix[i, j] = sum(product(path) for path in paths)
     return matrix

@@ -111,15 +111,19 @@ def _scaled_equilibrium_derivative(G):
     return ((-A).det() * derivative).applyfunc(sp.cancel).applyfunc(sp.expand)
 
 
-def test_cumulative_effects_matches_scaled_equilibrium_derivative(snowshoe_io):
-    result = cumulative_effects(snowshoe_io)
-    expected = _scaled_equilibrium_derivative(snowshoe_io)
+@pytest.mark.parametrize('model', ['snowshoe_io', 'snowshoe_io_with_direct_edge', 'io_chain_with_direct_edge'])
+def test_cumulative_effects_matches_scaled_equilibrium_derivative(request, model):
+    G = request.getfixturevalue(model)
+    result = cumulative_effects(G)
+    expected = _scaled_equilibrium_derivative(G)
     assert result == expected
 
 
-def test_absolute_effects_count_numerator_terms_io_chain(io_chain):
-    numerator = _scaled_equilibrium_derivative(io_chain)
-    result = absolute_effects(io_chain)
+@pytest.mark.parametrize('model', ['io_chain', 'io_chain_with_direct_edge'])
+def test_absolute_effects_count_numerator_terms(request, model):
+    G = request.getfixturevalue(model)
+    numerator = _scaled_equilibrium_derivative(G)
+    result = absolute_effects(G)
     expected = numerator.applyfunc(lambda e: len(e.as_ordered_terms()) if e else 0)
     assert result == expected
 
@@ -132,10 +136,26 @@ def test_cumulative_effects_rejects_invalid_form(snowshoe_io):
     assert result == expected
 
 
-@pytest.mark.parametrize('form', ['symbolic', 'signed', 'binary'])
-def test_cumulative_effects_rejects_direct_io_edge(snowshoe_io_with_direct_edge, form):
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        cumulative_effects(snowshoe_io_with_direct_edge, form=form)
+def test_cumulative_effects_form_signed_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    result = cumulative_effects(snowshoe_io_with_direct_edge, form='signed')
+    expected = sp.Matrix([
+        [1, -1,  1, 2, -1],
+        [1,  1, -1, 0,  1],
+        [1,  1,  1, 0, -1],
+        [0,  0,  2, 2, -2],
+        [1,  1, -1, 0,  1]])
+    assert result == expected
+
+
+def test_cumulative_effects_form_binary_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    result = cumulative_effects(snowshoe_io_with_direct_edge, form='binary')
+    expected = sp.Matrix([
+        [1, 1, 1, 2, 1],
+        [1, 1, 1, 2, 1],
+        [1, 1, 1, 2, 1],
+        [2, 2, 2, 6, 2],
+        [1, 1, 1, 2, 1]])
+    assert result == expected
 
 # =============================================================================
 # absolute_effects
@@ -415,7 +435,7 @@ def test_get_simulations_rejects_invalid_presses_and_observations(snowshoe_io, k
 
 
 def test_get_simulations_rejects_no_state_nodes(io_only_graph):
-    with pytest.raises(ValueError, match="Direct input to output edge"):
+    with pytest.raises(ValueError, match="^Model needs state nodes$"):
         get_simulations(io_only_graph, n_sim=50, perturb=('I', 1), seed=42)
 
 
@@ -433,6 +453,29 @@ def test_get_simulations_presampled_draw_matches_response_blocks(snowshoe_io, sn
     expected = np.block([[inverse, inverse @ B], [C @ inverse, C @ inverse @ B + D]])
     result = get_simulations(snowshoe_io, n_sim=1, presample=lambda symbols: snowshoe_io_strengths)["effects"][0]
     assert np.allclose(result, expected, atol=1e-12)
+
+
+def test_get_simulations_presampled_draw_matches_response_blocks_with_direct_edges(snowshoe_io_with_direct_edge, snowshoe_io_strengths):
+    G = nx.DiGraph(snowshoe_io_with_direct_edge)
+    G.add_edge('Inp3', 'Out2', sign=-1)
+    G = define_input_output(G)
+    strengths = {**snowshoe_io_strengths, sp.Symbol('d_Out1,Inp1'): 0.9, sp.Symbol('d_Out2,Inp3'): 0.7}
+    A, B, C, D = (np.array(create_matrix(G, "symbolic", m).subs(strengths), dtype=float) for m in "ABCD")
+    inverse = np.linalg.inv(-A)
+    expected = np.block([[inverse, inverse @ B], [C @ inverse, C @ inverse @ B + D]])
+    result = get_simulations(G, n_sim=1, presample=lambda symbols: strengths)["effects"][0]
+    assert np.allclose(result, expected, atol=1e-12)
+    assert result[4, 5] == -0.7
+
+
+def test_get_simulations_samples_dashed_direct_edge(snowshoe_io_with_direct_edge):
+    G = nx.DiGraph(snowshoe_io_with_direct_edge)
+    G['Inp1']['Out1']['dashes'] = True
+    sims = get_simulations(G, n_sim=50, seed=1, return_samples=True)
+    result = (sims["interactions"], (sims["samples"]["d_Out1,Inp1"] > 0).tolist())
+    expected = ([[('Inp1', 'Out1')]], [code == 1 for code in sims["structures"]])
+    assert result == expected
+    assert 0 < sum(result[1]) < 50
 
 
 def test_get_simulations_simultaneous_presses_sum_signed_columns(snowshoe_io, snowshoe_io_strengths):
@@ -689,6 +732,12 @@ def test_table_of_direct_effects_shape(snowshoe_io):
     result = table_of_direct_effects(snowshoe_io)
     assert isinstance(result, pd.DataFrame)
     assert result.shape == (5, 5)
+
+
+def test_table_of_direct_effects_input_output_block_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    result = table_of_direct_effects(snowshoe_io_with_direct_edge).loc['Output', 'Input']
+    expected = pd.DataFrame([[1, 0], [0, 0]], index=['Out1', 'Out2'], columns=['Inp1', 'Inp2'], dtype=object)
+    assert result.equals(expected)
 
 
 # =============================================================================

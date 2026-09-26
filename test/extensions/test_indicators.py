@@ -39,6 +39,16 @@ def test_mutual_information_multiple_perturbations_mesocosm_alt_models(mesocosm_
     assert result.equals(expected)
 
 
+def test_mutual_information_direct_edge_snowshoe_io(snowshoe_io_with_direct_edge, snowshoe_io):
+    result = mutual_information([snowshoe_io_with_direct_edge, snowshoe_io], perturb='Inp1:+', n_sim=100, seed=42)
+    result['Mutual information'] = result['Mutual information'].round(6)
+    expected = pd.DataFrame({
+        'Node': ['Out1', 'C', 'Out2', 'P', 'R'],
+        'Mutual information': [0.089508, 0.00005, 0.00005, 0.00005, 0.0],
+    })
+    assert result.equals(expected)
+
+
 def test_mutual_information_include_null_mesocosm(mesocosm):
     result = mutual_information(mesocosm, perturb='P:+', n_sim=100, seed=42, include_null=True)
     result['Mutual information'] = result['Mutual information'].round(6)

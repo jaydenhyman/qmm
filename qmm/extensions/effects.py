@@ -8,7 +8,6 @@ import warnings
 import networkx as nx
 from ..core.helper import (
     _build_model_variant,
-    _check_direct_io_edges,
     _group_uncertain_edges,
     get_nodes,
     get_weight,
@@ -20,6 +19,7 @@ from ..core.helper import (
     _parse_observations,
     get_dashed_alternatives,
     _edge_prefix,
+    perm,
 )
 from ..core.structure import create_matrix, define_input_output
 from ..core.press import (
@@ -95,11 +95,12 @@ def cumulative_effects(
     """
     if form not in ("symbolic", "signed", "binary"):
         raise ValueError("Invalid form. Choose 'symbolic', 'signed', 'binary'.")
-    B = create_matrix(G, form=form, matrix_type="B")
-    C = create_matrix(G, form=form, matrix_type="C")
-    _check_direct_io_edges(G)
-    effects = absolute_feedback_matrix(G) if form == "binary" else adjoint_matrix(G, form=form)
-    cemat = sp.BlockMatrix([[effects, effects * B], [C * effects, C * effects * B]]).as_explicit()
+    A, B, C, D = (create_matrix(G, form=form, matrix_type=m) for m in "ABCD")
+    if form == "binary":
+        effects, system = absolute_feedback_matrix(G), perm(sp.matrix2numpy(A, dtype=int))
+    else:
+        effects, system = adjoint_matrix(G, form=form), (-A).det(method="berkowitz")
+    cemat = sp.BlockMatrix([[effects, effects * B], [C * effects, C * effects * B + D * system]]).as_explicit()
     if form != "symbolic":
         cemat = cemat.subs({sym: 1 for sym in cemat.free_symbols})
     return sp.expand(cemat)
@@ -364,6 +365,8 @@ def _simulate(
     fixed_fn = sp.lambdify(symbols_sampled, list(fixed_uncertain.values())) if fixed_uncertain else None
 
     state, inputs, outputs = (get_nodes(G, t) for t in ("state", "input", "output"))
+    if not state:
+        raise ValueError("Model needs state nodes")
     all_nodes = state + inputs + outputs
     n_x, n_u, n_y = len(state), len(inputs), len(outputs)
 

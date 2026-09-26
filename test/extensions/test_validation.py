@@ -338,6 +338,13 @@ def test_diagnose_observations_ranks_certain_press_first_fork(fork):
     assert all(abs(x - 0.5) <= 3 * (0.25 / 4000) ** 0.5 for x in df.loc[df['Input'] == 'A', 'Marginal likelihood'])
 
 
+def test_bayes_factors_direct_edge_snowshoe_io(snowshoe_io_with_direct_edge, snowshoe_io):
+    df = bayes_factors([snowshoe_io_with_direct_edge, snowshoe_io], perturb='Inp1:+', observe='Out1:+', n_sim=100, seed=42)
+    result = (df['Likelihood 1'][0], df['Likelihood 2'][0])
+    expected = (0.86, 0.47)
+    assert result == expected
+
+
 def test_bayes_factors_against_single_route_fork(fork):
     other = fork.copy()
     other.remove_edge('C', 'B')

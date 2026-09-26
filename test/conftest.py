@@ -435,6 +435,14 @@ def io_chain():
 
 
 @pytest.fixture
+def io_chain_with_direct_edge(io_chain):
+    """io_chain with a direct B->E edge from the input chain into the output chain."""
+    G = nx.DiGraph(io_chain)
+    G.add_edge('B', 'E', sign=-1)
+    return define_input_output(G)
+
+
+@pytest.fixture
 def keystone_predator():
     """Hosack et al. (2009) Fig. 2: two competing, self-regulated prey and a generalist predator."""
     A = [

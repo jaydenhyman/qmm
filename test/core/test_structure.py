@@ -225,8 +225,6 @@ def test_define_input_output_classifies_feedthrough(snowshoe_io_with_direct_edge
         "Inp1": "input", "Inp2": "input", "Out1": "output", "Out2": "output",
     }
     assert result == expected
-    with pytest.raises(ValueError, match="Direct input to output edge"):
-        create_matrix(graph, matrix_type="D")
 
 
 @pytest.mark.parametrize("nodes", ['A', 'AB', 'ABCD'])
@@ -379,6 +377,27 @@ def test_create_matrix_form_symbolic_matrix_D_snowshoe_io(snowshoe_io):
     expected = sp.Matrix([
         [0, 0],
         [0, 0]])
+    assert result == expected
+
+
+@pytest.mark.parametrize('form, expected', [
+    ('symbolic', sp.Matrix([[sp.Symbol('d_Out1,Inp1'), 0], [0, 0]])),
+    ('signed', sp.Matrix([[1, 0], [0, 0]])),
+    ('binary', sp.Matrix([[1, 0], [0, 0]])),
+])
+def test_create_matrix_matrix_D_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge, form, expected):
+    result = create_matrix(snowshoe_io_with_direct_edge, form=form, matrix_type='D')
+    assert result == expected
+
+
+def test_create_matrix_form_symbolic_matrix_D_io_chain_with_direct_edge(io_chain_with_direct_edge):
+    result = create_matrix(io_chain_with_direct_edge, form='symbolic', matrix_type='D')
+    b_BA = sp.Symbol('b_B,A')
+    d_EB = sp.Symbol('d_E,B')
+    c_FE = sp.Symbol('c_F,E')
+    expected = sp.Matrix([
+        [-b_BA * d_EB,        -d_EB],
+        [-b_BA * d_EB * c_FE, -d_EB * c_FE]])
     assert result == expected
 
 
@@ -562,6 +581,22 @@ def test_create_equations_form_output_snowshoe_io(snowshoe_io):
     c_Out2_C = sp.Symbol('c_Out2,C')
     expected = sp.Matrix([
         -c_Out1_C * x_C + c_Out1_P * x_P,
+        c_Out2_C * x_C
+    ])
+    assert result == expected
+
+
+def test_create_equations_form_output_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
+    result = create_equations(snowshoe_io_with_direct_edge, form='output')
+    x_C = sp.Symbol('x_C')
+    x_P = sp.Symbol('x_P')
+    u_Inp1 = sp.Symbol('u_Inp1')
+    c_Out1_C = sp.Symbol('c_Out1,C')
+    c_Out1_P = sp.Symbol('c_Out1,P')
+    c_Out2_C = sp.Symbol('c_Out2,C')
+    d_Out1_Inp1 = sp.Symbol('d_Out1,Inp1')
+    expected = sp.Matrix([
+        -c_Out1_C * x_C + c_Out1_P * x_P + d_Out1_Inp1 * u_Inp1,
         c_Out2_C * x_C
     ])
     assert result == expected

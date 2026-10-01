@@ -595,12 +595,14 @@ def _is_number(value: Any) -> bool:
 
 
 def _check_edge_priors(G: nx.DiGraph) -> None:
-    """Raise unless every edge prior (dist, range, inclusion) is well formed.
+    """Raise unless every edge prior (dist, range, inclusion, stronger_than) is well formed.
 
     dist is a distribution name or {"beta": [a, b]}; range is [low, high] with
     0 <= low <= high and scales the strength drawn from dist onto that interval;
-    inclusion is the probability that a dashed edge is present in a draw.
+    inclusion is the probability that a dashed edge is present in a draw;
+    stronger_than lists [from, to] edges whose strength must be smaller.
     """
+    _edge_orderings(G)
     for u, v, data in G.edges(data=True):
         edge = f"{u} -> {v}"
         if data.get("dist") is not None:
@@ -622,14 +624,53 @@ def _check_edge_priors(G: nx.DiGraph) -> None:
                 raise ValueError(f"Inclusion needs a dashed edge: {edge}")
 
 
+def _edge_orderings(G: nx.DiGraph) -> nx.DiGraph:
+    """Ordering graph with an arc from each edge to every edge it is stronger_than.
+
+    References are [from, to] pairs matched by node id as text, so ids read from JSON
+    as numbers still match. Raises on unknown edges, self references and cycles.
+    """
+    edges = {(str(u), str(v)): (u, v) for u, v in G.edges()}
+    order = nx.DiGraph()
+    for u, v, data in G.edges(data=True):
+        weaker = data.get("stronger_than")
+        if weaker is None:
+            continue
+        edge = f"{u} -> {v}"
+        if not isinstance(weaker, (list, tuple)) or not all(
+                isinstance(ref, (list, tuple)) and len(ref) == 2 for ref in weaker):
+            raise ValueError(f"Invalid stronger_than: {edge}. Use a list of [from, to] edges.")
+        for a, b in weaker:
+            target = edges.get((str(a), str(b)))
+            if target is None:
+                raise ValueError(f"Unknown edge in stronger_than: {edge} names {a} -> {b}")
+            if target == (u, v):
+                raise ValueError(f"Edge stronger than itself: {edge}")
+            order.add_edge((u, v), target)
+    if not nx.is_directed_acyclic_graph(order):
+        cycle = " > ".join(f"{u} -> {v}" for (u, v), _ in nx.find_cycle(order))
+        raise ValueError(f"Cyclic stronger_than: {cycle}")
+    return order
+
+
+MAX_ORDERING_DRAWS = 10000
+
+
 def _prior_sampler(G: nx.DiGraph, edges: List[Optional[Tuple[str, str]]], dist: Union[str, Dict[str, List[float]]]):
     """Sampler of strengths for edges[i] at position i, honouring each edge's dist and range.
 
     Returns None when no listed edge sets a prior, so callers draw from dist as before.
     Otherwise draw(rng) first draws every position from dist (the same draws as without
     priors), then redraws positions whose edge sets dist and rescales those with a range.
+    Edges linked by stronger_than are then redrawn together, each from its own prior,
+    until every ordering holds; orderings naming an edge outside edges are skipped.
     """
     _check_edge_priors(G)
+    position = {edge: i for i, edge in enumerate(edges) if edge is not None}
+    order = _edge_orderings(G).subgraph(position)
+    pairs = [(position[a], position[b]) for a, b in order.edges()]
+    components = [np.array(sorted(position[e] for e in c)) for c in nx.weakly_connected_components(order)
+                  if len(c) > 1]
     by_dist: Dict[str, Tuple[Any, List[int]]] = {}
     scaled, lows, spans = [], [], []
     for i, edge in enumerate(edges):
@@ -643,17 +684,38 @@ def _prior_sampler(G: nx.DiGraph, edges: List[Optional[Tuple[str, str]]], dist: 
             scaled.append(i)
             lows.append(float(low))
             spans.append(float(high) - float(low))
-    if not by_dist and not scaled:
+    if not by_dist and not scaled and not pairs:
         return None
     _random_sampler(dist, 0, np.random.RandomState(0))
     groups = [(edge_dist, np.array(idx)) for edge_dist, idx in by_dist.values()]
     scaled, lows, spans = np.array(scaled, dtype=int), np.array(lows), np.array(spans)
+    stronger, weaker = (np.array(side, dtype=int) for side in zip(*pairs)) if pairs else ((), ())
+    own_dist = {i: edge_dist for edge_dist, idx in groups for i in idx}
+    scale = {i: (low, span) for i, low, span in zip(scaled, lows, spans)}
+    redraws = []
+    for comp in components:
+        by = {}
+        for i in comp:
+            by.setdefault(repr(own_dist.get(i, dist)), (own_dist.get(i, dist), []))[1].append(i)
+        comp_scaled = [i for i in comp if i in scale]
+        redraws.append(([(d, np.array(idx)) for d, idx in by.values()], np.array(comp_scaled, dtype=int),
+                        np.array([scale[i][0] for i in comp_scaled]), np.array([scale[i][1] for i in comp_scaled])))
 
     def draw(rng: np.random.RandomState) -> np.ndarray:
         values = _random_sampler(dist, len(edges), rng)
         for edge_dist, idx in groups:
             values[idx] = _random_sampler(edge_dist, len(idx), rng)
         values[scaled] = lows + spans * values[scaled]
+        if pairs:
+            for _ in range(MAX_ORDERING_DRAWS):
+                if np.all(values[stronger] > values[weaker]):
+                    return values
+                for comp_groups, comp_scaled, comp_lows, comp_spans in redraws:
+                    for edge_dist, idx in comp_groups:
+                        values[idx] = _random_sampler(edge_dist, len(idx), rng)
+                    values[comp_scaled] = comp_lows + comp_spans * values[comp_scaled]
+            raise RuntimeError(f"No draw met the stronger_than orderings in {MAX_ORDERING_DRAWS} tries; "
+                               "check they are possible within the edge ranges.")
         return values
 
     return draw
@@ -686,9 +748,12 @@ def _build_model_variant(G: nx.DiGraph, interactions: List[List[Tuple[str, str]]
     """Copy of G keeping the uncertain interactions flagged present, with no dashed edges left."""
     H = nx.DiGraph(G)
     H.remove_edges_from([edge for keep, group in zip(present, interactions) if not keep for edge in group])
+    kept = {(str(u), str(v)) for u, v in H.edges()}
     for _, _, data in H.edges(data=True):
         data.pop("dashes", None)
         data.pop("inclusion", None)
+        if data.get("stronger_than") is not None:
+            data["stronger_than"] = [ref for ref in data["stronger_than"] if (str(ref[0]), str(ref[1])) in kept]
     return H
 
 

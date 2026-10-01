@@ -159,3 +159,79 @@ def test_import_keeps_valid_priors():
     G = import_digraph(model(dashes=True, inclusion=0.4, dist={"beta": [2, 2]}, range=[0.2, 0.9]))
     assert {k: G.edges["A", "B"][k] for k in ("dist", "range", "inclusion")} == {
         "dist": {"beta": [2, 2]}, "range": [0.2, 0.9], "inclusion": 0.4}
+
+
+def ordered():
+    G = snowshoe_rp()
+    G.edges["R", "C"]["stronger_than"] = [["C", "R"]]
+    G.edges["C", "R"]["stronger_than"] = [["P", "P"]]
+    return G
+
+
+def test_orderings_hold_in_every_draw():
+    s = get_simulations(ordered(), n_sim=2000, return_samples=True)["samples"]
+    assert np.all(s["a_C,R"] > s["a_R,C"]) and np.all(s["a_R,C"] > s["a_P,P"])
+    assert abs(s["a_C,R"].mean() - 0.75) < 0.03 and abs(s["a_P,P"].mean() - 0.25) < 0.03
+
+
+def test_orderings_respect_each_edges_own_prior():
+    G = ordered()
+    G.edges["C", "R"]["range"] = [0.4, 0.6]
+    G.edges["P", "P"]["dist"] = "weak"
+    draw = _prior_sampler(G, list(G.edges), "uniform")
+    edges = list(G.edges)
+    values = np.array([draw(np.random.RandomState(s)) for s in range(2000)])
+    a, b, c = (edges.index(e) for e in [("R", "C"), ("C", "R"), ("P", "P")])
+    assert np.all(values[:, a] > values[:, b]) and np.all(values[:, b] > values[:, c])
+    assert values[:, b].min() >= 0.4 and values[:, b].max() <= 0.6
+
+
+def test_orderings_apply_to_numerical_simulations_and_stability():
+    G = ordered()
+    for f in (lambda H: numerical_simulations(H, n_sim=300), lambda H: simulation_stability(H, n_sim=300)):
+        assert not f(G).equals(f(snowshoe_rp()))
+
+
+def test_impossible_ordering_fails_plainly():
+    G = ordered()
+    G.edges["R", "C"]["range"] = [0.1, 0.2]
+    G.edges["C", "R"]["range"] = [0.5, 0.6]
+    with pytest.raises(RuntimeError, match="stronger_than"):
+        get_simulations(G, n_sim=10)
+
+
+def test_ordering_on_a_dropped_dashed_edge_is_dropped_with_it():
+    G = with_dashed(0.5)
+    G.edges["R", "C"]["stronger_than"] = [["R", "P"]]
+    variants = get_dashed_alternatives(G)
+    assert [H.edges["R", "C"]["stronger_than"] for H in variants] == [[], [["R", "P"]]]
+    sims = get_simulations(G, n_sim=300, return_samples=True)
+    s = sims["samples"]
+    kept = np.array(sims["structures"]) == 1
+    assert np.all(s["a_C,R"][kept] > s["a_P,R"][kept])
+
+
+@pytest.mark.parametrize("weaker, message", [
+    ([["A", "C"]], "Unknown edge"),
+    ([["A", "B"]], "stronger than itself"),
+    ("B,A", "Invalid stronger_than"),
+    ([["B"]], "Invalid stronger_than"),
+])
+def test_import_rejects_invalid_orderings(weaker, message):
+    with pytest.raises(ValueError, match=message):
+        import_digraph(model(stronger_than=weaker))
+
+
+def test_import_rejects_cyclic_orderings():
+    raw = model(stronger_than=[["B", "A"]])
+    raw["edges"][2]["stronger_than"] = [["A", "B"]]
+    with pytest.raises(ValueError, match="Cyclic"):
+        import_digraph(raw)
+
+
+def test_orderings_match_numeric_json_ids():
+    raw = {"nodes": [{"id": 1}, {"id": 2}],
+           "edges": [{"from": 1, "to": 1, "sign": -1}, {"from": 2, "to": 2, "sign": -1},
+                     {"from": 2, "to": 1, "sign": -1}, {"from": 1, "to": 2, "sign": 1, "stronger_than": [[2, 1]]}]}
+    s = get_simulations(import_digraph(raw), n_sim=200, return_samples=True)["samples"]
+    assert np.all(s["a_2,1"] > s["a_1,2"])

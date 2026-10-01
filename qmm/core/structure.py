@@ -103,7 +103,7 @@ def export_digraph(G: nx.DiGraph, path: Union[str, None] = None) -> dict:
     """Convert a signed digraph to a digraph-builder JSON model, optionally writing it to a file.
 
     Graph attributes become top-level keys (such as meta), node and edge attributes are
-    kept under the same names, so edge priors (dist, range, inclusion) read back from the
+    kept under the same names, so edge priors (dist, range, inclusion, stronger_than) read back from the
     file unchanged. Each edge gets the sign as both a number and an arrow type, so the
     builder, import_digraph and earlier readers agree. Attributes that import adds or
     derives (a None title, dashes=False, the node category) are left out.

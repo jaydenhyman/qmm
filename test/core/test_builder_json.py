@@ -100,9 +100,10 @@ def test_builder_saved_export_imports_with_its_priors():
     G = nx.DiGraph(load_digraph("snowshoe_io"))
     assert sorted(H.edges(data="sign")) == sorted(list(G.edges(data="sign")) + [("P", "R", -1), ("R", "P", 1)])
     assert {n: d["category"] for n, d in H.nodes(data=True)} == dict(G.nodes(data="category"))
-    priors = {(u, v): {k: d[k] for k in ("dist", "range", "inclusion") if k in d} for u, v, d in H.edges(data=True)}
+    priors = {(u, v): {k: d[k] for k in ("dist", "range", "inclusion", "stronger_than") if k in d}
+              for u, v, d in H.edges(data=True)}
     assert {e: p for e, p in priors.items() if p} == {
-        ("R", "C"): {"range": [0.67, 1]},
+        ("R", "C"): {"range": [0.67, 1], "stronger_than": [["C", "R"], ["Inp1", "C"]]},
         ("C", "R"): {"dist": "weak"},
         ("P", "C"): {"dist": {"beta": [2, 5]}},
         ("Inp1", "R"): {"range": [0.5, 0.5]},
@@ -111,6 +112,8 @@ def test_builder_saved_export_imports_with_its_priors():
     }
     sims = get_simulations(H, n_sim=200, perturb=("Inp1", 1), return_samples=True)
     assert np.all(sims["samples"]["b_R,Inp1"] == 0.5)
+    assert np.all(sims["samples"]["a_C,R"] > sims["samples"]["a_R,C"])
+    assert np.all(sims["samples"]["a_C,R"] > sims["samples"]["b_C,Inp1"])
 
 
 def test_builder_saved_export_survives_another_round_trip():

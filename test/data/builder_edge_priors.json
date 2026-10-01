@@ -87,6 +87,16 @@
       ],
       "roundness": 0,
       "loopAngle": 0.7853981633974483,
+      "stronger_than": [
+        [
+          "C",
+          "R"
+        ],
+        [
+          "Inp1",
+          "C"
+        ]
+      ],
       "smooth": {
         "type": "straight",
         "roundness": 0

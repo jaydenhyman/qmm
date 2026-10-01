@@ -260,7 +260,8 @@ def get_simulations(
         dist: Distribution of interaction strengths for edges without their own dist.
             Edge attributes set per-edge priors: dist (a name or {"beta": [a, b]}),
             range ([low, high], onto which the drawn strength is rescaled) and, on
-            dashed edges, inclusion (the probability the edge is present).
+            dashed edges, inclusion (the probability the edge is present). stronger_than
+            lists [from, to] edges whose strength must be smaller in every draw.
         seed: Random seed.
         perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
         observe: Optional (node, sign) pairs; signs are -1, 0 or 1. Zero matches only an exact

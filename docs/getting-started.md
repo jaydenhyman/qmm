@@ -136,6 +136,29 @@ G.add_edge("P", "C", sign=-1)  # P decreases C
 G.add_edge("P", "P", sign=-1)  # P self-regulation
 ```
 
+### Edge priors
+
+Interaction-strength priors live on the edges, so the same model works in NetworkX and in Digraph Builder JSON:
+
+```python
+G = nx.DiGraph(qmm.load_digraph("snowshoe_rp"))
+G.edges["R", "C"]["range"] = [0.67, 1]           # strength drawn from dist, rescaled onto [0.67, 1]
+G.edges["C", "R"]["dist"] = "strong"             # or {"beta": [a, b]}
+G.edges["P", "P"]["range"] = [0.5, 0.5]          # fixed strength
+G.add_edge("P", "R", sign=-1, dashes=True, inclusion=0.2)  # present in 20% of draws
+
+qmm.simulation_effects(G)
+```
+
+Edges without `dist` use the function's `dist` argument. `inclusion` is used wherever dashed edges are sampled (`get_simulations` and the functions built on it) and needs `uncertain_interactions="sample"`; `numerical_simulations` and `simulation_stability` treat dashed edges as present, as before.
+
+### Writing Digraph Builder JSON
+
+```python
+qmm.export_digraph(G, "model.json")   # open in Digraph Builder
+G = qmm.import_digraph("model.json")  # attributes come back unchanged
+```
+
 ## Next Steps
 
 - Explore the [API Reference](reference.md) for all available functions

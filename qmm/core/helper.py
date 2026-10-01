@@ -540,7 +540,10 @@ def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> U
     return result[::-1].tolist() if levels else result
 
 
-def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "uniform_two_oom"], size: int, rng: Optional[np.random.RandomState] = None) -> np.ndarray:
+DISTRIBUTIONS = ("uniform", "weak", "moderate", "strong", "uniform_two_oom")
+
+
+def _random_sampler(dist: Union[str, Dict[str, List[float]]], size: int, rng: Optional[np.random.RandomState] = None) -> np.ndarray:
     """Sample random interaction strengths from a specified distribution.
 
     Used for numerical simulations where interaction strengths are drawn from
@@ -554,6 +557,7 @@ def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "unif
             - "moderate": Beta(2, 2) - moderate interactions predominate
             - "strong": Beta(3, 1) - strong interactions predominate
             - "uniform_two_oom": Uniform(0.01, 1)
+            - {"beta": [a, b]}: Beta(a, b) with positive shapes
         size: Number of samples to draw
         rng: NumPy RandomState for reproducible draws (a fresh one is used if None)
 
@@ -565,14 +569,106 @@ def _random_sampler(dist: Literal["uniform", "weak", "moderate", "strong", "unif
     """
     if rng is None:
         rng = np.random.RandomState()
+    if isinstance(dist, dict):
+        return rng.beta(*_beta_shapes(dist), size)
     if dist == "uniform_two_oom":
         return rng.uniform(0.01, 1.0, size)
     if dist == "uniform":
         return rng.uniform(0, 1, size)
     shapes = {"weak": (1, 3), "moderate": (2, 2), "strong": (3, 1)}
     if dist not in shapes:
-        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: ['moderate', 'strong', 'uniform', 'weak'] or 'uniform_two_oom'.")
+        raise ValueError(f"Invalid distribution '{dist}'. Must be one of: ['moderate', 'strong', 'uniform', 'weak'], 'uniform_two_oom' or {{'beta': [a, b]}}.")
     return rng.beta(*shapes[dist], size)
+
+
+def _beta_shapes(dist: Dict[str, List[float]]) -> Tuple[float, float]:
+    """Positive (a, b) from a {"beta": [a, b]} distribution."""
+    shapes = dist.get("beta") if set(dist) == {"beta"} else None
+    if (not isinstance(shapes, (list, tuple)) or len(shapes) != 2
+            or not all(_is_number(x) and np.isfinite(x) and x > 0 for x in shapes)):
+        raise ValueError(f"Invalid distribution {dist}. Use {{'beta': [a, b]}} with positive a and b.")
+    return float(shapes[0]), float(shapes[1])
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float, np.integer, np.floating)) and not isinstance(value, (bool, np.bool_))
+
+
+def _check_edge_priors(G: nx.DiGraph) -> None:
+    """Raise unless every edge prior (dist, range, inclusion) is well formed.
+
+    dist is a distribution name or {"beta": [a, b]}; range is [low, high] with
+    0 <= low <= high and scales the strength drawn from dist onto that interval;
+    inclusion is the probability that a dashed edge is present in a draw.
+    """
+    for u, v, data in G.edges(data=True):
+        edge = f"{u} -> {v}"
+        if data.get("dist") is not None:
+            try:
+                _random_sampler(data["dist"], 0, np.random.RandomState(0))
+            except (ValueError, TypeError):
+                raise ValueError(f"Invalid dist: {edge}") from None
+        bounds = data.get("range")
+        if bounds is not None and not (
+                isinstance(bounds, (list, tuple)) and len(bounds) == 2
+                and all(_is_number(x) and np.isfinite(x) for x in bounds)
+                and 0 <= bounds[0] <= bounds[1]):
+            raise ValueError(f"Invalid range: {edge}. Use [low, high] with 0 <= low <= high.")
+        inclusion = data.get("inclusion")
+        if inclusion is not None:
+            if not (_is_number(inclusion) and 0 <= inclusion <= 1):
+                raise ValueError(f"Invalid inclusion: {edge}. Use a probability from 0 to 1.")
+            if not data.get("dashes", False):
+                raise ValueError(f"Inclusion needs a dashed edge: {edge}")
+
+
+def _prior_sampler(G: nx.DiGraph, edges: List[Optional[Tuple[str, str]]], dist: Union[str, Dict[str, List[float]]]):
+    """Sampler of strengths for edges[i] at position i, honouring each edge's dist and range.
+
+    Returns None when no listed edge sets a prior, so callers draw from dist as before.
+    Otherwise draw(rng) first draws every position from dist (the same draws as without
+    priors), then redraws positions whose edge sets dist and rescales those with a range.
+    """
+    _check_edge_priors(G)
+    by_dist: Dict[str, Tuple[Any, List[int]]] = {}
+    scaled, lows, spans = [], [], []
+    for i, edge in enumerate(edges):
+        if edge is None:
+            continue
+        data = G.edges[edge]
+        if data.get("dist") is not None:
+            by_dist.setdefault(repr(data["dist"]), (data["dist"], []))[1].append(i)
+        if data.get("range") is not None:
+            low, high = data["range"]
+            scaled.append(i)
+            lows.append(float(low))
+            spans.append(float(high) - float(low))
+    if not by_dist and not scaled:
+        return None
+    _random_sampler(dist, 0, np.random.RandomState(0))
+    groups = [(edge_dist, np.array(idx)) for edge_dist, idx in by_dist.values()]
+    scaled, lows, spans = np.array(scaled, dtype=int), np.array(lows), np.array(spans)
+
+    def draw(rng: np.random.RandomState) -> np.ndarray:
+        values = _random_sampler(dist, len(edges), rng)
+        for edge_dist, idx in groups:
+            values[idx] = _random_sampler(edge_dist, len(idx), rng)
+        values[scaled] = lows + spans * values[scaled]
+        return values
+
+    return draw
+
+
+def _inclusion_probabilities(G: nx.DiGraph, interactions: List[List[Tuple[str, str]]]) -> np.ndarray:
+    """Fixed inclusion probability per uncertain interaction, NaN where none is set."""
+    probabilities = np.full(len(interactions), np.nan)
+    for i, group in enumerate(interactions):
+        values = {G.edges[edge].get("inclusion") for edge in group}
+        if len(values) > 1:
+            raise ValueError(f"Reciprocal uncertain edges need the same inclusion: {group}")
+        if None not in values:
+            probabilities[i] = float(values.pop())
+    return probabilities
 
 
 def _group_uncertain_edges(G: nx.DiGraph, pair_reciprocal: bool = True) -> List[List[Tuple[str, str]]]:
@@ -592,6 +688,7 @@ def _build_model_variant(G: nx.DiGraph, interactions: List[List[Tuple[str, str]]
     H.remove_edges_from([edge for keep, group in zip(present, interactions) if not keep for edge in group])
     for _, _, data in H.edges(data=True):
         data.pop("dashes", None)
+        data.pop("inclusion", None)
     return H
 
 

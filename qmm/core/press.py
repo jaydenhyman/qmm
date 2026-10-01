@@ -8,6 +8,7 @@ from .helper import (
     get_nodes,
     sign_determinacy,
     _random_sampler,
+    _prior_sampler,
     perm,
 )
 
@@ -230,7 +231,8 @@ def numerical_simulations(
     Args:
         G: NetworkX DiGraph representing signed digraph model
         n_sim: Nonnegative integer number of simulations
-        dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong')
+        dist: Distribution for sampling ('uniform', 'weak', 'moderate', 'strong') for edges
+            without their own dist; edge dist and range attributes set per-edge priors
         seed: Random seed
         mode: Response summary: 'dominant' (signed proportion of the dominant sign),
             'absolute' (unsigned proportion of the dominant sign), 'positive'
@@ -285,6 +287,8 @@ def numerical_simulations(
     n = len(state_nodes)
     symbols = sorted(list(A.free_symbols), key=str)
     A_sp = sp.lambdify(symbols, A)
+    edge_of = {sp.Symbol(f"a_{v},{u}"): (u, v) for u, v in G.edges()}
+    draw_prior = _prior_sampler(G, [edge_of.get(sym) for sym in symbols], dist)
     positive = np.zeros((n, n), dtype=int)
     negative = np.zeros((n, n), dtype=int)
     total_simulations = 0
@@ -295,7 +299,7 @@ def numerical_simulations(
     attempts, max_attempts = 0, n_sim * 100
     while total_simulations < n_sim and attempts < max_attempts:
         attempts += 1
-        values = _random_sampler(dist, len(symbols), rng)
+        values = draw_prior(rng) if draw_prior else _random_sampler(dist, len(symbols), rng)
         sim_A = np.asarray(A_sp(*values), dtype=float).reshape(n, n)
         if np.all(np.real(np.linalg.eigvals(sim_A)) < 0):
             try:

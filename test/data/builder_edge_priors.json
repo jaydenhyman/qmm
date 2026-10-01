@@ -1,0 +1,323 @@
+{
+  "nodes": [
+    {
+      "id": "R",
+      "label": "Resource",
+      "shape": "dot",
+      "x": 210,
+      "y": 0
+    },
+    {
+      "id": "C",
+      "label": "Consumer",
+      "shape": "dot",
+      "x": 131,
+      "y": 164
+    },
+    {
+      "id": "P",
+      "label": "Predator",
+      "shape": "dot",
+      "x": -47,
+      "y": 205
+    },
+    {
+      "id": "Inp1",
+      "label": "Inp1",
+      "shape": "dot",
+      "x": -189,
+      "y": 91
+    },
+    {
+      "id": "Inp2",
+      "label": "Inp2",
+      "shape": "dot",
+      "x": -189,
+      "y": -91
+    },
+    {
+      "id": "Out1",
+      "label": "Out1",
+      "shape": "dot",
+      "x": -47,
+      "y": -205
+    },
+    {
+      "id": "Out2",
+      "label": "Out2",
+      "shape": "dot",
+      "x": 131,
+      "y": -164
+    }
+  ],
+  "edges": [
+    {
+      "id": 1,
+      "from": "R",
+      "to": "R",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      },
+      "selfReference": {
+        "angle": 0.7853981633974483
+      }
+    },
+    {
+      "id": 2,
+      "from": "R",
+      "to": "C",
+      "sign": 1,
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "range": [
+        0.67,
+        1
+      ],
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 3,
+      "from": "R",
+      "to": "P",
+      "sign": 1,
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "dashes": true,
+      "inclusion": 0.25,
+      "title": "Uncertain omnivory",
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 4,
+      "from": "C",
+      "to": "R",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "dist": "weak",
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 5,
+      "from": "C",
+      "to": "P",
+      "sign": 1,
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 6,
+      "from": "C",
+      "to": "Out1",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 7,
+      "from": "C",
+      "to": "Out2",
+      "sign": 1,
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 8,
+      "from": "P",
+      "to": "C",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "dist": {
+        "beta": [
+          2,
+          5
+        ]
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 9,
+      "from": "P",
+      "to": "P",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      },
+      "selfReference": {
+        "angle": 0.7853981633974483
+      }
+    },
+    {
+      "id": 10,
+      "from": "P",
+      "to": "Out1",
+      "sign": 1,
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 11,
+      "from": "P",
+      "to": "R",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "dashes": true,
+      "inclusion": 0.25,
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 12,
+      "from": "Inp1",
+      "to": "R",
+      "sign": 1,
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "range": [
+        0.5,
+        0.5
+      ],
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 13,
+      "from": "Inp1",
+      "to": "C",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    },
+    {
+      "id": 14,
+      "from": "Inp2",
+      "to": "P",
+      "sign": -1,
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "roundness": 0,
+      "loopAngle": 0.7853981633974483,
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      }
+    }
+  ],
+  "meta": {
+    "title": "Snowshoe with edge priors",
+    "description": "qmm export saved by digraph-builder; see test/core/test_builder_json.py"
+  }
+}

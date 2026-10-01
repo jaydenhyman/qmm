@@ -6,7 +6,7 @@ import networkx as nx
 import sympy as sp
 from functools import cache
 from .structure import create_matrix
-from .helper import get_positive, get_negative, get_weight, get_nodes, perm, _random_sampler
+from .helper import get_positive, get_negative, get_weight, get_nodes, perm, _random_sampler, _prior_sampler
 from typing import Optional, Literal
 from networkx.algorithms import bipartite
 
@@ -600,6 +600,7 @@ def simulation_stability(
             - "moderate": Beta(2, 2) - moderate interactions predominate
             - "strong": Beta(3, 1) - strong interactions predominate
             - "uniform_two_oom": Uniform(0.01, 1)
+            Edge dist and range attributes override it per edge.
         seed: Random seed
         presample: Optional finite nonnegative strengths of shape (n_sim, n, n)
             instead of random sampling. Axes are simulation, affected state and
@@ -638,6 +639,10 @@ def simulation_stability(
             raise ValueError("presample must contain finite nonnegative strengths")
 
     rng = np.random.RandomState(seed)
+    state = get_nodes(G, "state")
+    draw_prior = None if presample is not None else _prior_sampler(
+        G, [(source, target) if G.has_edge(source, target) else None
+            for target in state for source in state], dist)
     n_stable = 0
     n_unstable = 0
     n_hurwitz_i_fail = 0
@@ -649,7 +654,7 @@ def simulation_stability(
         if presample is not None:
             M = presample[i]
         else:
-            M = _random_sampler(dist, A.size, rng).reshape(A.shape)
+            M = (draw_prior(rng) if draw_prior else _random_sampler(dist, A.size, rng)).reshape(A.shape)
         S = A * M
         if np.all(np.real(np.linalg.eigvals(S)) < 0):
             n_stable += 1

@@ -7,7 +7,8 @@ from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
 import sympy as sp
-from .helper import get_nodes, _edge_prefix, _check_direct_io_edges, _check_signs
+import numpy as np
+from .helper import get_nodes, _edge_prefix, _check_direct_io_edges, _check_signs, _check_edge_priors
 
 
 def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
@@ -85,6 +86,82 @@ def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
     return define_input_output(G)
 
 
+def _jsonable(value):
+    """Plain JSON value: tuples become lists and NumPy scalars or arrays become Python values."""
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, Mapping):
+        return {str(k): _jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(v) for v in value]
+    return value
+
+
+def export_digraph(G: nx.DiGraph, path: Union[str, None] = None) -> dict:
+    """Convert a signed digraph to a digraph-builder JSON model, optionally writing it to a file.
+
+    Graph attributes become top-level keys (such as meta), node and edge attributes are
+    kept under the same names, so edge priors (dist, range, inclusion) read back from the
+    file unchanged. Each edge gets the sign as both a number and an arrow type, so the
+    builder, import_digraph and earlier readers agree. Attributes that import adds or
+    derives (a None title, dashes=False, the node category) are left out.
+
+    Args:
+        G: NetworkX DiGraph with sign attributes on edges
+        path: Optional file path; the model is written there as JSON
+
+    Returns:
+        dict: Model with nodes, edges and the graph's attributes
+
+    Examples:
+        ```python
+        from qmm import load_digraph, export_digraph, import_digraph
+        model = export_digraph(load_digraph("snowshoe"))
+        model["edges"][1]
+        # {'id': 2, 'from': 'R', 'to': 'C', 'sign': 1, 'arrows': {'to': {'type': 'triangle'}}}
+
+        sorted(import_digraph(model).edges(data='sign')) == sorted(load_digraph("snowshoe").edges(data='sign'))
+        # True
+        ```
+    """
+    if not isinstance(G, nx.DiGraph):
+        raise TypeError("Input must be a networkx.DiGraph.")
+    _check_signs(G)
+    _check_edge_priors(G)
+
+    def keep(data, dropped):
+        return {k: _jsonable(v) for k, v in data.items() if k not in dropped and not (k == "title" and v is None)}
+
+    model = keep(G.graph, ("nodes", "edges"))
+    ids = {n: n if isinstance(n, (str, int)) and not isinstance(n, bool) else str(n) for n in G}
+    model["nodes"] = [{"id": ids[n], **keep(data, ("id", "category"))} for n, data in G.nodes(data=True)]
+    used = {data["id"] for _, _, data in G.edges(data=True) if data.get("id") is not None}
+    next_id = 1 + max((i for i in used if isinstance(i, int) and not isinstance(i, bool)), default=0)
+    edges = []
+    for u, v, data in G.edges(data=True):
+        att = keep(data, ("id", "from", "to", "sign", "arrows"))
+        if att.get("dashes") is False:
+            del att["dashes"]
+        sign = int(data.get("sign", 1))
+        arrows = _jsonable(data.get("arrows")) if isinstance(data.get("arrows"), Mapping) else {}
+        arrows["to"] = {**(arrows.get("to") or {}), "type": "triangle" if sign == 1 else "circle"}
+        edge_id = data.get("id")
+        if edge_id is None:
+            while next_id in used:
+                next_id += 1
+            edge_id = next_id
+            used.add(edge_id)
+        edges.append({"id": _jsonable(edge_id), "from": ids[u], "to": ids[v], "sign": sign, "arrows": arrows, **att})
+    model["edges"] = edges
+    if path is not None:
+        with open(path, "w") as file:
+            json.dump(model, file, indent=2)
+            file.write("\n")
+    return model
+
+
 def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.DiGraph:
     """Classify nodes as state, input or output from topology (any pre-set category is overwritten).
 
@@ -114,6 +191,7 @@ def define_input_output(G: nx.DiGraph, remove_disconnected: bool = False) -> nx.
     if not isinstance(G, nx.DiGraph):
         raise TypeError("Input must be a networkx.DiGraph.")
     _check_signs(G)
+    _check_edge_priors(G)
     G_def = G.copy()
     if remove_disconnected:
         largest = max(nx.weakly_connected_components(G_def), key=len, default=set())

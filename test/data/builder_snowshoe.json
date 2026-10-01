@@ -1,0 +1,190 @@
+{
+  "nodes": [
+    {
+      "id": "V",
+      "label": "Vegetation",
+      "shape": "ellipse",
+      "x": -350,
+      "y": -300,
+      "width": 120,
+      "height": 55,
+      "labelHighlightBold": false,
+      "size": 25,
+      "font": {
+        "vadjust": 8,
+        "strokeWidth": 5,
+        "strokeColor": "white"
+      },
+      "widthConstraint": null,
+      "heightConstraint": null,
+      "color": "white",
+      "title": "Edible grasses and other vegetation"
+    },
+    {
+      "id": "H",
+      "label": "Herbivore",
+      "shape": "ellipse",
+      "x": -150,
+      "y": -300,
+      "width": 120,
+      "height": 55,
+      "labelHighlightBold": false,
+      "size": 25,
+      "font": {
+        "vadjust": 8,
+        "strokeWidth": 5,
+        "strokeColor": "white"
+      },
+      "widthConstraint": null,
+      "heightConstraint": null,
+      "color": "white",
+      "title": "Snowshoe hare (Lepus americanus)"
+    },
+    {
+      "id": "P",
+      "label": "Predator",
+      "shape": "ellipse",
+      "x": 50,
+      "y": -300,
+      "width": 120,
+      "height": 55,
+      "labelHighlightBold": false,
+      "size": 25,
+      "font": {
+        "vadjust": 8,
+        "strokeWidth": 5,
+        "strokeColor": "white"
+      },
+      "widthConstraint": null,
+      "heightConstraint": null,
+      "color": "white",
+      "title": "Lynx (Lynx canadens)"
+    }
+  ],
+  "edges": [
+    {
+      "id": 5,
+      "from": "V",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCW",
+        "roundness": 0.27
+      },
+      "dashes": true,
+      "title": "Increased predation efficiency from vegetation cover (uncertain)"
+    },
+    {
+      "id": 7,
+      "from": "V",
+      "to": "V",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      },
+      "selfReference": {
+        "angle": 2.443460952792061
+      },
+      "title": "Self-regulation (nutrient availability)"
+    },
+    {
+      "id": 8,
+      "from": "P",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "straight",
+        "roundness": 0
+      },
+      "title": "Intraspecific competition",
+      "selfReference": {
+        "angle": 0.6981317007977318
+      }
+    },
+    {
+      "id": 9,
+      "from": "V",
+      "to": "H",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCW",
+        "roundness": 0.08
+      },
+      "offset": 7,
+      "title": "Consumption of plant material (herbivory)"
+    },
+    {
+      "id": 10,
+      "from": "H",
+      "to": "V",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCW",
+        "roundness": 0.08
+      },
+      "offset": 7,
+      "title": "Grazing of vegetation"
+    },
+    {
+      "id": 11,
+      "from": "H",
+      "to": "P",
+      "arrows": {
+        "to": {
+          "type": "triangle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCW",
+        "roundness": 0.08
+      },
+      "offset": 7,
+      "title": "Nutrition from predation (carnivory)"
+    },
+    {
+      "id": 12,
+      "from": "P",
+      "to": "H",
+      "arrows": {
+        "to": {
+          "type": "circle"
+        }
+      },
+      "smooth": {
+        "type": "curvedCW",
+        "roundness": 0.08
+      },
+      "offset": 7,
+      "title": "Predation mortality"
+    }
+  ],
+  "meta": {
+    "title": "Snowshoe hare dynamics in boreal forests",
+    "description": "Model B from Dambacher, J.M., Li, H.W., Wolff, J.O., Rossignol, P.A., 1999. Parsimonious Interpretation of the Impact of Vegetation, Food, and Predation on Snowshoe Hare. Oikos 84, 530. https://doi.org/10.2307/3546432",
+    "version": "1",
+    "authors": "Jayden Hyman",
+    "date_created": "17 December 2025",
+    "last_modified": "17 December 2025"
+  }
+}

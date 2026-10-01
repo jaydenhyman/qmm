@@ -3,6 +3,7 @@
 from .structure import (
     define_input_output,
     import_digraph,
+    export_digraph,
     nodes_table,
     edges_table,
     create_matrix,
@@ -54,6 +55,7 @@ __all__ = [
     # structure.py
     "define_input_output",
     "import_digraph",
+    "export_digraph",
     "nodes_table",
     "edges_table",
     "create_matrix",

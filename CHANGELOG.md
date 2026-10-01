@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Edge priors are edge attributes, read from and written to digraph-builder JSON under the same names. `dist` sets an edge's strength distribution (a name or `{"beta": [a, b]}`), `range` rescales the drawn strength onto `[low, high]` (equal bounds fix it), and `inclusion` on a dashed edge sets the probability it is present in a draw. `get_simulations` and everything built on it, `numerical_simulations` and `simulation_stability` honour them; the `dist` argument is the default for edges without their own.
+- Models without edge priors draw exactly as before. Dashed edges without `inclusion` keep the shared per-draw probability, and `numerical_simulations` and `simulation_stability` still treat dashed edges as present; reciprocal dashed pairs need the same `inclusion`, and `uncertain_interactions="enumerate"` refuses models that set it.
+- `import_digraph` and `define_input_output` reject malformed priors, including `inclusion` on a solid edge.
+- `export_digraph` writes a NetworkX digraph as digraph-builder JSON (optionally to a file), keeping graph, node and edge attributes, the sign as a number and an arrow, and existing edge ids.
+
 ## 0.6.0
 
 Changes since 0.5.0:

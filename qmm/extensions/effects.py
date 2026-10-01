@@ -16,6 +16,8 @@ from ..core.helper import (
     get_negative,
     sign_determinacy,
     _random_sampler,
+    _prior_sampler,
+    _inclusion_probabilities,
     _parse_perturbations,
     _parse_observations,
     get_dashed_alternatives,
@@ -255,7 +257,10 @@ def get_simulations(
     Args:
         G: Signed digraph with state, input and output categories.
         n_sim: Target stable draws per batch; observation matches when condition=True.
-        dist: Distribution of interaction strengths.
+        dist: Distribution of interaction strengths for edges without their own dist.
+            Edge attributes set per-edge priors: dist (a name or {"beta": [a, b]}),
+            range ([low, high], onto which the drawn strength is rescaled) and, on
+            dashed edges, inclusion (the probability the edge is present).
         seed: Random seed.
         perturb: One (node, sign) pair or a tuple of pairs for simultaneous unit presses.
         observe: Optional (node, sign) pairs; signs are -1, 0 or 1. Zero matches only an exact
@@ -263,7 +268,8 @@ def get_simulations(
         presample: Callable receiving coefficient symbols and returning substitutions.
         return_samples: Include coefficient strengths for each stable draw.
         uncertain_interactions: 'sample' draws a probability uniformly from 0 to 1 for each attempt,
-            then keeps each uncertain interaction independently with that probability.
+            then keeps each uncertain interaction independently with that probability, or with
+            its edges' inclusion probability when set. Inclusion requires 'sample'.
             'enumerate' visits every combination and collects n_sim draws for each.
         pair_reciprocal: Keep or drop reciprocal dashed edges together.
         max_attempts: Maximum draws attempted per batch; defaults to 100 * n_sim.
@@ -346,6 +352,9 @@ def _simulate(
     if uncertain_interactions not in ("sample", "enumerate"):
         raise ValueError("uncertain_interactions must be 'sample' or 'enumerate'.")
     interactions = _group_uncertain_edges(G, pair_reciprocal)
+    inclusion = _inclusion_probabilities(G, interactions)
+    if uncertain_interactions == "enumerate" and not np.isnan(inclusion).all():
+        raise ValueError("Edge inclusion probabilities need uncertain_interactions='sample'.")
     uncertain_symbols = {sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}") for group in interactions for u, v in group}
     matrix_subs = {}
 
@@ -362,6 +371,8 @@ def _simulate(
                                    {s for expr in fixed_uncertain.values() for s in expr.free_symbols}, key=str))
     fixed_indices = [symbols_sampled.index(sym) for sym in fixed_uncertain]
     fixed_fn = sp.lambdify(symbols_sampled, list(fixed_uncertain.values())) if fixed_uncertain else None
+    edge_of = {sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}"): (u, v) for u, v in G.edges()}
+    draw_prior = _prior_sampler(G, [edge_of.get(sym) for sym in symbols_sampled], dist)
 
     state, inputs, outputs = (get_nodes(G, t) for t in ("state", "input", "output"))
     all_nodes = state + inputs + outputs
@@ -458,11 +469,15 @@ def _simulate(
         while drawn < n_sim and attempts < max_attempts:
             attempts += 1
             sampled_structure = present
-            values = _random_sampler(dist, len(symbols_sampled), rng)
+            values = draw_prior(rng) if draw_prior else _random_sampler(dist, len(symbols_sampled), rng)
             if fixed_fn:
                 values[fixed_indices] = fixed_fn(*values)
             if sampled_structure is None:
-                sampled_structure = tuple(rng.uniform(size=len(interactions)) < rng.uniform()) if interactions else ()
+                if interactions:
+                    draws, shared = rng.uniform(size=len(interactions)), rng.uniform()
+                    sampled_structure = tuple(draws < np.where(np.isnan(inclusion), shared, inclusion))
+                else:
+                    sampled_structure = ()
             code, mask = get_zero_effect_mask(sampled_structure)
             values[[i for keep, idx in zip(sampled_structure, group_idx) if not keep for i in idx]] = 0.0
             effect = evaluate_sample(values, mask)

@@ -1,6 +1,7 @@
 from .core.structure import (
     define_input_output,
     import_digraph,
+    export_digraph,
     nodes_table,
     edges_table,
     create_matrix,
@@ -116,6 +117,7 @@ def configure_pandas_display(max_columns=None, max_rows=None, max_colwidth=None,
 __all__ = [
     "define_input_output",
     "import_digraph",
+    "export_digraph",
     "nodes_table",
     "edges_table",
     "create_matrix",

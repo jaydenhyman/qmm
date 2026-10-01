@@ -429,6 +429,10 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     )
     return paths_df
 
+_PATHWAY_COLUMNS = ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Mean", "Standard deviation",
+                    "5th percentile", "Lower quartile", "Median", "Upper quartile", "95th percentile", "Dominant", "Undefined"]
+_DRAW_COLUMNS = ["Draw", "Structure", "Path", "Present", "Effect", "Share"]
+
 def _simulate_pathway_effects(
     G: nx.DiGraph,
     source: str,
@@ -510,6 +514,7 @@ def pathway_effects(
     pair_reciprocal: bool = True,
     observe: str = "",
     sims: Optional[dict] = None,
+    draws: bool = False,
 ) -> pd.DataFrame:
     """Simulate the effect transmitted along each causal pathway from source to target.
 
@@ -527,11 +532,20 @@ def pathway_effects(
             pressing only source or nothing, used instead of new simulations; n_sim, dist, seed,
             uncertain_interactions and pair_reciprocal are then ignored, and observe keeps the
             draws whose responses match.
+        draws: Return one row per draw and path instead of the summary table.
 
     Returns:
-        pd.DataFrame: Pathway length, sign, share of draws containing every link of the path,
-        sign frequencies, and the 5th, 25th, 50th, 75th and 95th percentiles of the path's
-        share of the total absolute pathway effect, sorted by the median
+        pd.DataFrame: The summary table by default. A path's share in a draw is its effect
+        divided by the sum of the absolute effects of every path, so it carries the path's sign
+        and the shares of a draw sum to its net over absolute effect. A draw in which every path
+        has zero effect has no shares. The table gives pathway length, sign, share of draws
+        containing every link of the path, sign frequencies, the mean, standard deviation and
+        5th, 25th, 50th, 75th and 95th percentiles of the share over draws with shares, the
+        share of those draws in which the path has the largest absolute effect (Dominant),
+        and the share of draws without shares (Undefined), sorted by mean absolute share.
+        With draws=True, the table gives the draw's index in the stable simulations, the bit
+        mask of its present uncertain interactions (Structure), the path, whether every link
+        of the path is present, and the path's effect and share.
 
     References:
         - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
@@ -542,15 +556,14 @@ def pathway_effects(
         ```python
         from qmm import pathway_effects, load_digraph
         pathway_effects(load_digraph("snowshoe_rp"), 'R', 'P', n_sim=1000)
-        #    Length       Path Sign  Present  Positive  Negative  Zero  5th percentile  Lower quartile  Median  Upper quartile  95th percentile
-        # 0       2  (R, C, P)    +      1.0       1.0       0.0   0.0             1.0             1.0     1.0             1.0              1.0
-        # 1       1     (R, P)    +      1.0       0.0       0.0   1.0             0.0             0.0     0.0             0.0              0.0
+        #    Length       Path Sign  Present  Positive  Negative  Zero  Mean  Standard deviation  5th percentile  Lower quartile  Median  Upper quartile  95th percentile  Dominant  Undefined
+        # 0       2  (R, C, P)    +      1.0       1.0       0.0   0.0   1.0                 0.0             1.0             1.0     1.0             1.0              1.0       1.0        0.0
+        # 1       1     (R, P)    +      1.0       0.0       0.0   1.0   0.0                 0.0             0.0             0.0     0.0             0.0              0.0       0.0        0.0
         ```
     """
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
-        return pd.DataFrame(columns=["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero",
-                                     "5th percentile", "Lower quartile", "Median", "Upper quartile", "95th percentile"])
+        return pd.DataFrame(columns=_DRAW_COLUMNS if draws else _PATHWAY_COLUMNS)
     path_nodes, terms, sims = _simulate_pathway_effects(G, source, target, n_sim, dist, seed, uncertain_interactions, pair_reciprocal, observe, sims)
     groups = {edge: i for i, group in enumerate(sims["interactions"]) for edge in group}
     structures = np.array(sims["structures"], dtype=object)
@@ -558,6 +571,7 @@ def pathway_effects(
     for j, path in enumerate(path_nodes):
         bits = sum(1 << groups[edge] for edge in zip(path, path[1:]) if edge in groups)
         present[:, j] = (structures & bits) == bits
+    index = np.arange(len(terms))
     if observe:
         effects = np.asarray(sims["effects"])
         if effects.ndim != 2:
@@ -568,15 +582,37 @@ def pathway_effects(
         if unknown:
             raise ValueError(f"Unknown observation node(s): {unknown}. Valid response nodes: {responders}")
         mask = np.all([np.sign(effects[:, responders.index(node)]) == sign for node, sign in observed], axis=0)
-        terms, present = terms[mask], present[mask]
+        terms, present, index = terms[mask], present[mask], index[mask]
     if not len(terms):
         raise ValueError("No simulations match observe.")
     size = np.abs(terms)
-    tiny = np.finfo(float).tiny
+    total = size.sum(axis=1)
+    defined = total > 0
+    shares = np.full(terms.shape, np.nan)
+    shares[defined] = terms[defined] / total[defined, None]
+    if draws:
+        n_paths = len(path_nodes)
+        return pd.DataFrame(
+            {
+                "Draw": np.repeat(index, n_paths),
+                "Structure": np.repeat(structures[index], n_paths),
+                "Path": [tuple(path) for path in path_nodes] * len(terms),
+                "Present": present.ravel(),
+                "Effect": terms.ravel(),
+                "Share": shares.ravel(),
+            }
+        )
     signs = np.sign(terms)
-    total = size.sum(axis=1, keepdims=True)
-    shares = np.where(total > 0, size / np.maximum(total, tiny), 0.0)
-    p5, lower, median, upper, p95 = np.percentile(shares, [5, 25, 50, 75, 95], axis=0)
+    defined_shares = shares[defined]
+    n_defined = len(defined_shares)
+    if n_defined:
+        quantiles = np.percentile(defined_shares, [5, 25, 50, 75, 95], axis=0)
+        mean, magnitude = defined_shares.mean(axis=0), np.abs(defined_shares).mean(axis=0)
+        dominant = np.bincount(size[defined].argmax(axis=1), minlength=len(path_nodes)) / n_defined
+    else:
+        quantiles = np.full((5, len(path_nodes)), np.nan)
+        mean = magnitude = dominant = np.full(len(path_nodes), np.nan)
+    sd = defined_shares.std(axis=0, ddof=1) if n_defined > 1 else np.full(len(path_nodes), np.nan)
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in path_nodes],
@@ -586,11 +622,16 @@ def pathway_effects(
             "Positive": (signs > 0).mean(axis=0),
             "Negative": (signs < 0).mean(axis=0),
             "Zero": (signs == 0).mean(axis=0),
-            "5th percentile": p5,
-            "Lower quartile": lower,
-            "Median": median,
-            "Upper quartile": upper,
-            "95th percentile": p95,
+            "Mean": mean,
+            "Standard deviation": sd,
+            "5th percentile": quantiles[0],
+            "Lower quartile": quantiles[1],
+            "Median": quantiles[2],
+            "Upper quartile": quantiles[3],
+            "95th percentile": quantiles[4],
+            "Dominant": dominant,
+            "Undefined": 1 - n_defined / len(terms),
         }
     )
-    return paths_df.sort_values("Median", ascending=False, kind="stable").reset_index(drop=True)
+    order = np.argsort(-np.nan_to_num(magnitude), kind="stable")
+    return paths_df.iloc[order].reset_index(drop=True)

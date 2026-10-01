@@ -530,7 +530,8 @@ def pathway_effects(
 
     Returns:
         pd.DataFrame: Pathway length, sign, share of draws containing every link of the path,
-        sign frequencies and contribution
+        sign frequencies, and the 5th, 25th, 50th, 75th and 95th percentiles of the path's
+        share of the total absolute pathway effect, sorted by the median
 
     References:
         - Levins, R. (1974). The qualitative analysis of partially specified systems. Annals of the New York Academy of Sciences 231, 123–138.
@@ -541,14 +542,15 @@ def pathway_effects(
         ```python
         from qmm import pathway_effects, load_digraph
         pathway_effects(load_digraph("snowshoe_rp"), 'R', 'P', n_sim=1000)
-        #    Length       Path Sign  Present  Positive  Negative  Zero  Contribution
-        # 0       2  (R, C, P)    +      1.0       1.0       0.0   0.0           1.0
-        # 1       1     (R, P)    +      1.0       0.0       0.0   1.0           0.0
+        #    Length       Path Sign  Present  Positive  Negative  Zero  5th percentile  Lower quartile  Median  Upper quartile  95th percentile
+        # 0       2  (R, C, P)    +      1.0       1.0       0.0   0.0             1.0             1.0     1.0             1.0              1.0
+        # 1       1     (R, P)    +      1.0       0.0       0.0   1.0             0.0             0.0     0.0             0.0              0.0
         ```
     """
     _check_source_target(G, source, target)
     if not nx.has_path(G, source, target):
-        return pd.DataFrame(columns=["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"])
+        return pd.DataFrame(columns=["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero",
+                                     "5th percentile", "Lower quartile", "Median", "Upper quartile", "95th percentile"])
     path_nodes, terms, sims = _simulate_pathway_effects(G, source, target, n_sim, dist, seed, uncertain_interactions, pair_reciprocal, observe, sims)
     groups = {edge: i for i, group in enumerate(sims["interactions"]) for edge in group}
     structures = np.array(sims["structures"], dtype=object)
@@ -573,7 +575,8 @@ def pathway_effects(
     tiny = np.finfo(float).tiny
     signs = np.sign(terms)
     total = size.sum(axis=1, keepdims=True)
-    contribution = np.where(total > 0, size / np.maximum(total, tiny), 0.0).mean(axis=0)
+    shares = np.where(total > 0, size / np.maximum(total, tiny), 0.0)
+    p5, lower, median, upper, p95 = np.percentile(shares, [5, 25, 50, 75, 95], axis=0)
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in path_nodes],
@@ -583,7 +586,11 @@ def pathway_effects(
             "Positive": (signs > 0).mean(axis=0),
             "Negative": (signs < 0).mean(axis=0),
             "Zero": (signs == 0).mean(axis=0),
-            "Contribution": contribution,
+            "5th percentile": p5,
+            "Lower quartile": lower,
+            "Median": median,
+            "Upper quartile": upper,
+            "95th percentile": p95,
         }
     )
-    return paths_df.sort_values("Contribution", ascending=False, kind="stable").reset_index(drop=True)
+    return paths_df.sort_values("Median", ascending=False, kind="stable").reset_index(drop=True)

@@ -513,16 +513,26 @@ def test_simulate_pathway_effects_direct_term_equals_d_snowshoe_io_with_direct_e
 
 def test_pathway_effects_table_inp1_out1_snowshoe_io(snowshoe_io):
     result = pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=300, seed=1)
-    expected_cols = ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"]
+    expected_cols = ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero",
+                     "5th percentile", "Lower quartile", "Median", "Upper quartile", "95th percentile"]
     assert list(result.columns) == expected_cols
     assert len(result) == 4
-    assert result["Contribution"].sum() == pytest.approx(1.0)
-    assert result["Contribution"].is_monotonic_decreasing
+    assert result["Median"].is_monotonic_decreasing
     assert (result["Positive"] + result["Negative"] + result["Zero"]).tolist() == pytest.approx([1.0] * 4)
     assert set(result["Sign"]) == {"+", "\u2212"}
     for _, row in result.iterrows():
         dominant = row["Positive"] if row["Sign"] == "+" else row["Negative"]
         assert dominant == 1.0
+
+
+def test_pathway_effects_share_percentiles_inp1_out1_snowshoe_io(snowshoe_io):
+    paths, terms, _ = _simulate_pathway_effects(snowshoe_io, "Inp1", "Out1", 300, "uniform", 1, "sample", True)
+    table = pathway_effects(snowshoe_io, "Inp1", "Out1", n_sim=300, seed=1).set_index("Path")
+    columns = ["5th percentile", "Lower quartile", "Median", "Upper quartile", "95th percentile"]
+    result = table.loc[[tuple(path) for path in paths], columns].to_numpy()
+    shares = np.abs(terms) / np.abs(terms).sum(axis=1, keepdims=True)
+    expected = np.percentile(shares, [5, 25, 50, 75, 95], axis=0).T
+    assert np.allclose(result, expected)
 
 
 def test_pathway_effects_self_response_snowshoe(snowshoe):
@@ -532,7 +542,7 @@ def test_pathway_effects_self_response_snowshoe(snowshoe):
         len(result),
         result.loc[0, "Length"],
         result.loc[0, "Path"],
-        result.loc[0, "Contribution"],
+        result.loc[0, "Median"],
         result.loc[0, "Positive"],
     ) == expected
 
@@ -542,7 +552,6 @@ def test_pathway_effects_sample_snowshoe_dashed(snowshoe_dashed):
     direct = result[result["Length"] == 1].iloc[0]
     assert direct["Zero"] > 0.2
     assert direct["Positive"] + direct["Zero"] == pytest.approx(1.0)
-    assert result["Contribution"].sum() == pytest.approx(1.0)
 
 
 def test_pathway_effects_rejects_invalid_target(snowshoe):
@@ -563,7 +572,9 @@ def test_pathway_effects_rejects_input_target(snowshoe_io):
 def test_pathway_effects_direct_edge_snowshoe_io_with_direct_edge(snowshoe_io_with_direct_edge):
     table = pathway_effects(snowshoe_io_with_direct_edge, "Inp1", "Out1", n_sim=300, seed=1)
     result = table[table["Length"] == 1].values.tolist()
-    expected = [[1, ("Inp1", "Out1"), "+", 1.0, 1.0, 0.0, 0.0, pytest.approx(0.339999, abs=1e-6)]]
+    expected = [[1, ("Inp1", "Out1"), "+", 1.0, 1.0, 0.0, 0.0,
+                 pytest.approx(0.018715, abs=1e-6), pytest.approx(0.131905, abs=1e-6), pytest.approx(0.327411, abs=1e-6),
+                 pytest.approx(0.493904, abs=1e-6), pytest.approx(0.758446, abs=1e-6)]]
     assert result == expected
 
 
@@ -578,9 +589,8 @@ def test_pathway_effects_observe_raises_positive_share_snowshoe_io(snowshoe_io):
     kwargs = dict(source="Inp1", target="Out1", n_sim=400, seed=1)
     prior = pathway_effects(snowshoe_io, **kwargs)
     posterior = pathway_effects(snowshoe_io, observe="Out1:+", **kwargs)
-    prior_pos = prior.loc[prior["Sign"] == "+", "Contribution"].sum()
-    posterior_pos = posterior.loc[posterior["Sign"] == "+", "Contribution"].sum()
-    assert posterior["Contribution"].sum() == pytest.approx(1.0)
+    prior_pos = prior.loc[prior["Sign"] == "+", "Median"].sum()
+    posterior_pos = posterior.loc[posterior["Sign"] == "+", "Median"].sum()
     assert posterior_pos > prior_pos
 
 
@@ -606,7 +616,8 @@ def test_cycles_table_returns_fresh_objects(snowshoe_io):
 def test_pathway_effects_no_path_returns_empty_table(self_limited_pair):
     G = self_limited_pair
     result = pathway_effects(G, "A", "B", n_sim=10)
-    assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero", "Contribution"]
+    assert result.empty and list(result.columns) == ["Length", "Path", "Sign", "Present", "Positive", "Negative", "Zero",
+                                                     "5th percentile", "Lower quartile", "Median", "Upper quartile", "95th percentile"]
 
 
 def test_pathway_effects_follows_graph_edits(self_limited_pair):
@@ -650,7 +661,7 @@ def test_pathway_effects_sims_link_fixed_to_zero_present(self_limited_pair):
     G.add_edge("A", "B", sign=1)
     sims = get_simulations(G, n_sim=5, seed=1, perturb=("A", 1), return_samples=True,
                            presample=lambda symbols: {sp.Symbol("a_B,A"): 0})
-    result = pathway_effects(G, "A", "B", sims=sims).loc[0, ["Present", "Zero", "Contribution"]].tolist()
+    result = pathway_effects(G, "A", "B", sims=sims).loc[0, ["Present", "Zero", "Median"]].tolist()
     expected = [1.0, 1.0, 0.0]
     assert result == expected
 
@@ -854,14 +865,14 @@ def test_pathway_effects_present_with_64_uncertain_interactions():
 
 def test_pathway_effects_present_without_complementary_feedback_snowshoe_rp(snowshoe_rp):
     table = pathway_effects(snowshoe_rp, "R", "P", n_sim=50, seed=1)
-    result = table.loc[table["Length"] == 1, ["Present", "Zero", "Contribution"]].values.tolist()
+    result = table.loc[table["Length"] == 1, ["Present", "Zero", "Median"]].values.tolist()
     expected = [[1.0, 1.0, 0.0]]
     assert result == expected
 
 
 def test_pathway_effects_structurally_zero_response_singular_complement(singular_complement):
     table = pathway_effects(singular_complement, "S", "S", n_sim=200, seed=1)
-    result = table.loc[0, ["Positive", "Negative", "Zero", "Contribution"]].tolist()
+    result = table.loc[0, ["Positive", "Negative", "Zero", "Median"]].tolist()
     expected = [0.0, 0.0, 1.0, 0.0]
     assert result == expected
 
@@ -891,4 +902,3 @@ def test_pathway_effects_enumerate_snowshoe_dashed(snowshoe_dashed):
     direct = result[result["Length"] == 1].iloc[0]
     assert direct["Zero"] == 0.75
     assert direct["Present"] == 0.5
-    assert result["Contribution"].sum() == pytest.approx(1.0)

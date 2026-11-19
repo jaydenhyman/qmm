@@ -5,7 +5,7 @@ import numpy as np
 import pytest
 import sympy as sp
 
-from qmm.core.helper import _edge_prefix, get_nodes, get_weight, load_digraph
+from qmm.core.helper import _edge_symbol_name, get_nodes, get_weight, load_digraph
 from qmm.core.press import (
     absolute_feedback_matrix,
     adjoint_matrix,
@@ -13,11 +13,11 @@ from qmm.core.press import (
     weighted_predictions_matrix,
 )
 from qmm.core.stability import absolute_feedback, net_feedback, system_feedback
-from qmm.core.structure import create_matrix
+from qmm.core.structure import create_matrix, define_input_output, edges_table
 from qmm.extensions.effects import cumulative_effects, direct_effects, get_simulations
 from qmm.extensions.indicators import mutual_information
 from qmm.extensions.life import birth_matrix, death_matrix, life_expectancy_change
-from qmm.extensions.paths import complementary_feedback, system_paths, weighted_paths
+from qmm.extensions.paths import complementary_feedback, get_paths, pathway_effects, system_paths, weighted_paths
 from qmm.extensions.senstability import (
     absolute_structural_sensitivity,
     net_structural_sensitivity,
@@ -34,9 +34,9 @@ def io_and_state_model(request):
     H.add_nodes_from((node, {**data, "category": "state"}) for node, data in G.nodes(data=True))
     H.add_edges_from(G.edges(data=True))
     H.add_edges_from((node, node, {"sign": -1}) for node in get_nodes(G, "input") + get_nodes(G, "output"))
-    symbols = {sp.Symbol(f"a_{v},{u}"): sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")
-               for u, v in G.edges() if _edge_prefix(G, u, v) != "a"}
-    symbols.update({sp.Symbol(f"a_{node},{node}"): sp.Integer(1)
+    symbols = {sp.Symbol(_edge_symbol_name(H, u, v)): sp.Symbol(_edge_symbol_name(G, u, v))
+               for u, v in G.edges()}
+    symbols.update({sp.Symbol(_edge_symbol_name(H, node, node)): sp.Integer(1)
                     for node in get_nodes(G, "input") + get_nodes(G, "output")})
     return G, H, symbols
 
@@ -44,6 +44,56 @@ def io_and_state_model(request):
 # =============================================================================
 # effects and structure: inputs and outputs as self-limited states
 # =============================================================================
+
+def test_edge_strengths_remain_independent_across_mimo_paths_and_draws():
+    graph = nx.DiGraph()
+    graph.add_nodes_from(["x", "x,v", "v,a", "a", "v@ca", "y", "z"])
+    graph.add_edges_from([("x", "x"), ("x,v", "x,v")], sign=-1)
+    graph.add_edges_from([("a", "x,v"), ("v@ca", "x"), ("x", "y"), ("x,v", "z"), ("v,a", "y")], sign=1)
+    graph.add_edge("v,a", "x", sign=1, dashes=True)
+    graph = define_input_output(graph)
+
+    # The first two edges both used to be b_x,v,a. The third contains a literal escape.
+    dashed, separate, literal = map(sp.Symbol, ("b_x,v@ca", "b_x@cv,a", "b_x,v@@ca"))
+    assert create_matrix(graph, matrix_type="B") == sp.Matrix([[dashed, 0, literal], [0, separate, 0]])
+    assert {r.Edge for r in edges_table(graph).itertuples() if r.Edge.startswith("$b_")} == {
+        "$b_{x,v@ca}$", "$b_{x@cv,a}$", "$b_{x,v@@ca}$"
+    }
+    assert get_paths(graph, "v,a", "x")["Product"].tolist() == [dashed]
+
+    def strengths(symbols):
+        values = {dashed: 2, separate: 3, literal: 5}
+        return {symbol: values.get(symbol, 1) for symbol in symbols}
+
+    sims = get_simulations(graph, n_sim=1, presample=strengths, return_samples=True,
+                           uncertain_interactions="enumerate")
+    assert sims["structures"] == [0, 1]
+    np.testing.assert_array_equal(sims["samples"][str(dashed)], [0, 2])
+    np.testing.assert_array_equal(sims["samples"][str(separate)], [3, 3])
+    np.testing.assert_array_equal(sims["samples"][str(literal)], [5, 5])
+    for keep, effect in zip(sims["structures"], sims["effects"]):
+        np.testing.assert_array_equal(effect[2:, 2:], [[1 + 2 * keep, 0, 5], [0, 3, 0]])
+    paths = pathway_effects(graph, "v,a", "y", sims=sims, draws=True)
+    assert paths.groupby("Structure")["Effect"].sum().tolist() == [1, 3]
+
+
+def test_edge_symbols_distinguish_integer_and_string_node_ids():
+    graph = nx.DiGraph()
+    graph.add_edge("x", "x", sign=-1)
+    graph.add_edge(1, "x", sign=1)
+    graph.add_edge("1", "x", sign=-1)
+    graph.add_edge(2, 2, sign=-1)
+    graph.add_edge("2", 2, sign=1)
+    graph = define_input_output(graph)
+    B = create_matrix(graph, matrix_type="B")
+    integer_edge, string_edge = B[0, 0], B[0, 1]
+    assert integer_edge != -string_edge
+    assert string_edge == -sp.Symbol("b_x,1")
+    assert get_paths(graph, 1, "x")["Product"].tolist() == [integer_edge]
+    assert get_paths(graph, "1", "x")["Product"].tolist() == [string_edge]
+    # The complement contains state 2, whose string namesake "2" is external.
+    assert system_paths(graph, "1", "x")["Effect"].sum() == cumulative_effects(graph)[0, 3]
+
 
 @pytest.mark.parametrize("io_and_state_model, form", [
     ("snowshoe_io", "symbolic"),

@@ -6,7 +6,7 @@ import networkx as nx
 import sympy as sp
 from typing import Optional, Literal, Tuple
 from ..core.structure import create_matrix
-from ..core.stability import system_feedback, net_feedback, absolute_feedback, weighted_feedback, _has_cycle_cover
+from ..core.stability import _has_cycle_cover
 from ..core.helper import (
     get_nodes,
     get_positive,
@@ -14,7 +14,8 @@ from ..core.helper import (
     get_weight,
     _sign_string,
     _arrows,
-    _edge_prefix,
+    _edge_symbol_name,
+    perm,
     _parse_observations,
 )
 from .effects import get_simulations
@@ -118,6 +119,73 @@ def cycles_table(G: nx.DiGraph, labels: bool = False) -> pd.DataFrame:
     )
     return cycles_df
 
+def _paths(G, source, target):
+    _check_source_target(G, source, target)
+    if source == target:
+        return [[source]]
+    if not nx.has_path(G, source, target):
+        return []
+    return list(nx.all_simple_paths(G, source, target))
+
+
+def _path_product(G, path, form):
+    product = sp.Integer(1)
+    if form != "binary":
+        for u, v in zip(path, path[1:]):
+            sign = G[u][v].get("sign", 1)
+            if form == "signed":
+                product *= sp.Integer(sign)
+            else:
+                product *= sign * sp.Symbol(_edge_symbol_name(G, u, v))
+    return product
+
+
+def _state_complements(G, paths, form):
+    """Build the state matrix once and identify the principal submatrix for each path."""
+    states = get_nodes(G, "state")
+    complements = []
+    for path in paths:
+        visited = set(path)
+        complements.append(tuple(i for i, node in enumerate(states) if node not in visited))
+    # Path calculations historically ignore unclassified nodes outside the state subsystem.
+    # Keep the full graph for ordinary models so edge symbols use the shared node identities.
+    if get_nodes(G, "invalid"):
+        G = nx.subgraph_view(G, filter_node=set(states).__contains__)
+    A = create_matrix(G, form=form)
+    return states, complements, A
+
+
+def _principal_feedback(A, complements, binary=False):
+    """The signed feedback is -det(-A) on the complement; its unsigned count is per(|A|)."""
+    unique = dict.fromkeys(complements)
+    if binary:
+        unsigned = np.abs(np.asarray(A, dtype=int))
+        values = {indices: sp.Integer(perm(unsigned[np.ix_(indices, indices)])) for indices in unique}
+    else:
+        minus_A = -A
+        values = {indices: -sp.expand_mul(minus_A.extract(indices, indices).det(method="domain-ge"))
+                  for indices in unique}
+    return [values[indices] for indices in complements]
+
+
+def _feedback_for_paths(G, paths, form):
+    if form not in ("symbolic", "signed", "binary"):
+        raise ValueError("Invalid form. Choose 'symbolic', 'signed', or 'binary'.")
+    if not paths:
+        return []
+    _, complements, A = _state_complements(G, paths, "signed" if form == "binary" else form)
+    return _principal_feedback(A, complements, binary=form == "binary")
+
+
+def _signed_path_terms(G, paths):
+    states, complements, A = _state_complements(G, paths, "signed")
+    signs = [_path_product(G, path, "signed") for path in paths]
+    net = sp.Matrix(_principal_feedback(A, complements))
+    absolute = sp.Matrix(_principal_feedback(A, complements, binary=True))
+    weights = get_weight(net, absolute, sp.Integer(0))
+    return states, complements, signs, net, absolute, weights
+
+
 def get_paths(
     G: nx.DiGraph,
     source: str,
@@ -158,27 +226,12 @@ def get_paths(
         # 3        (Inp1, C, Out1)       1
         ```
     """
-    _check_source_target(G, source, target)
-    if source == target:
-        return pd.DataFrame({"Path": [(source,)], "Product": [sp.Integer(1)]})
-    if not nx.has_path(G, source, target):
+    paths = _paths(G, source, target)
+    if not paths:
         return pd.DataFrame(columns=["Path", "Product"])
-    path_nodes = list(nx.all_simple_paths(G, source, target))
-    products = []
-    for p in path_nodes:
-        if form == "binary":
-            products.append(sp.Integer(1))
-            continue
-        effect = sp.Integer(1)
-        for i in range(len(p) - 1):
-            u, v = p[i], p[i + 1]
-            s = G[u][v].get("sign", 1)
-            if form == "signed":
-                effect *= sp.Integer(s)
-            else:
-                effect *= sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}") * s
-        products.append(effect)
-    return pd.DataFrame({"Path": [tuple(p) for p in path_nodes], "Product": products})
+    return pd.DataFrame({"Path": [tuple(path) for path in paths],
+                         "Product": [_path_product(G, path, form) for path in paths]})
+
 
 def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -> pd.DataFrame:
     """Tabulate the causal pathways between two nodes.
@@ -211,10 +264,9 @@ def paths_table(G: nx.DiGraph, source: str, target: str, labels: bool = False) -
         # 3       2                                      Inp1 $\\multimap$ C $\\multimap$ Out1    +
         ```
     """
-    _check_source_target(G, source, target)
-    if not nx.has_path(G, source, target):
+    paths = _paths(G, source, target)
+    if not paths:
         return pd.DataFrame(columns=["Length", "Path", "Sign"])
-    paths = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in paths],
@@ -257,32 +309,10 @@ def complementary_feedback(
         # 3        (Inp1, C, Out1)  -a_P,P*a_R,R
         ```
     """
-    _check_source_target(G, source, target)
-    state_nodes = get_nodes(G, "state")
-    feedback_funcs = {"symbolic": system_feedback, "signed": net_feedback, "binary": absolute_feedback}
-    if form not in feedback_funcs:
-        raise ValueError("Invalid form. Choose 'symbolic', 'signed', or 'binary'.")
-    if source == target:
-        paths = [[source]]
-    elif not nx.has_path(G, source, target):
-        return pd.DataFrame(columns=["Path", "Feedback"])
-    else:
-        paths = list(nx.all_simple_paths(G, source, target))
+    paths = _paths(G, source, target)
+    feedback = _feedback_for_paths(G, paths, form)
+    return pd.DataFrame(zip(map(tuple, paths), feedback), columns=["Path", "Feedback"])
 
-    feedback = []
-    for path in paths:
-        subsystem_nodes = [n for n in state_nodes if n not in path]
-        if not subsystem_nodes:
-            feedback.append(sp.Integer(1) if form == "binary" else sp.Integer(-1))
-        else:
-            subsystem = G.subgraph(subsystem_nodes).copy()
-            feedback.append(feedback_funcs[form](subsystem, level=len(subsystem_nodes))[0])
-    return pd.DataFrame(
-        {
-            "Path": [tuple(p) for p in paths],
-            "Feedback": [sp.expand_mul(f) for f in feedback],
-        }
-    )
 
 def system_paths(
     G: nx.DiGraph,
@@ -317,20 +347,13 @@ def system_paths(
         # 3        (Inp1, C, Out1)   a_P,P*a_R,R*b_C,Inp1*c_Out1,C
         ```
     """
-    path = get_paths(G, source, target, form=form)
-    feedback = complementary_feedback(G, source, target, form=form)
-    path_m = sp.Matrix(path["Product"].tolist())
-    feedback_m = sp.Matrix(feedback["Feedback"].tolist())
-    if form == "binary":
-        effect = path_m.multiply_elementwise(feedback_m)
-    else:
-        effect = path_m.multiply_elementwise(feedback_m) / sp.Integer(-1)
-    return pd.DataFrame(
-        {
-            "Path": list(path["Path"]),
-            "Effect": [sp.expand_mul(e) for e in effect],
-        }
-    )
+    paths = _paths(G, source, target)
+    feedback = _feedback_for_paths(G, paths, form)
+    effects = feedback if form == "binary" else [
+        sp.expand_mul(-_path_product(G, path, form) * value) for path, value in zip(paths, feedback)
+    ]
+    return pd.DataFrame({"Path": [tuple(path) for path in paths], "Effect": effects})
+
 
 def weighted_paths(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     """Calculate ratio of net to total path effects.
@@ -354,25 +377,13 @@ def weighted_paths(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         # 3        (Inp1, C, Out1)      1
         ```
     """
-    _check_source_target(G, source, target)
-    state_nodes = get_nodes(G, "state")
-    path_nodes = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
-    wgt_effects = []
-    for path in path_nodes:
-        subsystem_nodes = [n for n in state_nodes if n not in path]
-        if not subsystem_nodes:
-            feedback = sp.Integer(-1)
-        else:
-            subsystem = G.subgraph(subsystem_nodes).copy()
-            feedback = weighted_feedback(subsystem, level=len(subsystem_nodes))[0]
-            if feedback == sp.nan:
-                feedback = sp.Integer(0)
-        sign = 1
-        for i in range(len(path) - 1):
-            sign *= G[path[i]][path[i + 1]].get('sign', 1)
-        wgt_effect = sp.Integer(-1) * sign * feedback
-        wgt_effects.append(wgt_effect)
-    return pd.DataFrame({"Path": [tuple(p) for p in path_nodes], "Weight": wgt_effects})
+    paths = _paths(G, source, target)
+    if not paths:
+        return pd.DataFrame({"Path": [], "Weight": []})
+    _, _, signs, _, _, weights = _signed_path_terms(G, paths)
+    return pd.DataFrame({"Path": [tuple(path) for path in paths],
+                         "Weight": [-sign * weight for sign, weight in zip(signs, weights)]})
+
 
 def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
     """Calculate comprehensive metrics for paths between nodes.
@@ -396,28 +407,20 @@ def path_metrics(G: nx.DiGraph, source: str, target: str) -> pd.DataFrame:
         # 3       2        (Inp1, C, Out1)    +                 (R, P)           -1                 1                 0                 1                -1             1           1
         ```
     """
-    _check_source_target(G, source, target)
-    state_nodes = get_nodes(G, "state")
-    if not nx.has_path(G, source, target):
+    paths = _paths(G, source, target)
+    if not paths:
         return pd.DataFrame(columns=["Length", "Path", "Sign", "Complementary subsystem", "Net feedback", "Absolute feedback",
                                      "Positive feedback", "Negative feedback", "Weighted feedback", "Weighted path", "System path"])
-    net_fb = complementary_feedback(G, source=source, target=target, form="signed")
-    absolute_fb = complementary_feedback(G, source=source, target=target, form="binary")
-    path_signs = get_paths(G, source=source, target=target, form="signed")["Product"]
-    paths = list(net_fb["Path"])
-    subsystem_nodes = [[n for n in state_nodes if n not in set(path)] for path in paths]
-    net_m = sp.Matrix(net_fb["Feedback"].tolist())
-    abs_m = sp.Matrix(absolute_fb["Feedback"].tolist())
-    weighted_fb = get_weight(net_m, abs_m, sp.Integer(0))
+    states, complements, path_signs, net_m, abs_m, weighted_fb = _signed_path_terms(G, paths)
     positive_fb = get_positive(net_m, abs_m)
     negative_fb = get_negative(net_m, abs_m)
     n = len(paths)
     paths_df = pd.DataFrame(
         {
             "Length": [len(path) - 1 for path in paths],
-            "Path": paths,
+            "Path": [tuple(path) for path in paths],
             "Sign": ["+" if sign == 1 else "−" for sign in path_signs],
-            "Complementary subsystem": [tuple(nodes) for nodes in subsystem_nodes],
+            "Complementary subsystem": [tuple(states[i] for i in indices) for indices in complements],
             "Net feedback": [net_m[i] for i in range(n)],
             "Absolute feedback": [abs_m[i] for i in range(n)],
             "Positive feedback": [positive_fb[i] for i in range(n)],
@@ -446,9 +449,8 @@ def _simulate_pathway_effects(
     sims: Optional[dict] = None,
 ) -> Tuple[list, np.ndarray, dict]:
     """Pathways from source to target and their effect in each stable simulation."""
-    _check_source_target(G, source, target)
+    path_nodes = _paths(G, source, target)
     state_nodes = get_nodes(G, "state")
-    path_nodes = [[source]] if source == target else list(nx.all_simple_paths(G, source, target))
     if sims is None:
         sims = get_simulations(
             G,
@@ -483,13 +485,13 @@ def _simulate_pathway_effects(
     A = np.zeros((n_stable, len(state_nodes), len(state_nodes)))
     for u, v in G.edges():
         if u in node_id and v in node_id:
-            A[:, node_id[v], node_id[u]] = G[u][v].get("sign", 1) * samples[f"{_edge_prefix(G, u, v)}_{v},{u}"]
+            A[:, node_id[v], node_id[u]] = G[u][v].get("sign", 1) * samples[_edge_symbol_name(G, u, v)]
     det_system = np.linalg.det(-A)
     terms = np.empty((n_stable, len(path_nodes)))
     for j, path in enumerate(path_nodes):
         product = np.ones(n_stable)
         for u, v in zip(path, path[1:]):
-            product = product * G[u][v].get("sign", 1) * samples[f"{_edge_prefix(G, u, v)}_{v},{u}"]
+            product = product * G[u][v].get("sign", 1) * samples[_edge_symbol_name(G, u, v)]
         complement = [node_id[n] for n in state_nodes if n not in path]
         block = -A[:, complement][:, :, complement]
         det_complement = np.linalg.det(block)

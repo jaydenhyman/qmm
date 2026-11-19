@@ -3,7 +3,7 @@
 import numpy as np
 import sympy as sp
 import networkx as nx
-from typing import List, Union, Dict, Any, Optional, Tuple, Literal
+from typing import List, Union, Dict, Any, Hashable, Optional, Tuple, Literal
 
 def list_to_digraph(matrix: Union[List[List[int]], np.ndarray], ids: Optional[List[str]] = None) -> nx.DiGraph:
     """Convert an adjacency matrix to a directed graph.
@@ -424,12 +424,28 @@ def _check_signs(G: nx.DiGraph) -> None:
         raise ValueError(f"Edge signs must be +1 or -1: {bad}")
 
 
-def _edge_prefix(G: nx.DiGraph, source: str, target: str) -> str:
-    """Edge symbol prefix d/b/c/a by endpoint category; shared so create_matrix,
-    edges_table and get_paths always agree."""
+def _edge_prefix(G: nx.DiGraph, source: Hashable, target: Hashable) -> str:
+    """Edge symbol prefix d/b/c/a by endpoint category."""
     src_in = G.nodes[source].get("category", "state") == "input"
     tgt_out = G.nodes[target].get("category", "state") == "output"
     return "d" if src_in and tgt_out else "b" if src_in else "c" if tgt_out else "a"
+
+
+def _edge_index(G: nx.DiGraph, node: Hashable) -> str:
+    """Encode one endpoint so the only unescaped comma separates the two indices."""
+    name = str(node)
+    index = name.replace("@", "@@").replace(",", "@c")
+    if not isinstance(node, str):
+        # NetworkX can distinguish, for example, the integer 1 from the string "1".
+        peers = [n for n in G if not isinstance(n, str) and str(n) == name]
+        if name in G or len(peers) > 1:
+            return f"{index}@n{peers.index(node)}"
+    return index
+
+
+def _edge_symbol_name(G: nx.DiGraph, source: Hashable, target: Hashable) -> str:
+    """Unique coefficient name in receiving-row, transmitting-column order."""
+    return f"{_edge_prefix(G, source, target)}_{_edge_index(G, target)},{_edge_index(G, source)}"
 
 
 def perm(A: np.ndarray, source: Optional[int] = None, levels: bool = False) -> Union[int, float, List]:

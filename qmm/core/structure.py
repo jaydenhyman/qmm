@@ -7,7 +7,7 @@ from typing import Union, List, Dict, Tuple, Literal
 import networkx as nx
 import pandas as pd
 import sympy as sp
-from .helper import get_nodes, _edge_prefix, _check_signs
+from .helper import get_nodes, _edge_symbol_name, _check_signs
 
 
 def import_digraph(data: Union[str, dict]) -> nx.DiGraph:
@@ -153,6 +153,10 @@ def create_matrix(
 ) -> sp.Matrix:
     """Create an interaction matrix from a signed digraph in symbolic, signed, or binary form.
 
+    A symbolic coefficient lists its target first, then its source. Within a
+    node ID, `@c` encodes a comma and `@@` encodes a literal `@`. Distinct
+    non-string IDs with the same text as another ID receive an `@n` index.
+
     Args:
         G: NetworkX DiGraph representing a signed digraph model
         form: Type of matrix elements ('symbolic', 'signed', or 'binary')
@@ -196,7 +200,7 @@ def create_matrix(
 
     def sign(source: str, target: str) -> Union[sp.Symbol, int]:
         if form == "symbolic":
-            return sp.Symbol(f"{_edge_prefix(G, source, target)}_{target},{source}") * G[source][target].get("sign", 1)
+            return sp.Symbol(_edge_symbol_name(G, source, target)) * G[source][target].get("sign", 1)
         elif form == "signed":
             return G[source][target].get("sign", 1)
         else:
@@ -344,7 +348,7 @@ def edges_table(G: nx.DiGraph) -> pd.DataFrame:
     """
     rows = []
     for source, target, data in G.edges(data=True):
-        prefix = _edge_prefix(G, source, target)
+        prefix, indices = _edge_symbol_name(G, source, target).split("_", 1)
         sign_val = data.get("sign", 1)
         if sign_val == 1:
             sign_label = "+"
@@ -354,7 +358,7 @@ def edges_table(G: nx.DiGraph) -> pd.DataFrame:
             sign_label = str(sign_val)
         rows.append(
             {
-                "Edge": f"${prefix}_{{{target},{source}}}$",
+                "Edge": f"${prefix}_{{{indices}}}$",
                 "From": G.nodes[source].get("label", str(source)),
                 "Sign": sign_label,
                 "To": G.nodes[target].get("label", str(target)),

@@ -18,7 +18,7 @@ from ..core.helper import (
     _parse_perturbations,
     _parse_observations,
     get_dashed_alternatives,
-    _edge_prefix,
+    _edge_symbol_name,
     perm,
 )
 from ..core.structure import create_matrix, define_input_output
@@ -262,6 +262,9 @@ def get_simulations(
         observe: Optional (node, sign) pairs; signs are -1, 0 or 1. Zero matches only an exact
             zero response; cancellation under tied strengths is not treated as no effect.
         presample: Callable receiving coefficient symbols and returning substitutions.
+            For a saved strength dictionary keyed by name, look up each supplied
+            symbol using `str(symbol)`. For example, the edge from input `v,a`
+            to state `x` uses `b_x,v@ca`. A literal `@` is doubled in a node ID.
         return_samples: Include coefficient strengths for each stable draw.
         uncertain_interactions: 'sample' draws a probability uniformly from 0 to 1 for each attempt,
             then keeps each uncertain interaction independently with that probability.
@@ -347,7 +350,8 @@ def _simulate(
     if uncertain_interactions not in ("sample", "enumerate"):
         raise ValueError("uncertain_interactions must be 'sample' or 'enumerate'.")
     interactions = _group_uncertain_edges(G, pair_reciprocal)
-    uncertain_symbols = {sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}") for group in interactions for u, v in group}
+    group_symbols = [[sp.Symbol(_edge_symbol_name(G, u, v)) for u, v in group] for group in interactions]
+    uncertain_symbols = {symbol for group in group_symbols for symbol in group}
     matrix_subs = {}
 
     if presample and symbols_all and (subs := presample(symbols_all)):
@@ -418,8 +422,7 @@ def _simulate(
             effect = np.sum(effect * p_signs, axis=1)
         return effect if np.isfinite(effect).all() else None
 
-    group_idx = [[symbols_sampled.index(sp.Symbol(f"{_edge_prefix(G, u, v)}_{v},{u}")) for u, v in group]
-                 for group in interactions]
+    group_idx = [[symbols_sampled.index(symbol) for symbol in group] for group in group_symbols]
     base_cls = {n: d.get("category", "state") for n, d in G.nodes(data=True)}
     masks: Dict[int, np.ndarray] = {}
 

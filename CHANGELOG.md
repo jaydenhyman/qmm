@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.7.0
+
+Changes since 0.6.0:
+
+- Direct links from an input node to an output node are supported. `create_matrix(..., matrix_type="D")` is built from those links, including chains through other input and output nodes, instead of returning zeros or raising on a direct link.
+- `cumulative_effects` adds the feedthrough term `D·det(−A)` to the input-to-output block; in the binary form the term is `D` times the permanent of `A`.
+- `system_paths`, `weighted_paths`, `path_metrics` and `pathway_effects` accept models with direct input-to-output links instead of raising.
+- Simulations raise `ValueError` for a model with no state nodes.
+- `pathway_effects` reports each path's signed share of the pathway effect in place of the mean `Contribution`. A path's share in a draw is its effect divided by the sum of the absolute effects of every path in that draw. The table gives `Mean`, `Standard deviation`, `5th percentile`, `Lower quartile`, `Median`, `Upper quartile` and `95th percentile` of the share, `Dominant` (the share of draws in which the path has the largest absolute effect) and `Undefined` (the share of draws in which every path has zero effect, which have no shares), and is sorted by mean absolute share.
+- `pathway_effects(..., draws=True)` returns one row per draw and path with `Draw`, `Structure`, `Path`, `Present`, `Effect` and `Share`.
+- `pathway_effects` returns an empty table with the new columns when no path exists.
+- `qmm.__version__` gives the installed version.
+
+### Migration
+
+The `Contribution` column of `pathway_effects` is removed. `Mean` is not a rename: `Contribution` was the mean absolute share with zero-effect draws counted as zero, whereas `Mean` is signed and excludes those draws, which `Undefined` counts. Callers that need the absolute share can take it from the `Share` column with `draws=True`. Callers that relied on a `ValueError` from `create_matrix(..., matrix_type="D")`, `cumulative_effects` or the path functions to detect direct input-to-output links must check for those links themselves. For models with such links, `D` is no longer zero and the input-to-output block of `cumulative_effects` includes the feedthrough term. Simulating a model without state nodes now raises `ValueError`.
+
 ## 0.6.0
 
 Changes since 0.5.0:

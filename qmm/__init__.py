@@ -1,3 +1,10 @@
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("qmm-core")
+except PackageNotFoundError:  # source checkout that has not been installed
+    __version__ = "0.0.0+unknown"
+
 from .core.structure import (
     define_input_output,
     import_digraph,
@@ -114,6 +121,7 @@ def configure_pandas_display(max_columns=None, max_rows=None, max_colwidth=None,
 
 
 __all__ = [
+    "__version__",
     "define_input_output",
     "import_digraph",
     "nodes_table",

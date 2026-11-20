@@ -1,7 +1,7 @@
 # Qualitative Mathematical Modelling (QMM) in Python
 
 [![Status](https://img.shields.io/badge/Status-Active%20Development-yellow)]()
-[![Python Version](https://img.shields.io/badge/Python-3.9%2B-blue)](https://www.python.org/)
+[![Python Version](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 
 ![QMM Logo](logo.png)
 
@@ -27,7 +27,7 @@ Full documentation is available at **[jaydenhyman.github.io/qmm](https://jaydenh
 
 ## Licensing
 
-This project is licensed under the the BSD 3-Clause Licence and is **free** and **open source**.
+This project is licensed under the BSD 3-Clause Licence and is **free** and **open source**.
 
 ## Contact
 
